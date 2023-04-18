@@ -1,5 +1,6 @@
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
-import { CircuitBreakerConfig, CircuitBreaker } from './circut-break';
+import { CircuitBreakerConfig, CircuitBreaker } from '../circuit-breaker/circuit-break';
+import { CircuitBreakerFactory } from '../circuit-breaker/circuit-breaker.factory';
 
 interface RetryConfig {
   retries: number;
@@ -11,20 +12,14 @@ export class HttpClient {
   private retryConfig?: RetryConfig;
   private circuitBreakerConfig?: CircuitBreakerConfig;
   private circuitBreaker?: CircuitBreaker;
+  private baseURL: string;
 
   constructor(baseURL: string, axiosConfig: AxiosRequestConfig = {}) {
+    this.baseURL = baseURL;
     this.axiosInstance = axios.create({
       ...axiosConfig,
       baseURL,
     });
-  }
-
-  private static instance: HttpClient;
-  public static getInstance(baseURL: string, axiosConfig: AxiosRequestConfig = {}): HttpClient {
-    if (!HttpClient.instance) {
-      HttpClient.instance = new HttpClient(baseURL, axiosConfig);
-    }
-    return HttpClient.instance;
   }
 
   retry(retries: number, delayMs: number): this {
@@ -86,7 +81,7 @@ export class HttpClient {
     requestFn: () => Promise<AxiosResponse<T>>,
     circuitBreakerConfig: CircuitBreakerConfig,
   ): () => Promise<AxiosResponse<T> | any> {
-    this.circuitBreaker = CircuitBreaker.getInstance(this.axiosInstance, circuitBreakerConfig);
+    this.circuitBreaker = CircuitBreakerFactory.create(this.baseURL, this.axiosInstance, circuitBreakerConfig);
 
     return async () => {
       if (this.circuitBreaker?.isOpen) {

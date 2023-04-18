@@ -17,14 +17,6 @@ export class CircuitBreaker {
     private readonly circuitBreakerConfig: CircuitBreakerConfig,
   ) {}
 
-  private static instance: CircuitBreaker;
-  public static getInstance(axiosInstance: AxiosInstance, circuitBreakerConfig: CircuitBreakerConfig): CircuitBreaker {
-    if (!CircuitBreaker.instance) {
-      CircuitBreaker.instance = new CircuitBreaker(axiosInstance, circuitBreakerConfig);
-    }
-    return CircuitBreaker.instance;
-  }
-
   async execute<T>(fn: () => Promise<AxiosResponse<T>>): Promise<AxiosResponse<T>> {
     if (this.isOpen) {
       console.log('open');
