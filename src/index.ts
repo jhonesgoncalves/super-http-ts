@@ -1,4 +1,3 @@
-export { Uuid } from './helpers/uuid';
-import uuid from './helpers/uuid';
+export { HttpClientFactory } from './http-client/http.factory';
 
-export default uuid;
+//export default HttpClient;
