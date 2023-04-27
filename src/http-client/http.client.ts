@@ -1,6 +1,7 @@
-import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
+import axios, { AxiosInstance } from 'axios';
 import { CircuitBreakerConfig, CircuitBreaker } from '../circuit-breaker/circuit-break';
-import { CircuitBreakerFactory } from '../circuit-breaker/circuit-breaker.factory';
+import { HttpClientRequestConfig } from '../models/http.client.request.config';
+import { HttpClientResponse } from '../models/http.client.response';
 
 interface RetryConfig {
   retries: number;
@@ -12,13 +13,13 @@ export class HttpClient {
   private retryConfig?: RetryConfig;
   private circuitBreakerConfig?: CircuitBreakerConfig;
   private circuitBreaker?: CircuitBreaker;
-  private baseURL: string;
 
-  constructor(baseURL: string, axiosConfig: AxiosRequestConfig = {}) {
-    this.baseURL = baseURL;
+  constructor(baseURL: string, httpClientRequestConfig: HttpClientRequestConfig = {}, circuitBreaker?: CircuitBreaker) {
+    this.circuitBreaker = circuitBreaker;
     this.axiosInstance = axios.create({
-      ...axiosConfig,
+      ...httpClientRequestConfig,
       baseURL,
+      timeout: 1000,
     });
   }
 
@@ -35,7 +36,7 @@ export class HttpClient {
     return this;
   }
 
-  request<T = any>(config: AxiosRequestConfig): Promise<AxiosResponse<T>> {
+  request<T = any>(config: HttpClientRequestConfig): Promise<HttpClientResponse<T>> {
     let requestFn = () => this.axiosInstance.request(config);
 
     if (this.circuitBreakerConfig) {
@@ -50,26 +51,23 @@ export class HttpClient {
   }
 
   private withRetry<T>(
-    requestFn: () => Promise<AxiosResponse<T>>,
+    requestFn: () => Promise<HttpClientResponse<T>>,
     retryConfig: RetryConfig,
-  ): () => Promise<AxiosResponse<T>> {
+  ): () => Promise<HttpClientResponse<T>> {
     return async () => {
       let retries = 0;
 
+      if (this.circuitBreaker?.handleIsOpen()) {
+        throw new Error('Circuit breaker is open');
+      }
+
       while (true) {
         try {
-          if (this.circuitBreaker?.isOpen) {
-            throw new Error('Circuit breaker is open');
-          }
           return await requestFn();
         } catch (error) {
           if (retries >= retryConfig.retries) {
             throw error;
           }
-          if (this.circuitBreaker?.isOpen) {
-            throw new Error('Circuit breaker is open');
-          }
-          console.log('retry', retries);
           retries++;
           await new Promise((resolve) => setTimeout(resolve, retryConfig.delayMs));
         }
@@ -78,16 +76,14 @@ export class HttpClient {
   }
 
   private withCircuitBreaker<T>(
-    requestFn: () => Promise<AxiosResponse<T>>,
+    requestFn: () => Promise<HttpClientResponse<T>>,
     circuitBreakerConfig: CircuitBreakerConfig,
-  ): () => Promise<AxiosResponse<T> | any> {
-    this.circuitBreaker = CircuitBreakerFactory.create(this.baseURL, this.axiosInstance, circuitBreakerConfig);
+  ): () => Promise<HttpClientResponse<T> | any> {
+    if (!this.circuitBreaker) this.circuitBreaker = new CircuitBreaker();
+
+    this.circuitBreaker.setConfig(circuitBreakerConfig);
 
     return async () => {
-      if (this.circuitBreaker?.isOpen) {
-        throw new Error('Circuit breaker is open');
-      }
-
       return this.circuitBreaker?.execute(requestFn);
     };
   }

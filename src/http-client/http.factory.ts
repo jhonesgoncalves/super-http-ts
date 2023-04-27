@@ -1,17 +1,17 @@
-import { AxiosRequestConfig } from 'axios';
 import { HttpClient } from './http.client';
+import { CircuitBreaker } from '../circuit-breaker/circuit-break';
+import { HttpClientRequestConfig } from '../models/http.client.request.config';
 
 export class HttpClientFactory {
   private static instances: Map<string, HttpClient> = new Map();
 
-  static create(baseURL: string, axiosConfig?: AxiosRequestConfig): HttpClient {
+  static create(baseURL: string, httpConfig?: HttpClientRequestConfig): HttpClient {
     const instance = HttpClientFactory.instances.get(baseURL);
-    // console.log(this.instances);
-    // console.log('instance', instance);
     if (!instance) {
-      const newInstance = new HttpClient(baseURL, axiosConfig);
+      const circuitBreak = new CircuitBreaker();
+      const newInstance = new HttpClient(baseURL, httpConfig, circuitBreak);
       HttpClientFactory.instances.set(baseURL, newInstance);
-      console.log('newInstance', newInstance);
+
       return newInstance;
     }
     return instance;

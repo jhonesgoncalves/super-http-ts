@@ -12,8 +12,8 @@ app.use(express.urlencoded({ extended: true }));
 app.get('/', (req: Request, res: Response) => {
   const httpClient = HttpClientFactory.create('https://viacep.com.br/ws');
   httpClient
+    .circuitBreak({ failureThreshold: 3, successThreshold: 2, timeoutMs: 6000 })
     .retry(3, 1000)
-    .circuitBreak({ failureThreshold: 3, successThreshold: 2, timeoutMs: 600000 })
     .request({
       url: '/01001000',
       method: 'get',
@@ -26,12 +26,12 @@ app.get('/', (req: Request, res: Response) => {
 });
 
 app.get('/instance', (req: Request, res: Response) => {
-  const httpClient = HttpClientFactory.create('https://outrapi.com.br/api');
+  const httpClient = HttpClientFactory.create('http://httpstat.us/503');
   httpClient
     .retry(3, 1000)
-    .circuitBreak({ failureThreshold: 3, successThreshold: 2, timeoutMs: 600000 })
+    .circuitBreak({ failureThreshold: 3, successThreshold: 2, timeoutMs: 6000 })
     .request({
-      url: '/01001000',
+      url: '/dsfdsf',
       method: 'get',
     })
     .then((response) => res.send(response.data))

@@ -1,4 +1,4 @@
-import { AxiosInstance, AxiosResponse } from 'axios';
+import { AxiosResponse } from 'axios';
 
 export interface CircuitBreakerConfig {
   failureThreshold: number;
@@ -11,15 +11,16 @@ export class CircuitBreaker {
   private successes = 0;
   private lastFailureTime = 0;
   isOpen = false;
+  private circuitBreakerConfig?: CircuitBreakerConfig | any;
 
-  constructor(
-    private readonly axiosInstance: AxiosInstance,
-    private readonly circuitBreakerConfig: CircuitBreakerConfig,
-  ) {}
+  constructor() {}
+
+  public setConfig(config: CircuitBreakerConfig) {
+    this.circuitBreakerConfig = config;
+  }
 
   async execute<T>(fn: () => Promise<AxiosResponse<T>>): Promise<AxiosResponse<T>> {
     if (this.isOpen) {
-      console.log('open');
       if (this.shouldAttemptReset()) {
         this.reset();
       } else {
@@ -29,8 +30,6 @@ export class CircuitBreaker {
 
     try {
       const response = await fn();
-
-      console.log('entrou aqui');
       this.handleSuccess();
 
       return response;
@@ -41,10 +40,22 @@ export class CircuitBreaker {
     }
   }
 
+  public handleIsOpen(): boolean {
+    if (this.isOpen) {
+      if (this.shouldAttemptReset()) {
+        this.reset();
+      } else {
+        throw new Error('Circuit breaker is open');
+      }
+    }
+
+    return this.isOpen;
+  }
+
   private handleSuccess() {
     this.successes++;
 
-    if (this.successes >= this.circuitBreakerConfig.successThreshold) {
+    if (this.successes >= this.circuitBreakerConfig?.successThreshold) {
       this.reset();
     }
   }
@@ -60,8 +71,6 @@ export class CircuitBreaker {
     }
 
     this.lastFailureTime = now;
-    console.log(`failures: ${this.failures}`);
-    console.log(`failureThreshold: ${this.circuitBreakerConfig.failureThreshold}`);
 
     if (this.failures >= this.circuitBreakerConfig.failureThreshold) {
       this.trip();
