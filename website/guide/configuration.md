@@ -18,78 +18,107 @@ HttpClientFactory.create(baseURL, httpConfig?, poolConfig?)
 
 | Option | Type | Default | Description |
 |---|---|---|---|
-| `maxSockets` | `number` | `50` | Max concurrent open sockets per host |
-| `maxFreeSockets` | `number` | `10` | Max idle keep-alive sockets per host |
+| `maxSockets` | `number` | `50` | Max concurrent sockets per host |
+| `maxFreeSockets` | `number` | `10` | Max idle keep-alive sockets |
 | `keepAlive` | `boolean` | `true` | Enable TCP keep-alive |
 | `keepAliveMsecs` | `number` | `1000` | Keep-alive probe interval (ms) |
 | `timeout` | `number` | `30000` | Request timeout (ms) |
 
-```typescript
-HttpClientFactory.create('https://api.example.com', {}, {
-  maxSockets: 100,
-  maxFreeSockets: 20,
-  keepAlive: true,
-  keepAliveMsecs: 2_000,
-  timeout: 15_000,
-})
-```
-
 ---
 
-## .retry(retries, delayMs, retryOn?)
+## .retry(retries, strategy, retryOn?)
 
 | Parameter | Type | Description |
 |---|---|---|
-| `retries` | `number` | Maximum retry attempts |
-| `delayMs` | `number` | Fixed delay between attempts (ms) |
-| `retryOn` | `number[]` | Optional: retry only on these HTTP status codes |
+| `retries` | `number` | Max retry attempts |
+| `strategy` | `RetryStrategy \| number` | Delay strategy or fixed ms |
+| `retryOn` | `number[]` | Optional: retry only on these status codes |
 
-```typescript
-client.retry(3, 500)             // default: network errors + 5xx
-client.retry(3, 500, [429, 503]) // only retry 429 and 503
-```
+**Strategies:**
+
+| Class | Delay pattern |
+|---|---|
+| `FixedRetryStrategy(ms)` | Constant |
+| `ExponentialRetryStrategy(init, max, factor?)` | Doubles each attempt |
+| `ExponentialJitterRetryStrategy(init, max, factor?)` | Random in [0, exponential cap] |
+| `RetryAfterStrategy(init?, max?, factor?)` | From header, jitter fallback |
 
 ---
 
 ## .circuitBreak(config)
 
-### CircuitBreakerConfig
-
 | Option | Type | Description |
 |---|---|---|
 | `failureThreshold` | `number` | Failures before circuit opens |
-| `successThreshold` | `number` | Successes (in half-open) before circuit closes |
-| `timeoutMs` | `number` | Time circuit stays open before probing (ms) |
+| `successThreshold` | `number` | Successes to close from half-open |
+| `timeoutMs` | `number` | Open duration before probing (ms) |
+
+---
+
+## .bulkhead(config)
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `maxConcurrent` | `number` | — | Max in-flight requests |
+| `maxQueue` | `number` | `50` | Max queued requests |
+| `queueTimeoutMs` | `number` | `undefined` | Reject queued after this ms |
+
+---
+
+## .rateLimit(config)
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `permitLimit` | `number` | — | Max requests per window |
+| `windowMs` | `number` | — | Window size in ms |
+| `queueRequests` | `boolean` | `false` | Queue excess instead of rejecting |
+| `queueTimeoutMs` | `number` | `undefined` | Max wait time for queued token |
+
+---
+
+## .fallback(fn)
 
 ```typescript
-client.circuitBreak({
-  failureThreshold: 5,
-  successThreshold: 2,
-  timeoutMs: 10_000,
-})
+client.fallback((error: unknown) => fallbackValue)
+client.fallback(async (error: unknown) => await alternativeSource())
 ```
 
 ---
 
-## HttpClient methods
+## .dedup()
 
-| Method | Signature | Description |
+No configuration — enables request deduplication for this client.
+
+---
+
+## .on(events)
+
+| Hook | Event type | Fired when |
 |---|---|---|
-| `get` | `get<T>(url, config?)` | HTTP GET |
-| `post` | `post<T>(url, data?, config?)` | HTTP POST |
-| `put` | `put<T>(url, data?, config?)` | HTTP PUT |
-| `patch` | `patch<T>(url, data?, config?)` | HTTP PATCH |
-| `delete` | `delete<T>(url, config?)` | HTTP DELETE |
-| `request` | `request<T>(config)` | Raw Axios config |
-| `retry` | `retry(n, ms, codes?)` | Configure retry — returns `this` |
-| `circuitBreak` | `circuitBreak(config)` | Configure circuit breaker — returns `this` |
+| `onRetry` | `RetryEvent` | Before each retry attempt |
+| `onCircuitStateChange` | `CircuitStateChangeEvent` | On circuit state transition |
+| `onBulkheadReject` | `BulkheadRejectEvent` | Bulkhead queue full |
+| `onFallback` | `FallbackEvent` | Fallback handler invoked |
+| `onRateLimitReject` | `RateLimitRejectEvent` | Rate limit token unavailable |
 
 ---
 
-## HttpClientFactory.clear()
+## HttpClient HTTP methods
 
-Clears all cached singleton instances. Primarily for tests.
+| Method | Signature |
+|---|---|
+| `get` | `get<T>(url, config?)` |
+| `post` | `post<T>(url, data?, config?)` |
+| `put` | `put<T>(url, data?, config?)` |
+| `patch` | `patch<T>(url, data?, config?)` |
+| `delete` | `delete<T>(url, config?)` |
+| `request` | `request<T>(axiosConfig)` |
 
-```typescript
-afterEach(() => HttpClientFactory.clear())
-```
+---
+
+## HttpClientFactory
+
+| Method | Description |
+|---|---|
+| `HttpClientFactory.create(url, cfg?, pool?)` | Get or create singleton client |
+| `HttpClientFactory.clear()` | Clear all cached instances (tests) |

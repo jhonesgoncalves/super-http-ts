@@ -3,8 +3,8 @@ layout: home
 
 hero:
   name: "super-http"
-  text: "Resilient HTTP for Node.js"
-  tagline: Circuit breaker, connection pooling, keep-alive and smart retry — production-ready out of the box.
+  text: "Enterprise HTTP for Node.js"
+  tagline: Circuit breaker, bulkhead, rate limiter, jitter retry, fallback and request dedup — built for distributed systems at scale.
   image:
     src: /logo.svg
     alt: super-http
@@ -22,44 +22,64 @@ hero:
 features:
   - icon: 🔌
     title: Connection Pooling
-    details: Shared http.Agent and https.Agent per base URL. Reuse TCP connections across requests — no handshake overhead, no stale-socket ECONNRESET.
+    details: Shared http.Agent and https.Agent per base URL. TCP keep-alive prevents ECONNRESET from stale sockets and eliminates handshake overhead.
 
   - icon: 🔄
-    title: Smart Retry
-    details: Automatically retries network errors (ECONNRESET, ETIMEDOUT, EPIPE…) and HTTP 5xx. Never retries 4xx — those are your fault, not the server's.
+    title: Jitter Retry
+    details: Pluggable strategies — fixed, exponential, or full-jitter (AWS-recommended). RetryAfterStrategy honours the server's Retry-After header automatically.
 
   - icon: ⚡
     title: Circuit Breaker
-    details: Three-state machine (closed → open → half-open). Trips after N failures, recovers automatically. Fail fast instead of waiting for timeouts.
+    details: Three-state machine (closed → open → half-open). Fail fast when upstream is down instead of waiting for timeouts to pile up.
 
-  - icon: 🔗
-    title: Fluent API
-    details: Chain .retry() and .circuitBreak() directly on the client. One line of config, full resilience.
+  - icon: 🧱
+    title: Bulkhead Isolation
+    details: Semaphore with bounded queue limits concurrent calls per service. One slow dependency can't consume all your resources.
 
-  - icon: 🏭
-    title: Singleton Factory
-    details: HttpClientFactory returns the same instance per base URL. Connection pool is shared automatically — no duplicate agents.
+  - icon: 🚦
+    title: Rate Limiter
+    details: Token-bucket rate limiter with queueing and Retry-After-aware backoff. Never accidentally DDoS your own dependencies.
 
-  - icon: 🟦
-    title: TypeScript First
-    details: Full generic types on every method. JSDoc on every public API. Designed to make your IDE work for you.
+  - icon: 🛡️
+    title: Fallback
+    details: Register a graceful degradation handler invoked when all policies are exhausted. Return cached data, a default value, or call an alternative source.
+
+  - icon: 🔁
+    title: Request Deduplication
+    details: Coalesces identical concurrent GET calls into a single network request. All callers share the same response — zero waste.
+
+  - icon: 👁️
+    title: Observability Hooks
+    details: Fire-and-forget event hooks on every resilience transition — retry, circuit state change, bulkhead reject, fallback, rate limit. Wire directly to your metrics system.
 ---
 
 <div class="home-content">
 
-## Zero boilerplate, full resilience
+## One fluent chain. Full resilience.
 
 ```typescript
-import { HttpClientFactory } from 'super-http'
+import { HttpClientFactory, ExponentialJitterRetryStrategy } from 'super-http'
 
-const api = HttpClientFactory.create('https://api.example.com')
+const api = HttpClientFactory.create('https://api.example.com', {}, {
+  maxSockets: 100,
+  timeout: 15_000,
+})
 
 api
-  .circuitBreak({ failureThreshold: 5, successThreshold: 2, timeoutMs: 10_000 })
-  .retry(3, 500)
+  .on({
+    onRetry:              ({ attempt, delayMs }) => logger.warn(`retry #${attempt} in ${delayMs}ms`),
+    onCircuitStateChange: ({ from, to })         => metrics.increment(`circuit.${from}_${to}`),
+    onBulkheadReject:     ()                     => metrics.increment('bulkhead.rejected'),
+    onFallback:           ({ error })            => logger.error('fallback', error),
+  })
+  .circuitBreak({ failureThreshold: 5, successThreshold: 2, timeoutMs: 15_000 })
+  .retry(4, new ExponentialJitterRetryStrategy(100, 10_000))
+  .bulkhead({ maxConcurrent: 20, maxQueue: 100, queueTimeoutMs: 3_000 })
+  .rateLimit({ permitLimit: 200, windowMs: 60_000 })
+  .fallback(() => ({ items: [], degraded: true }))
+  .dedup()
 
-// Typed responses, pooled connections, auto-retry — just works
-const { data } = await api.get<User[]>('/users')
+const { data } = await api.get<Item[]>('/items')
 ```
 
 ## Install
@@ -78,9 +98,8 @@ Node.js ≥ 20 · TypeScript ≥ 5
 .home-content {
   max-width: 960px;
   margin: 0 auto;
-  padding: 48px 24px 64px;
+  padding: 48px 24px 80px;
 }
-
 .home-content h2 {
   font-size: 1.6rem;
   font-weight: 700;

@@ -1,117 +1,81 @@
 # HttpClient
 
-The core HTTP client. Wraps Axios with connection pooling, retry, and circuit breaker.
+The core HTTP client. Wraps Axios with all resilience features.
 
-Instantiate via [`HttpClientFactory.create()`](./http-client-factory) for singleton-per-baseURL behaviour.
+Instantiate via [`HttpClientFactory.create()`](./http-client-factory).
 
 ---
 
 ## HTTP Methods
 
-### `get<T>(url, config?)`
+All methods return `Promise<HttpClientResponse<T>>`.
 
 ```typescript
-get<T = any>(url: string, config?: HttpClientRequestConfig): Promise<HttpClientResponse<T>>
-```
-
-```typescript
-const { data } = await client.get<User[]>('/users')
-```
-
----
-
-### `post<T>(url, data?, config?)`
-
-```typescript
-post<T = any>(url: string, data?: unknown, config?: HttpClientRequestConfig): Promise<HttpClientResponse<T>>
-```
-
-```typescript
-const { data } = await client.post<User>('/users', { name: 'Alice' })
+get<T>(url, config?)
+post<T>(url, data?, config?)
+put<T>(url, data?, config?)
+patch<T>(url, data?, config?)
+delete<T>(url, config?)
+request<T>(axiosConfig)
 ```
 
 ---
 
-### `put<T>(url, data?, config?)`
+## Fluent configuration
+
+All methods return `this` — chain as needed.
+
+### `.on(events)`
+Register observability hooks. See [ResilienceEvents](./resilience-events).
 
 ```typescript
-put<T = any>(url: string, data?: unknown, config?: HttpClientRequestConfig): Promise<HttpClientResponse<T>>
-```
-
----
-
-### `patch<T>(url, data?, config?)`
-
-```typescript
-patch<T = any>(url: string, data?: unknown, config?: HttpClientRequestConfig): Promise<HttpClientResponse<T>>
-```
-
----
-
-### `delete<T>(url, config?)`
-
-```typescript
-delete<T = any>(url: string, config?: HttpClientRequestConfig): Promise<HttpClientResponse<T>>
-```
-
----
-
-### `request<T>(config)`
-
-```typescript
-request<T = any>(config: AxiosRequestConfig): Promise<HttpClientResponse<T>>
-```
-
-Raw Axios request config. Prefer the typed convenience methods above.
-
----
-
-## Fluent Configuration
-
-### `retry(retries, delayMs, retryOn?)`
-
-```typescript
-retry(retries: number, delayMs: number, retryOn?: number[]): this
-```
-
-Enables automatic retry. Returns `this` for chaining.
-
-| Parameter | Type | Description |
-|---|---|---|
-| `retries` | `number` | Max retry attempts |
-| `delayMs` | `number` | Delay between attempts (ms) |
-| `retryOn` | `number[]` | Optional: retry only on these status codes |
-
-```typescript
-client.retry(3, 500)
-client.retry(3, 500, [429, 503])
-```
-
----
-
-### `circuitBreak(config)`
-
-```typescript
-circuitBreak(config: CircuitBreakerConfig): this
-```
-
-Enables the circuit breaker. Returns `this` for chaining.
-
-```typescript
-client.circuitBreak({
-  failureThreshold: 5,
-  successThreshold: 2,
-  timeoutMs: 10_000,
+client.on({
+  onRetry:              ({ attempt, delayMs }) => logger.warn(`retry #${attempt}`),
+  onCircuitStateChange: ({ from, to })         => metrics.gauge('circuit', to),
 })
 ```
 
+### `.retry(retries, strategy, retryOn?)`
+```typescript
+import { ExponentialJitterRetryStrategy } from 'super-http'
+
+client.retry(3, new ExponentialJitterRetryStrategy(100, 10_000))
+client.retry(3, 500)               // fixed 500 ms (backwards-compat)
+client.retry(3, 500, [429, 503])   // only these status codes
+```
+
+### `.circuitBreak(config)`
+```typescript
+client.circuitBreak({ failureThreshold: 5, successThreshold: 2, timeoutMs: 15_000 })
+```
+
+### `.bulkhead(config)`
+```typescript
+client.bulkhead({ maxConcurrent: 20, maxQueue: 100, queueTimeoutMs: 3_000 })
+```
+
+### `.rateLimit(config)`
+```typescript
+client.rateLimit({ permitLimit: 200, windowMs: 60_000, queueRequests: true })
+```
+
+### `.fallback(fn)`
+```typescript
+client.fallback((error) => ({ items: [], degraded: true }))
+client.fallback(async (error) => await cache.get('items') ?? [])
+```
+
+### `.dedup()`
+```typescript
+client.dedup()  // enables request deduplication
+```
+
 ---
 
-## Chaining
+## Execution order
 
-```typescript
-HttpClientFactory.create('https://api.example.com')
-  .circuitBreak({ failureThreshold: 5, successThreshold: 2, timeoutMs: 10_000 })
-  .retry(3, 500)
-  .get('/users')
+When multiple policies are active, they execute in this order:
+
+```
+dedup → rate-limiter → bulkhead → retry → circuit-breaker → axios → fallback
 ```

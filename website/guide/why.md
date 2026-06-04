@@ -1,87 +1,66 @@
 # Why super-http?
 
-Node's default HTTP behaviour has several failure modes that bite you in production.
-
----
-
-## The problems
+## The problems with plain HTTP clients
 
 ### ECONNRESET / socket hung up
 
-When a server closes an idle keep-alive connection, Node's default HTTP client throws `ECONNRESET` — the dreaded **socket hang up** — and your request fails.
+When a server closes an idle keep-alive connection, Node.js throws `ECONNRESET`:
 
 ```
 Error: socket hang up
     at connResetException (node:internal/errors:720:14)
-    at TLSSocket.socketOnEnd (node:_http_client:518:23)
 ```
 
-super-http uses `http.Agent` with `keepAlive: true` and retries on `ECONNRESET` automatically.
+super-http uses `http.Agent` with `keepAlive: true` and retries `ECONNRESET` automatically.
 
-### No connection pool by default
+### Thundering herd on retry
 
-Without a shared agent, every `axios.create()` call or every request to the same host opens a new TCP connection. At scale:
+When many clients fail simultaneously and all retry at the same fixed delay, they hit the upstream simultaneously — creating a new failure wave. **Full-jitter exponential backoff** spreads retries randomly across time.
 
-- Latency spikes from repeated handshakes
-- File descriptor exhaustion
-- Load balancer connection storms
+```
+Fixed delay (bad):   client1 retry ──── client2 retry ──── client3 retry
+                     all at t+500ms      all at t+500ms  ← stampede
 
-super-http creates **one pool per base URL** and shares it across the entire app.
+Jitter (good):       client1 retry at t+237ms
+                     client2 retry at t+489ms   ← spread out, no stampede
+                     client3 retry at t+61ms
+```
 
 ### Cascading failures
 
-Without a circuit breaker, when a dependency is down every request waits the full timeout (30 s, 60 s…), threads pile up, and your service falls over too.
+Without a circuit breaker, when a dependency is down every request waits the full timeout (30 s), threads pile up, and your service falls over too.
+
+super-http's circuit breaker **fails fast** — while the circuit is open, requests return immediately with a clear error.
+
+### Resource monopolisation
+
+Without bulkhead isolation, one slow or broken dependency can consume all your concurrent capacity, blocking unrelated services.
 
 ```
-Your service → times out → upstream → times out → next upstream…
+Without bulkhead:                   With bulkhead (maxConcurrent: 5):
+  slow-api: 50 concurrent calls       slow-api: max 5 calls
+  fast-api: 0 slots left   ← blocked  fast-api: unaffected ✓
 ```
 
-super-http's circuit breaker **fails fast** — when the downstream is unhealthy, requests return immediately with a clear error instead of hanging.
+### Upstream rate limits
 
-### Retry boilerplate
-
-Writing correct retry logic is surprisingly hard:
-
-```typescript
-// don't do this — it's wrong in subtle ways
-for (let i = 0; i < 3; i++) {
-  try {
-    return await axios.get(url)
-  } catch (e) {
-    if (i === 2) throw e
-    await sleep(500)
-  }
-}
-```
-
-- It retries 404s (pointless)
-- It retries 401s (makes rate-limiting worse)
-- It swallows the original error type
-- No circuit breaker awareness
-
-super-http's `.retry()` is aware of error types, respects the circuit breaker state, and never retries client errors.
-
----
-
-## The solution
-
-| Problem | super-http |
-|---|---|
-| `ECONNRESET` on keep-alive | `http.Agent` with `keepAlive: true` + retry on socket errors |
-| New TCP per request | Shared pool per base URL (`maxSockets`, `maxFreeSockets`) |
-| Cascading timeouts | Circuit breaker: trip → open → half-open → recover |
-| Retry boilerplate | `.retry(n, delayMs)` with smart 5xx/network detection |
-| Verbose setup | `HttpClientFactory.create()` — one call, everything configured |
+Clients that don't respect server rate limits get 429s, circuit-breaker trips, and eventually bans. super-http's token-bucket rate limiter enforces outgoing request rates, and `RetryAfterStrategy` waits exactly as long as the server says.
 
 ---
 
 ## Comparison
 
-|  | axios (plain) | axios-retry | super-http |
+|  | axios (plain) | axios-retry | **super-http** |
 |---|:---:|:---:|:---:|
 | Connection pool | ❌ | ❌ | ✅ |
 | Keep-alive | ❌ | ❌ | ✅ |
-| Smart retry | ❌ | ⚠️ | ✅ |
+| Smart retry (skip 4xx) | ❌ | ⚠️ | ✅ |
+| Jitter backoff | ❌ | ❌ | ✅ |
+| Retry-After header | ❌ | ❌ | ✅ |
 | Circuit breaker | ❌ | ❌ | ✅ |
-| Singleton factory | ❌ | ❌ | ✅ |
+| Bulkhead | ❌ | ❌ | ✅ |
+| Rate limiter | ❌ | ❌ | ✅ |
+| Fallback | ❌ | ❌ | ✅ |
+| Request dedup | ❌ | ❌ | ✅ |
+| Observability hooks | ❌ | ❌ | ✅ |
 | TypeScript | ✅ | ✅ | ✅ |

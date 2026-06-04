@@ -3,19 +3,15 @@
 ## Installation
 
 ::: code-group
-
 ```bash [npm]
 npm install super-http
 ```
-
 ```bash [yarn]
 yarn add super-http
 ```
-
 ```bash [pnpm]
 pnpm add super-http
 ```
-
 :::
 
 ::: info Requirements
@@ -36,44 +32,46 @@ console.log(data)
 // { userId: 1, id: 1, title: 'delectus aut autem', completed: false }
 ```
 
-That's it. Behind the scenes super-http already:
-
-- ✅ Created a shared **connection pool** with TCP keep-alive
-- ✅ Set a 30-second request **timeout**
-- ✅ Attached a **CircuitBreaker** to the client
+Already active out of the box: shared **connection pool** with TCP keep-alive, 30 s timeout, and an attached `CircuitBreaker`.
 
 ---
 
-## Adding resilience
-
-### Retry
+## Production setup
 
 ```typescript
-client.retry(3, 500)
-// up to 3 retries, 500 ms apart
-// triggers on: ECONNRESET, ECONNREFUSED, ETIMEDOUT, EPIPE, 5xx
-```
+import { HttpClientFactory, ExponentialJitterRetryStrategy } from 'super-http'
 
-### Circuit breaker
-
-```typescript
-client.circuitBreak({
-  failureThreshold: 5,  // trip after 5 consecutive failures
-  successThreshold: 2,  // close after 2 consecutive successes
-  timeoutMs: 10_000,    // stay open for 10 s before probing
+const api = HttpClientFactory.create('https://api.example.com', {}, {
+  maxSockets: 100,   // connection pool size
+  timeout: 15_000,   // request timeout
 })
-```
-
-### Chain both
-
-```typescript
-const api = HttpClientFactory.create('https://api.example.com')
 
 api
-  .circuitBreak({ failureThreshold: 5, successThreshold: 2, timeoutMs: 10_000 })
-  .retry(3, 500)
+  // 1. Observability — wire to your logger / metrics
+  .on({
+    onRetry:              ({ attempt, delayMs }) => logger.warn(`retry #${attempt} in ${delayMs}ms`),
+    onCircuitStateChange: ({ from, to })         => metrics.increment(`circuit.${from}_${to}`),
+    onBulkheadReject:     ()                     => metrics.increment('bulkhead.rejected'),
+    onFallback:           ({ error })            => logger.error('fallback triggered', error),
+  })
 
-const { data } = await api.get('/users')
+  // 2. Circuit breaker — trip after 5 failures, recover after 15 s
+  .circuitBreak({ failureThreshold: 5, successThreshold: 2, timeoutMs: 15_000 })
+
+  // 3. Retry — exponential jitter prevents thundering herd
+  .retry(4, new ExponentialJitterRetryStrategy(100, 10_000))
+
+  // 4. Bulkhead — cap concurrency, queue up to 100 with 3 s timeout
+  .bulkhead({ maxConcurrent: 20, maxQueue: 100, queueTimeoutMs: 3_000 })
+
+  // 5. Rate limiter — 200 req/min
+  .rateLimit({ permitLimit: 200, windowMs: 60_000 })
+
+  // 6. Fallback — degrade gracefully instead of propagating errors
+  .fallback(() => ({ items: [], degraded: true }))
+
+  // 7. Dedup — coalesce identical concurrent GETs
+  .dedup()
 ```
 
 ---
@@ -81,13 +79,9 @@ const { data } = await api.get('/users')
 ## Typed responses
 
 ```typescript
-interface User {
-  id: number
-  name: string
-  email: string
-}
+interface User { id: number; name: string; email: string }
 
-const { data } = await client.get<User[]>('/users')
+const { data } = await api.get<User[]>('/users')
 //     ^ User[]  — fully typed
 ```
 
@@ -95,8 +89,16 @@ const { data } = await client.get<User[]>('/users')
 
 ## Next steps
 
-- [Why super-http?](./why) — understand the problems it solves
-- [Connection Pooling](./connection-pool) — deep dive into keep-alive and pools
-- [Retry](./retry) — what gets retried and when
-- [Circuit Breaker](./circuit-breaker) — state machine explained
-- [Full Configuration](./configuration) — all options
+| Topic | Link |
+|---|---|
+| Why super-http? | [Why](./why) |
+| Connection pool deep dive | [Connection Pooling](./connection-pool) |
+| Retry strategies | [Retry](./retry) |
+| Circuit breaker | [Circuit Breaker](./circuit-breaker) |
+| Bulkhead | [Bulkhead](./bulkhead) |
+| Rate limiter | [Rate Limiter](./rate-limiter) |
+| Fallback | [Fallback](./fallback) |
+| Request dedup | [Request Dedup](./dedup) |
+| Observability hooks | [Observability](./observability) |
+| All options | [Configuration](./configuration) |
+| Production patterns | [Recipes](./recipes) |

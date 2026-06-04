@@ -1,7 +1,7 @@
 <p align="center">
   <img width="160px" src=".github/images/super-http-logo.svg" align="center" alt="super-http" />
   <h2 align="center">super-http</h2>
-  <p align="center">A resilient HTTP client built on top of Axios — circuit breaker, connection pooling, keep-alive and smart retry out of the box.</p>
+  <p align="center">Enterprise-grade HTTP client for Node.js — circuit breaker, bulkhead, rate limiter,<br>connection pooling, exponential jitter retry, fallback and request deduplication.</p>
 </p>
 
 <p align="center">
@@ -20,25 +20,32 @@
   <a href="https://github.com/jhonesgoncalves/super-http-ts/blob/main/LICENSE.md">
     <img alt="License: MIT" src="https://img.shields.io/github/license/jhonesgoncalves/super-http-ts?style=flat&color=0ea5e9" />
   </a>
-  <a href="https://github.com/jhonesgoncalves/super-http-ts/issues">
-    <img alt="Issues" src="https://img.shields.io/github/issues/jhonesgoncalves/super-http-ts?style=flat&color=0ea5e9" />
-  </a>
   <img alt="Node.js" src="https://img.shields.io/node/v/super-http?style=flat&color=0ea5e9" />
-  <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-ready-3178c6?style=flat" />
+  <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-5.x-3178c6?style=flat" />
+</p>
+
+<p align="center">
+  <a href="https://jhonesgoncalves.github.io/super-http-ts/"><strong>📖 Documentation</strong></a> ·
+  <a href="https://jhonesgoncalves.github.io/super-http-ts/guide/getting-started">Getting Started</a> ·
+  <a href="https://jhonesgoncalves.github.io/super-http-ts/api/">API Reference</a> ·
+  <a href="CHANGELOG.md">Changelog</a>
 </p>
 
 ---
 
 ## Why super-http?
 
-Node's default HTTP behaviour leaves a lot to be desired in production:
-
-| Problem | super-http solution |
+| Problem in production | super-http solution |
 |---|---|
-| `ECONNRESET` / socket hung up on keep-alive connections | Shared `http.Agent` with `keepAlive: true` and automatic retry on socket errors |
-| New TCP handshake for every request | Connection pool (`maxSockets`, `maxFreeSockets`) shared per base URL |
-| Cascading failures from a flaky dependency | Three-state circuit breaker (closed → open → half-open) |
-| Repetitive retry boilerplate | `.retry(n, delayMs)` with smart 5xx / network-error detection |
+| `ECONNRESET` / socket hung up | Shared `http.Agent` with keep-alive + retry on socket errors |
+| New TCP handshake per request | Connection pool per base URL (`maxSockets`, keep-alive) |
+| Cascading failures | Three-state circuit breaker (closed → open → half-open) |
+| Thundering herd on retries | Exponential backoff with full jitter (AWS-recommended) |
+| One slow API monopolising resources | Bulkhead isolation (semaphore + bounded queue) |
+| Blowing upstream rate limits | Token-bucket rate limiter with `Retry-After` header support |
+| Total failure instead of partial | Fallback handler for graceful degradation |
+| Duplicate concurrent GET calls | Request deduplication — one network call, many callers |
+| No visibility into resilience events | Hooks: `onRetry`, `onCircuitStateChange`, `onBulkheadReject`… |
 
 ---
 
@@ -46,23 +53,35 @@ Node's default HTTP behaviour leaves a lot to be desired in production:
 
 ```bash
 npm install super-http
-# or
-yarn add super-http
 ```
 
-> **Requires Node.js ≥ 16**
+> **Requires Node.js ≥ 20 · TypeScript ≥ 5**
 
 ---
 
 ## Quick start
 
 ```typescript
-import { HttpClientFactory } from 'super-http';
+import { HttpClientFactory, ExponentialJitterRetryStrategy } from 'super-http'
 
-const api = HttpClientFactory.create('https://api.example.com');
+const api = HttpClientFactory.create('https://api.example.com', {}, {
+  maxSockets: 100,
+  timeout: 15_000,
+})
 
-const { data: users } = await api.get('/users');
-const { data: user }  = await api.post('/users', { name: 'Alice' });
+api
+  .on({
+    onRetry:              ({ attempt, delayMs }) => console.warn(`retry #${attempt} in ${delayMs}ms`),
+    onCircuitStateChange: ({ from, to })         => console.warn(`circuit: ${from} → ${to}`),
+  })
+  .circuitBreak({ failureThreshold: 5, successThreshold: 2, timeoutMs: 15_000 })
+  .retry(4, new ExponentialJitterRetryStrategy(100, 10_000))
+  .bulkhead({ maxConcurrent: 20, maxQueue: 100, queueTimeoutMs: 3_000 })
+  .rateLimit({ permitLimit: 200, windowMs: 60_000 })
+  .fallback(() => ({ items: [], degraded: true }))
+  .dedup()
+
+const { data } = await api.get<Item[]>('/items')
 ```
 
 ---
@@ -71,161 +90,127 @@ const { data: user }  = await api.post('/users', { name: 'Alice' });
 
 ### 🔌 Connection pool + keep-alive
 
-`HttpClientFactory.create` returns a **singleton per base URL** backed by shared `http.Agent` and `https.Agent` instances. TCP connections are reused across requests — no handshake overhead, no stale-socket `ECONNRESET`.
+Shared `http.Agent` and `https.Agent` per base URL. Reuse TCP connections — no handshake overhead, no `ECONNRESET` from stale sockets.
 
 ```typescript
-const client = HttpClientFactory.create('https://api.example.com', {}, {
-  maxSockets: 100,       // max concurrent sockets per host   (default: 50)
-  maxFreeSockets: 20,    // idle keep-alive sockets            (default: 10)
-  keepAlive: true,       // reuse TCP connections              (default: true)
-  keepAliveMsecs: 2000,  // keep-alive probe interval (ms)    (default: 1000)
-  timeout: 15_000,       // request timeout (ms)              (default: 30000)
-});
+HttpClientFactory.create('https://api.example.com', {}, {
+  maxSockets: 100, maxFreeSockets: 20, keepAlive: true, timeout: 15_000,
+})
 ```
 
-### 🔄 Smart retry
-
-Retries automatically on **network errors** (`ECONNRESET`, `ECONNREFUSED`, `ETIMEDOUT`, `EPIPE`, …) and **HTTP 5xx** responses. Never retries 4xx — those are client errors and retrying won't help.
+### 🔄 Retry with pluggable strategies
 
 ```typescript
-client.retry(3, 500);                // up to 3 retries, 500 ms between each
-client.retry(3, 500, [429, 503]);    // retry only specific status codes
+import { ExponentialJitterRetryStrategy, RetryAfterStrategy } from 'super-http'
+
+client.retry(3, new ExponentialJitterRetryStrategy(100, 10_000)) // full jitter (recommended)
+client.retry(3, 500)                                              // fixed delay (legacy)
+client.retry(5, new RetryAfterStrategy())                         // honours Retry-After header
+client.retry(3, 500, [429, 503])                                  // only specific status codes
 ```
+
+| Strategy | When to use |
+|---|---|
+| `FixedRetryStrategy(ms)` | Simple cases, low traffic |
+| `ExponentialRetryStrategy(init, max)` | Higher traffic, no jitter needed |
+| `ExponentialJitterRetryStrategy(init, max)` | **Recommended** — distributed systems, prevents thundering herd |
+| `RetryAfterStrategy()` | APIs that return `Retry-After` headers (429/503) |
 
 ### ⚡ Circuit breaker
 
-Trips after `failureThreshold` consecutive failures. While open, requests fail immediately — no waiting for timeouts. After `timeoutMs` the circuit enters **half-open** state and allows a single probe through.
+```typescript
+client.circuitBreak({ failureThreshold: 5, successThreshold: 2, timeoutMs: 15_000 })
+```
+
+### 🧱 Bulkhead isolation
 
 ```typescript
-client.circuitBreak({
-  failureThreshold: 5,   // trip after 5 failures
-  successThreshold: 2,   // close after 2 consecutive successes
-  timeoutMs: 10_000,     // probe again after 10 s
-});
+// Max 20 concurrent calls; excess queued up to 100; reject after 3 s in queue
+client.bulkhead({ maxConcurrent: 20, maxQueue: 100, queueTimeoutMs: 3_000 })
 ```
 
-Circuit states:
-
-```
-        failures >= threshold
-CLOSED ──────────────────────► OPEN
-  ▲                               │
-  │  successes >= threshold   timeoutMs elapsed
-  │                               ▼
-  └──────────────────────── HALF-OPEN
-```
-
-### 🔗 Fluent chaining
+### 🚦 Rate limiter
 
 ```typescript
-HttpClientFactory.create('https://api.example.com')
-  .circuitBreak({ failureThreshold: 5, successThreshold: 2, timeoutMs: 10_000 })
-  .retry(3, 500)
-  .get('/health');
+// 200 requests per minute; queue excess with 5 s max wait
+client.rateLimit({ permitLimit: 200, windowMs: 60_000, queueRequests: true, queueTimeoutMs: 5_000 })
+```
+
+### 🛡️ Fallback
+
+```typescript
+client.fallback((error) => ({ items: [], degraded: true, reason: error.message }))
+```
+
+### 🔁 Request deduplication
+
+```typescript
+client.dedup() // identical concurrent GETs → one network call, shared result
+```
+
+### 👁️ Observability hooks
+
+```typescript
+client.on({
+  onRetry:              ({ attempt, error, delayMs }) => metrics.increment('retry'),
+  onCircuitStateChange: ({ from, to, failures })      => logger.warn(`circuit ${from}→${to}`),
+  onBulkheadReject:     ({ active, queued })           => metrics.increment('bulkhead.rejected'),
+  onFallback:           ({ error })                   => logger.error('fallback triggered', error),
+  onRateLimitReject:    ({ permitLimit, windowMs })   => metrics.increment('rate_limit.rejected'),
+})
 ```
 
 ---
 
-## API Reference
+## Full API
 
 ### `HttpClientFactory.create(baseURL, httpConfig?, poolConfig?)`
 
-Returns (or creates) a singleton `HttpClient` for the given base URL.
+Returns (or creates) a singleton `HttpClient` per base URL.
 
-| Param | Type | Description |
-|---|---|---|
-| `baseURL` | `string` | Base URL for all requests |
-| `httpConfig` | `HttpClientRequestConfig` | Default Axios config (headers, auth, …) |
-| `poolConfig` | `PoolConfig` | Connection pool options |
-
-### `HttpClient` — HTTP methods
-
-| Method | Signature |
-|---|---|
-| `get` | `get<T>(url, config?)` |
-| `post` | `post<T>(url, data?, config?)` |
-| `put` | `put<T>(url, data?, config?)` |
-| `patch` | `patch<T>(url, data?, config?)` |
-| `delete` | `delete<T>(url, config?)` |
-| `request` | `request<T>(axiosConfig)` |
-
-### `HttpClient` — Resilience
+### `HttpClient` methods
 
 | Method | Description |
 |---|---|
-| `.retry(retries, delayMs, retryOn?)` | Configure retry — returns `this` |
-| `.circuitBreak(config)` | Configure circuit breaker — returns `this` |
+| `get / post / put / patch / delete` | HTTP convenience methods |
+| `.retry(n, strategy, retryOn?)` | Retry with strategy or fixed ms |
+| `.circuitBreak(config)` | Circuit breaker |
+| `.bulkhead(config)` | Concurrency limiter |
+| `.rateLimit(config)` | Token-bucket rate limiter |
+| `.fallback(fn)` | Graceful degradation handler |
+| `.dedup()` | Request deduplication |
+| `.on(events)` | Observability hooks |
 
-### `HttpClientFactory.clear()`
-
-Clears all cached instances. Useful in tests:
-
-```typescript
-afterEach(() => HttpClientFactory.clear());
-```
-
----
-
-## Full example
-
-```typescript
-import { HttpClientFactory } from 'super-http';
-
-interface Todo {
-  id: number;
-  title: string;
-  completed: boolean;
-}
-
-const api = HttpClientFactory.create('https://jsonplaceholder.typicode.com', {}, {
-  maxSockets: 50,
-  timeout: 10_000,
-});
-
-api
-  .circuitBreak({ failureThreshold: 3, successThreshold: 2, timeoutMs: 8_000 })
-  .retry(3, 500);
-
-// GET
-const { data: todos } = await api.get<Todo[]>('/todos');
-
-// POST
-const { data: newTodo } = await api.post<Todo>('/todos', {
-  title: 'Buy milk',
-  completed: false,
-});
-
-// Error handling
-try {
-  await api.get('/flaky-service');
-} catch (err: any) {
-  if (err.message === 'Circuit breaker is open') {
-    console.warn('Service unavailable — circuit is open');
-  }
-}
-```
+All fluent methods return `this`.
 
 ---
 
 ## Documentation
 
+Full docs at **[jhonesgoncalves.github.io/super-http-ts](https://jhonesgoncalves.github.io/super-http-ts/)**
+
 | | |
 |---|---|
-| 📖 [Getting started](docs/getting-started.md) | First request in 2 minutes |
-| ⚙️ [Configuration reference](docs/configuration.md) | All options explained |
-| 🍳 [Recipes & patterns](docs/recipes.md) | Production-ready patterns |
-| 🔬 [API reference](docs/api/) | Auto-generated from JSDoc |
+| 📖 [Getting started](https://jhonesgoncalves.github.io/super-http-ts/guide/getting-started) | Up and running in 2 minutes |
+| 🧱 [Bulkhead](https://jhonesgoncalves.github.io/super-http-ts/guide/bulkhead) | Isolation pattern |
+| 🚦 [Rate limiter](https://jhonesgoncalves.github.io/super-http-ts/guide/rate-limiter) | Token bucket |
+| 🔄 [Retry strategies](https://jhonesgoncalves.github.io/super-http-ts/guide/retry) | Jitter, exponential, Retry-After |
+| ⚡ [Circuit breaker](https://jhonesgoncalves.github.io/super-http-ts/guide/circuit-breaker) | State machine |
+| 🛡️ [Fallback](https://jhonesgoncalves.github.io/super-http-ts/guide/fallback) | Graceful degradation |
+| 👁️ [Observability](https://jhonesgoncalves.github.io/super-http-ts/guide/observability) | Hooks & events |
+| ⚙️ [Configuration](https://jhonesgoncalves.github.io/super-http-ts/guide/configuration) | All options |
+| 🍳 [Recipes](https://jhonesgoncalves.github.io/super-http-ts/guide/recipes) | Production patterns |
 
 ---
 
 ## Contributing
 
-Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) first.
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Changelog
 
-See [CHANGELOG.md](CHANGELOG.md) for a full history of changes.
+See [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 
-Copyright © 2024 [Jhones Gonçalves](https://github.com/jhonesgoncalves). MIT licensed — see [LICENSE.md](LICENSE.md).
+Copyright © 2024 [Jhones Gonçalves](https://github.com/jhonesgoncalves). MIT licensed.

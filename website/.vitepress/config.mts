@@ -2,14 +2,14 @@ import { defineConfig } from 'vitepress'
 
 export default defineConfig({
   title: 'super-http',
-  description: 'A resilient HTTP client — circuit breaker, connection pooling, keep-alive and smart retry.',
+  description: 'Enterprise-grade HTTP client — circuit breaker, bulkhead, rate limiter, jitter retry, fallback and request dedup.',
   lang: 'en-US',
   base: '/super-http-ts/',
 
   head: [
     ['link', { rel: 'icon', type: 'image/svg+xml', href: '/logo.svg' }],
     ['meta', { name: 'og:title', content: 'super-http' }],
-    ['meta', { name: 'og:description', content: 'A resilient HTTP client built on top of Axios.' }],
+    ['meta', { name: 'og:description', content: 'Enterprise-grade resilient HTTP client for Node.js.' }],
     ['meta', { name: 'twitter:card', content: 'summary_large_image' }],
   ],
 
@@ -21,10 +21,11 @@ export default defineConfig({
       { text: 'Guide', link: '/guide/getting-started' },
       { text: 'API Reference', link: '/api/' },
       {
-        text: '1.0.0',
+        text: '1.1.0',
         items: [
           { text: 'Changelog', link: 'https://github.com/jhonesgoncalves/super-http-ts/blob/main/CHANGELOG.md' },
           { text: 'Contributing', link: 'https://github.com/jhonesgoncalves/super-http-ts/blob/main/CONTRIBUTING.md' },
+          { text: 'npm', link: 'https://www.npmjs.com/package/super-http' },
         ],
       },
     ],
@@ -39,17 +40,22 @@ export default defineConfig({
           ],
         },
         {
-          text: 'Core Concepts',
+          text: 'Resilience Features',
           items: [
             { text: 'Connection Pooling', link: '/guide/connection-pool' },
-            { text: 'Retry', link: '/guide/retry' },
+            { text: 'Retry Strategies', link: '/guide/retry' },
             { text: 'Circuit Breaker', link: '/guide/circuit-breaker' },
+            { text: 'Bulkhead', link: '/guide/bulkhead' },
+            { text: 'Rate Limiter', link: '/guide/rate-limiter' },
+            { text: 'Fallback', link: '/guide/fallback' },
+            { text: 'Request Dedup', link: '/guide/dedup' },
+            { text: 'Observability', link: '/guide/observability' },
           ],
         },
         {
-          text: 'Configuration',
+          text: 'Reference',
           items: [
-            { text: 'Full Reference', link: '/guide/configuration' },
+            { text: 'Configuration', link: '/guide/configuration' },
             { text: 'Recipes', link: '/guide/recipes' },
           ],
         },
@@ -62,6 +68,11 @@ export default defineConfig({
             { text: 'HttpClientFactory', link: '/api/http-client-factory' },
             { text: 'HttpClient', link: '/api/http-client' },
             { text: 'CircuitBreaker', link: '/api/circuit-breaker' },
+            { text: 'Bulkhead', link: '/api/bulkhead' },
+            { text: 'RateLimiter', link: '/api/rate-limiter' },
+            { text: 'Retry Strategies', link: '/api/retry-strategy' },
+            { text: 'RequestDedup', link: '/api/request-dedup' },
+            { text: 'ResilienceEvents', link: '/api/resilience-events' },
             { text: 'PoolConfig', link: '/api/pool-config' },
           ],
         },
@@ -83,8 +94,6 @@ export default defineConfig({
       text: 'Edit this page on GitHub',
     },
 
-    search: {
-      provider: 'local',
-    },
+    search: { provider: 'local' },
   },
 })
