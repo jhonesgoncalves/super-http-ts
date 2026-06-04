@@ -96,8 +96,18 @@ export function avg(latencies: number[]): number {
   return latencies.reduce((a, b) => a + b, 0) / latencies.length;
 }
 
+/** Raw throughput: total logical requests / total time (includes failed) */
 export function rps(result: BenchmarkResult): number {
   return Math.round((result.totalRequests / result.totalMs) * 1000);
+}
+
+/**
+ * Effective throughput: only successful requests / total time.
+ * This is the right metric when comparing scenarios with retry,
+ * because plain axios "appears faster" by not retrying failures.
+ */
+export function effectiveRps(result: BenchmarkResult): number {
+  return Math.round((result.successCount / result.totalMs) * 1000);
 }
 
 export function successRate(result: BenchmarkResult): number {
@@ -129,7 +139,8 @@ export function printResult(result: BenchmarkResult) {
     `${chalk.green(result.successCount + ' ok')}  ${chalk.red(result.failureCount + ' failed')}`,
   );
   console.log(`    ${'Success rate:'.padEnd(18)} ${srColor(sr.toFixed(1) + '%')}`);
-  console.log(`    ${'Throughput:'.padEnd(18)} ${chalk.cyan(rpsVal + ' req/s')}`);
+  const effRps = effectiveRps(result);
+  console.log(`    ${'Throughput:'.padEnd(18)} ${chalk.cyan(rpsVal + ' req/s total')}  ${chalk.green(effRps + ' eff.req/s')} ${chalk.gray('(successful only)')}`);
   console.log(`    ${'Duration:'.padEnd(18)} ${chalk.white(result.totalMs + ' ms')}`);
   console.log(
     `    ${'Latency:'.padEnd(18)} ` +
@@ -153,7 +164,7 @@ export function printComparison(results: BenchmarkResult[]) {
   console.log('\n' + chalk.bold.white('  📊 Comparison'));
   console.log(chalk.gray('  ' + '─'.repeat(64)));
 
-  const cols = ['Label', 'Req/s', 'Success%', 'Avg ms', 'P95 ms', 'P99 ms'];
+  const cols = ['Label', 'Eff.req/s', 'Success%', 'Avg ms', 'P95 ms', 'P99 ms'];
   const widths = [28, 8, 10, 8, 8, 8];
 
   // Header
@@ -171,12 +182,17 @@ export function printComparison(results: BenchmarkResult[]) {
     const avgMs = avg(r.latencies);
 
     const isBaseline = r === baseline;
-    const rpsGain = isBaseline ? '' : chalk.green(` (+${Math.round(((rpsVal - rps(baseline)) / Math.max(rps(baseline), 1)) * 100)}%)`);
+    const effRpsVal = effectiveRps(r);
+    const baselineEff = effectiveRps(baseline);
+    const effGainPct = Math.round(((effRpsVal - baselineEff) / Math.max(baselineEff, 1)) * 100);
+    const effGain = isBaseline ? '' : effGainPct >= 0
+      ? chalk.green(` (+${effGainPct}%)`)
+      : chalk.red(` (${effGainPct}%)`);
     const srColor = sr >= 95 ? chalk.green : sr >= 70 ? chalk.yellow : chalk.red;
 
     const row = [
       (isBaseline ? chalk.gray : chalk.white)(r.label.slice(0, 27).padEnd(widths[0])),
-      (chalk.cyan(String(rpsVal)) + rpsGain).padEnd(isBaseline ? widths[1] : widths[1] + 15),
+      (chalk.cyan(String(effRpsVal)) + effGain).padEnd(isBaseline ? widths[1] : widths[1] + 15),
       srColor(sr.toFixed(1) + '%').padEnd(widths[2] + 10),
       chalk.white(avgMs.toFixed(1)).padEnd(widths[3] + 9),
       chalk.white(String(p95)).padEnd(widths[4] + 9),
@@ -187,14 +203,15 @@ export function printComparison(results: BenchmarkResult[]) {
 }
 
 export function printImprovement(label: string, baseline: BenchmarkResult, improved: BenchmarkResult) {
-  const rpsImprove = ((rps(improved) - rps(baseline)) / Math.max(rps(baseline), 1)) * 100;
-  const srImprove = successRate(improved) - successRate(baseline);
+  // Use effective req/s (successful only) — raw rps is misleading when retry is involved
+  const effImprove = ((effectiveRps(improved) - effectiveRps(baseline)) / Math.max(effectiveRps(baseline), 1)) * 100;
+  const srImprove  = successRate(improved) - successRate(baseline);
   const latImprove = ((avg(baseline.latencies) - avg(improved.latencies)) / Math.max(avg(baseline.latencies), 1)) * 100;
 
   console.log('\n  ' + chalk.bold.green(`✅ ${label}`));
-  if (rpsImprove > 0) console.log(`     Throughput:  ${chalk.green('+' + rpsImprove.toFixed(0) + '%')} faster`);
-  if (srImprove > 0)  console.log(`     Success rate: ${chalk.green('+' + srImprove.toFixed(1) + 'pp')} improvement`);
-  if (latImprove > 0) console.log(`     Avg latency:  ${chalk.green(latImprove.toFixed(0) + '% reduction')}`);
+  if (effImprove > 0) console.log(`     Eff.throughput: ${chalk.green('+' + effImprove.toFixed(0) + '%')} more successful req/s`);
+  if (srImprove > 0)  console.log(`     Success rate:   ${chalk.green('+' + srImprove.toFixed(1) + 'pp')} improvement`);
+  if (latImprove > 0) console.log(`     Avg latency:    ${chalk.green(latImprove.toFixed(0) + '% reduction')}`);
 }
 
 export function sleep(ms: number): Promise<void> {

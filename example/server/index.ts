@@ -78,10 +78,14 @@ app.get('/rate-limited', (req, res) => {
 
 // ─── /outage ─────────────────────────────────────────────────────────────────
 app.get('/outage', async (_req, res) => {
-  await sleep(rand(3, 8));
   if (outageActive) {
+    // Simulate a slow upstream that accepts the connection but hangs before responding.
+    // This is the real-world scenario where circuit breaker shines: fail fast instead
+    // of waiting 80ms per request while the service is completely down.
+    await sleep(80);
     res.status(503).json({ error: 'Service in outage', ts: Date.now() });
   } else {
+    await sleep(rand(3, 8));
     res.json({ data: 'outage endpoint ok', ts: Date.now() });
   }
 });

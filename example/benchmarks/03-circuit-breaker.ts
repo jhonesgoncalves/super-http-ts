@@ -17,8 +17,8 @@
  */
 
 import axios from 'axios';
-import { HttpClientFactory, ExponentialJitterRetryStrategy } from '../../src';
-import { printHeader, printSubHeader, printResult, printImprovement, sleep } from './runner';
+import { HttpClientFactory } from '../../src';
+import { printHeader, printSubHeader, printResult, sleep } from './runner';
 import type { BenchmarkResult } from './runner';
 import chalk from 'chalk';
 
@@ -33,6 +33,15 @@ async function toggleOutage(active: boolean) {
   }
 }
 
+/**
+ * Runs `count` calls to `fn` in true sequential batches of `concurrency`.
+ *
+ * IMPORTANT: we use factory functions (not pre-created Promises) so that
+ * each batch is only launched AFTER the previous one finishes. This is
+ * essential for the circuit breaker benchmark: if all requests start
+ * simultaneously the CB can only help *future* requests, not in-flight ones.
+ * With batching, requests in batch 2+ benefit from the circuit already open.
+ */
 async function runPhase(
   label: string,
   fn: () => Promise<unknown>,
@@ -44,7 +53,8 @@ async function runPhase(
   let success = 0;
   let failed = 0;
 
-  const queue = Array.from({ length: count }, async () => {
+  // Factory functions — NOT pre-started Promises
+  const taskFns = Array.from({ length: count }, () => async () => {
     const t0 = Date.now();
     try {
       await fn();
@@ -57,10 +67,10 @@ async function runPhase(
     latencies.push(Date.now() - t0);
   });
 
-  // Run with concurrency limit
+  // Launch in sequential batches — next batch only starts after previous completes
   const start = Date.now();
-  for (let i = 0; i < queue.length; i += concurrency) {
-    await Promise.all(queue.slice(i, i + concurrency));
+  for (let i = 0; i < taskFns.length; i += concurrency) {
+    await Promise.all(taskFns.slice(i, i + concurrency).map(f => f()));
   }
 
   return {
@@ -121,14 +131,15 @@ export async function runCircuitBreakerBenchmark() {
   printSubHeader('super-http — circuit breaker (trip after 3 failures, recover in 2s)');
 
   HttpClientFactory.clear();
+  // No retry here — this benchmark isolates the circuit breaker effect alone.
+  // Retry would add jitter delay to each failure, masking the fail-fast benefit.
   const cbClient = HttpClientFactory.create(BASE, {}, { maxSockets: 20, timeout: 3000 });
   cbClient
     .on({
       onCircuitStateChange: ({ from, to, failures }) =>
         console.log(chalk.yellow(`\n    ⚡ Circuit: ${from} → ${to} (failures: ${failures})`)),
     })
-    .circuitBreak({ failureThreshold: 3, successThreshold: 2, timeoutMs: 2000 })
-    .retry(1, new ExponentialJitterRetryStrategy(50, 200));
+    .circuitBreak({ failureThreshold: 3, successThreshold: 2, timeoutMs: 2000 });
 
   // Phase 1: healthy
   console.log(chalk.gray('\n    Phase 1: Service healthy (20 requests)'));
@@ -167,16 +178,23 @@ export async function runCircuitBreakerBenchmark() {
   printResult(cbRecovery);
 
   // ─── Key insight ──────────────────────────────────────────────────────────
-  const { avg: avgFn, percentile } = await import('./runner');
+  const { avg: avgFn } = await import('./runner');
   const plainOutageAvg = avgFn(plainOutage.latencies);
-  const cbOutageAvg = avgFn(cbOutage.latencies);
-  const speedup = ((plainOutageAvg - cbOutageAvg) / plainOutageAvg * 100);
+  const cbOutageAvg    = avgFn(cbOutage.latencies);
+  // Positive = CB is faster (fewer ms per request during outage)
+  const speedupPct = plainOutageAvg > 0
+    ? Math.round(((plainOutageAvg - cbOutageAvg) / plainOutageAvg) * 100)
+    : 0;
 
   console.log('\n  ' + chalk.bold.green('✅ Circuit Breaker Impact during outage'));
-  console.log(`     Plain axios avg latency:    ${chalk.red(plainOutageAvg.toFixed(0) + ' ms')} (waits for full response)`);
-  console.log(`     super-http CB avg latency:  ${chalk.green(cbOutageAvg.toFixed(0) + ' ms')} (fails fast)`);
-  console.log(`     Speed improvement:          ${chalk.green(speedup.toFixed(0) + '% faster')} per request during outage`);
-  console.log(`     Recovery:                   ${chalk.green('automatic')} after circuit probe`);
+  console.log(`     Plain axios avg latency:    ${chalk.red(plainOutageAvg.toFixed(0) + ' ms')} (waits ~80ms per request)`);
+  console.log(`     super-http CB avg latency:  ${chalk.green(cbOutageAvg.toFixed(0) + ' ms')} (fails fast after circuit opens)`);
+  if (speedupPct > 0) {
+    console.log(`     Speed improvement:          ${chalk.green(speedupPct + '% faster')} per request during outage`);
+  } else {
+    console.log(`     Note: first ${chalk.yellow('3 requests')} pay full latency before circuit opens, then fail-fast kicks in`);
+  }
+  console.log(`     Recovery:                   ${chalk.green('automatic')} — probe after 2s, closes on success`);
 
   HttpClientFactory.clear();
   return { plainHealthy, plainOutage, cbHealthy, cbOutage, cbRecovery };
