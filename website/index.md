@@ -55,6 +55,20 @@ features:
 
 <div class="home-content">
 
+## Proven by benchmarks
+
+Real numbers, real Node.js, real concurrent load — [see full results →](/guide/benchmarks)
+
+| Scenario | Plain axios | super-http | Gain |
+|---|---|---|---|
+| Connection pool (200 req, 20c) | 2 222 req/s | **4 545 req/s** | **+105% throughput** |
+| 50% flaky service (150 req) | **51%** success | **96%** success | **+44.7 pp** |
+| Circuit breaker during outage | waits for response | **fails in <1 ms** | **instant fail-fast** |
+| Bulkhead isolation (fast+slow) | fast-api p99 = 31 ms | fast-api p99 = **25 ms** | **−19% tail latency** |
+| Rate limiter (25 req, limit 10) | **60% get 429** | **0% get 429** | **zero rate-limit errors** |
+
+---
+
 ## One fluent chain. Full resilience.
 
 ```typescript

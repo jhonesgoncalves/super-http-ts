@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.1] — 2024-06-04
+
+### Added
+- Benchmark suite (`example/`) with 6 scenarios proving real-world resilience gains
+- VitePress benchmark results page (`/guide/benchmarks`) with full tables and analysis
+- Benchmark summary table in README and landing page
+
+---
+
 ## [1.1.0] — 2024-06-04
 
 ### Added

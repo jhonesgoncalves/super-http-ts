@@ -57,6 +57,7 @@ export default defineConfig({
           items: [
             { text: 'Configuration', link: '/guide/configuration' },
             { text: 'Recipes', link: '/guide/recipes' },
+            { text: 'Benchmarks', link: '/guide/benchmarks' },
           ],
         },
       ],

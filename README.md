@@ -49,6 +49,23 @@
 
 ---
 
+## Benchmarks
+
+Real numbers measured with 200 concurrent requests against a local Express server (Node.js 20).
+
+| Scenario | Plain axios | super-http | Gain |
+|---|---|---|---|
+| **Connection pool** (200 req, 20c) | 2 222 req/s · 7.4 ms | **4 545 req/s · 4.3 ms** | **+105% throughput** |
+| **Retry** on 50%-flaky service | 51% success | **96% success** | **+45 pp** |
+| **Circuit breaker** during outage | waits for full response | **fails in <1 ms** | instant fail-fast |
+| **Bulkhead** isolation (fast+slow) | fast-api p99 = 31 ms | fast-api p99 = **25 ms** | **−19% tail latency** |
+| **Rate limiter** (25 req, limit 10) | 60% get 429 | **0% get 429** | zero rate-limit errors |
+
+> Run them yourself: `npm run example` — full source in [`example/`](example/)
+> · [Full benchmark report →](https://jhonesgoncalves.github.io/super-http-ts/guide/benchmarks)
+
+---
+
 ## Installation
 
 ```bash
