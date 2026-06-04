@@ -9,7 +9,10 @@
   },
   "scripts": {
     "build": "tsc",
-    "docs": "typedoc",
+    "docs:api": "typedoc",
+    "docs:dev": "vitepress dev website",
+    "docs:build": "vitepress build website",
+    "docs:preview": "vitepress preview website",
     "format": "prettier --write \"src/**/*.(js|ts)\"",
     "lint": "eslint src --ext .js,.ts",
     "lint:fix": "eslint src --fix --ext .js,.ts",
@@ -56,7 +59,8 @@
     "ts-jest": "^29.1.4",
     "typedoc": "^0.28.19",
     "typedoc-plugin-markdown": "^4.12.0",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "vitepress": "^1.6.4"
   },
   "files": [
     "lib/**/*",
