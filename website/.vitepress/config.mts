@@ -4,6 +4,7 @@ export default defineConfig({
   title: 'super-http',
   description: 'A resilient HTTP client — circuit breaker, connection pooling, keep-alive and smart retry.',
   lang: 'en-US',
+  base: '/super-http-ts/',
 
   head: [
     ['link', { rel: 'icon', type: 'image/svg+xml', href: '/logo.svg' }],
