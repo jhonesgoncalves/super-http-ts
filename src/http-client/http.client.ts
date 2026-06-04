@@ -307,18 +307,26 @@ export class HttpClient {
   ): () => Promise<HttpClientResponse<T>> {
     return async () => {
       let attempt = 0;
+      let lastError: unknown;
 
-      while (true) {
+      do {
         try {
           return await requestFn();
         } catch (error: unknown) {
+          lastError = error;
           const isCircuitOpen =
             error instanceof Error && error.message === 'Circuit breaker is open';
 
           if (isCircuitOpen || attempt >= retryConfig.retries) throw error;
 
+          const axiosError = error as Record<string, unknown>;
+          const status =
+            axiosError.response && typeof axiosError.response === 'object'
+              ? (axiosError.response as Record<string, unknown>).status
+              : undefined;
+
           const shouldRetry = retryConfig.retryOn
-            ? retryConfig.retryOn.includes((error as any)?.response?.status)
+            ? typeof status === 'number' && retryConfig.retryOn.includes(status)
             : isRetryableError(error);
 
           if (!shouldRetry) throw error;
@@ -326,7 +334,9 @@ export class HttpClient {
           attempt++;
           await new Promise((resolve) => setTimeout(resolve, retryConfig.delayMs));
         }
-      }
+      } while (attempt <= retryConfig.retries);
+
+      throw lastError;
     };
   }
 
@@ -336,6 +346,7 @@ export class HttpClient {
   ): () => Promise<HttpClientResponse<T>> {
     if (!this.circuitBreaker) this.circuitBreaker = new CircuitBreaker();
     this.circuitBreaker.setConfig(circuitBreakerConfig);
-    return () => this.circuitBreaker!.execute(requestFn);
+    const cb = this.circuitBreaker;
+    return () => cb.execute(requestFn);
   }
 }
