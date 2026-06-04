@@ -126,6 +126,45 @@ describe('HttpClient', () => {
   });
 });
 
+describe('CircuitBreaker (direct)', () => {
+  it('handleIsOpen throws when circuit is open and timeout has not elapsed', () => {
+    const cb = new CircuitBreaker();
+    cb.setConfig({ failureThreshold: 1, successThreshold: 1, timeoutMs: 60_000 });
+    // Force open state
+    cb['isOpen'] = true;
+    cb['lastFailureTime'] = Date.now();
+    expect(() => cb.handleIsOpen()).toThrow('Circuit breaker is open');
+  });
+
+  it('handleIsOpen resets and returns false when timeout has elapsed', () => {
+    const cb = new CircuitBreaker();
+    cb.setConfig({ failureThreshold: 1, successThreshold: 1, timeoutMs: 0 });
+    cb['isOpen'] = true;
+    cb['lastFailureTime'] = Date.now() - 1;
+    expect(cb.handleIsOpen()).toBe(false);
+    expect(cb.isOpen).toBe(false);
+  });
+
+  it('execute throws when circuit is open and timeout has not elapsed', async () => {
+    const cb = new CircuitBreaker();
+    cb.setConfig({ failureThreshold: 1, successThreshold: 1, timeoutMs: 60_000 });
+    cb['isOpen'] = true;
+    cb['lastFailureTime'] = Date.now();
+    await expect(cb.execute(() => Promise.resolve({} as any))).rejects.toThrow('Circuit breaker is open');
+  });
+
+  it('execute resets and succeeds when circuit is open but timeout has elapsed', async () => {
+    const cb = new CircuitBreaker();
+    cb.setConfig({ failureThreshold: 1, successThreshold: 1, timeoutMs: 0 });
+    cb['isOpen'] = true;
+    cb['lastFailureTime'] = Date.now() - 1;
+    const fakeResponse = { status: 200, data: 'ok' } as any;
+    const result = await cb.execute(() => Promise.resolve(fakeResponse));
+    expect(result.status).toBe(200);
+    expect(cb.isOpen).toBe(false);
+  });
+});
+
 describe('HttpClientFactory', () => {
   it('returns the same instance for the same baseURL', () => {
     const a = HttpClientFactory.create('https://api.example.com');

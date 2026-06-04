@@ -312,13 +312,11 @@ export class HttpClient {
   ): () => Promise<HttpClientResponse<T>> {
     return async () => {
       let attempt = 0;
-      let lastError: unknown;
 
-      do {
+      for (;;) {
         try {
           return await requestFn();
         } catch (error: unknown) {
-          lastError = error;
           const isCircuitOpen =
             error instanceof Error && error.message === 'Circuit breaker is open';
 
@@ -339,9 +337,7 @@ export class HttpClient {
           attempt++;
           await new Promise((resolve) => setTimeout(resolve, retryConfig.delayMs));
         }
-      } while (attempt <= retryConfig.retries);
-
-      throw lastError;
+      }
     };
   }
 

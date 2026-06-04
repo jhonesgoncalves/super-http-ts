@@ -4,7 +4,7 @@ module.exports = {
   },
   testRegex: '(/__tests__/.*|(\\.|/)(test|spec))\\.(t|j)s$',
   moduleFileExtensions: ['ts', 'js', 'json', 'node'],
-  collectCoverageFrom: ['src/**/*.ts', '!src/**/__tests__/**'],
+  collectCoverageFrom: ['src/**/*.ts', '!src/**/__tests__/**', '!src/index.ts'],
   coverageReporters: ['text', 'lcov', 'html'],
   coverageThreshold: {
     global: {
