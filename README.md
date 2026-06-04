@@ -190,4 +190,4 @@ Contributions, issues and feature requests are welcome! Check the [issues page](
 
 ## License
 
-Copyright © 2024 [Hebert F Barros](https://github.com/hebertcisco). MIT licensed — see [LICENSE.md](LICENSE.md).
+Copyright © 2024 [Jhones Gonçalves](https://github.com/jhonesgoncalves). MIT licensed — see [LICENSE.md](LICENSE.md).
