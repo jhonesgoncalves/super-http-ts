@@ -92,11 +92,16 @@ const RETRYABLE_CODES = new Set([
  * - HTTP 4xx (client errors — retrying won't help)
  * - Business logic errors
  */
+interface AxiosLikeError {
+  code?: string;
+  response?: { status?: number };
+}
+
 function isRetryableError(error: unknown): boolean {
   if (error && typeof error === 'object') {
-    const e = error as Record<string, any>;
+    const e = error as AxiosLikeError;
     if (e.code && RETRYABLE_CODES.has(e.code)) return true;
-    if (e.response?.status >= 500) return true;
+    if (typeof e.response?.status === 'number' && e.response.status >= 500) return true;
   }
   return false;
 }
