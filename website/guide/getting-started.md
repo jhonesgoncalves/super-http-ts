@@ -20,57 +20,85 @@ Node.js ≥ 20 · TypeScript ≥ 5
 
 ---
 
-## Your first request
+## Two ways to create a client
+
+super-http offers two factory APIs. Both return an `HttpClient` and share the same singleton cache per `baseURL`.
+
+### `createClient` — recommended
+
+The modern, ergonomic API. Accepts all config in a single options object and supports **presets**.
+
+```typescript
+import { createClient } from 'super-http'
+
+const api = createClient({
+  baseURL: 'https://api.example.com',
+  preset: 'resilient-api',           // optional preset
+  headers: { 'X-Service': 'checkout' },
+})
+```
+
+### `HttpClientFactory.create` — explicit
+
+The low-level API. Useful when you need to separate `httpConfig` from `poolConfig`, or when you don't want a preset.
 
 ```typescript
 import { HttpClientFactory } from 'super-http'
 
-const client = HttpClientFactory.create('https://jsonplaceholder.typicode.com')
+const api = HttpClientFactory.create(
+  'https://api.example.com',
+  { headers: { 'X-Service': 'checkout' } },  // http config
+  { maxSockets: 100, timeout: 15_000 },       // pool config
+)
+```
+
+::: tip Both share the same cache
+`createClient` is built on top of `HttpClientFactory`. A given `baseURL` always returns the same `HttpClient` instance regardless of which API you used to create it.
+:::
+
+---
+
+## Your first request
+
+```typescript
+import { createClient } from 'super-http'
+
+const client = createClient({ baseURL: 'https://jsonplaceholder.typicode.com' })
 
 const { data } = await client.get('/todos/1')
-console.log(data)
 // { userId: 1, id: 1, title: 'delectus aut autem', completed: false }
 ```
 
-Already active out of the box: shared **connection pool** with TCP keep-alive, 30 s timeout, and an attached `CircuitBreaker`.
+Out of the box: shared **connection pool** with TCP keep-alive, 30 s timeout, and a `CircuitBreaker` instance — all automatic.
 
 ---
 
 ## Production setup
 
 ```typescript
-import { HttpClientFactory, ExponentialJitterRetryStrategy } from 'super-http'
+import { createClient, ExponentialJitterRetryStrategy, LoggerPlugin } from 'super-http'
 
-const api = HttpClientFactory.create('https://api.example.com', {}, {
-  maxSockets: 100,   // connection pool size
-  timeout: 15_000,   // request timeout
+// Option A — preset (recommended for most cases)
+const api = createClient({
+  baseURL: 'https://api.example.com',
+  preset: 'resilient-api',
+  headers: { Authorization: `Bearer ${token}` },
 })
 
+// Option B — manual setup (full control)
+const api = createClient({ baseURL: 'https://api.example.com' })
+
 api
-  // 1. Observability — wire to your logger / metrics
+  .use(LoggerPlugin({ prefix: '[checkout]' }))
   .on({
-    onRetry:              ({ attempt, delayMs }) => logger.warn(`retry #${attempt} in ${delayMs}ms`),
-    onCircuitStateChange: ({ from, to })         => metrics.increment(`circuit.${from}_${to}`),
-    onBulkheadReject:     ()                     => metrics.increment('bulkhead.rejected'),
-    onFallback:           ({ error })            => logger.error('fallback triggered', error),
+    onCircuitStateChange: ({ to, failures }) =>
+      to === 'open' && alerts.send(`Circuit opened (${failures} failures)`),
   })
-
-  // 2. Circuit breaker — trip after 5 failures, recover after 15 s
   .circuitBreak({ failureThreshold: 5, successThreshold: 2, timeoutMs: 15_000 })
-
-  // 3. Retry — exponential jitter prevents thundering herd
   .retry(4, new ExponentialJitterRetryStrategy(100, 10_000))
-
-  // 4. Bulkhead — cap concurrency, queue up to 100 with 3 s timeout
   .bulkhead({ maxConcurrent: 20, maxQueue: 100, queueTimeoutMs: 3_000 })
-
-  // 5. Rate limiter — 200 req/min
   .rateLimit({ permitLimit: 200, windowMs: 60_000 })
-
-  // 6. Fallback — degrade gracefully instead of propagating errors
   .fallback(() => ({ items: [], degraded: true }))
-
-  // 7. Dedup — coalesce identical concurrent GETs
   .dedup()
 ```
 
@@ -87,18 +115,42 @@ const { data } = await api.get<User[]>('/users')
 
 ---
 
+## Per-request policy
+
+Override any resilience setting for a single call without changing the client:
+
+```typescript
+// Disable retry for a non-idempotent payment
+const charge = await api.post('/charges', payload, {
+  policy: { retry: false, timeout: 10_000 },
+  headers: { 'Idempotency-Key': uuid() },
+})
+
+// Fast fallback for a non-critical endpoint
+const recs = await api.get('/recommendations', {
+  policy: { timeout: 300, fallback: () => [] },
+})
+```
+
+---
+
+## Built-in metrics
+
+```typescript
+const m = api.metrics()
+// { requests, success, failed, retries, p95Latency, p99Latency, circuitBreakerTrips, … }
+```
+
+---
+
 ## Next steps
 
 | Topic | Link |
 |---|---|
+| `createClient` vs `HttpClientFactory` | [Factory comparison](./configuration#createclient-vs-httpclientfactory) |
+| Presets reference | [Presets](./presets) |
 | Why super-http? | [Why](./why) |
-| Connection pool deep dive | [Connection Pooling](./connection-pool) |
-| Retry strategies | [Retry](./retry) |
-| Circuit breaker | [Circuit Breaker](./circuit-breaker) |
-| Bulkhead | [Bulkhead](./bulkhead) |
-| Rate limiter | [Rate Limiter](./rate-limiter) |
-| Fallback | [Fallback](./fallback) |
-| Request dedup | [Request Dedup](./dedup) |
-| Observability hooks | [Observability](./observability) |
-| All options | [Configuration](./configuration) |
+| Migrating from Axios | [Migration guide](./migration) |
+| All resilience features | [Configuration](./configuration) |
 | Production patterns | [Recipes](./recipes) |
+| Production checklist | [Production Readiness](./production-readiness) |
