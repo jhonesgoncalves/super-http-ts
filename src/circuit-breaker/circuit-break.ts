@@ -1,4 +1,5 @@
 import { AxiosResponse } from 'axios';
+import { CircuitState, CircuitStateChangeEvent, ResilienceEvents } from '../models/resilience.events';
 
 /**
  * Configuration options for the {@link CircuitBreaker}.
@@ -15,14 +16,12 @@ import { AxiosResponse } from 'axios';
 export interface CircuitBreakerConfig {
   /**
    * Number of consecutive failures required to trip (open) the circuit.
-   * Once this threshold is reached, requests fail immediately without
-   * reaching the upstream service.
    */
   failureThreshold: number;
 
   /**
-   * Number of consecutive successes required to close the circuit after
-   * a successful probe in the half-open state.
+   * Number of consecutive successes required to close the circuit from
+   * the half-open state.
    */
   successThreshold: number;
 
@@ -34,7 +33,9 @@ export interface CircuitBreakerConfig {
 }
 
 /**
- * A simple three-state circuit breaker (closed → open → half-open).
+ * A three-state circuit breaker (closed → open → half-open).
+ *
+ * Inspired by Polly's `CircuitBreakerPolicy` and Resilience4j's `CircuitBreaker`.
  *
  * **States:**
  * - **Closed** — requests flow normally. Failures are counted.
@@ -46,8 +47,10 @@ export interface CircuitBreakerConfig {
  * @example
  * ```ts
  * const cb = new CircuitBreaker();
- * cb.setConfig({ failureThreshold: 3, successThreshold: 1, timeoutMs: 5000 });
- *
+ * cb.setConfig(
+ *   { failureThreshold: 3, successThreshold: 1, timeoutMs: 5000 },
+ *   { onCircuitStateChange: ({ from, to }) => console.log(`${from} → ${to}`) },
+ * );
  * const response = await cb.execute(() => axios.get('/api/data'));
  * ```
  */
@@ -55,33 +58,44 @@ export class CircuitBreaker {
   private failures = 0;
   private successes = 0;
   private lastFailureTime = 0;
-
-  /** Whether the circuit is currently open (tripped). */
-  isOpen = false;
-
+  private _state: CircuitState = 'closed';
   private config?: CircuitBreakerConfig;
+  private events?: Pick<ResilienceEvents, 'onCircuitStateChange'>;
+
+  /** Current circuit state. */
+  get state(): CircuitState {
+    return this._state;
+  }
+
+  /** `true` when the circuit is open (tripped). */
+  get isOpen(): boolean {
+    return this._state === 'open';
+  }
 
   /**
-   * Sets or updates the circuit breaker configuration.
+   * Sets or updates the circuit breaker configuration and optional event hooks.
+   *
    * @param config - The new {@link CircuitBreakerConfig}.
+   * @param events - Optional observability hooks.
    */
-  public setConfig(config: CircuitBreakerConfig): void {
+  public setConfig(
+    config: CircuitBreakerConfig,
+    events?: Pick<ResilienceEvents, 'onCircuitStateChange'>,
+  ): void {
     this.config = config;
+    if (events) this.events = events;
   }
 
   /**
    * Wraps an async function with circuit-breaker protection.
    *
-   * @typeParam T - The type of the resolved value.
-   * @param fn - The async function to protect.
-   * @returns A promise that resolves with the function's result.
-   * @throws `Error('Circuit breaker is open')` when the circuit is tripped
-   *         and the timeout has not yet elapsed.
+   * @throws `Error('Circuit breaker is open')` when the circuit is open and
+   *   the timeout has not elapsed.
    */
   async execute<T>(fn: () => Promise<AxiosResponse<T>>): Promise<AxiosResponse<T>> {
-    if (this.isOpen) {
+    if (this._state === 'open') {
       if (this.shouldAttemptReset()) {
-        this.reset();
+        this.transitionTo('half-open');
       } else {
         throw new Error('Circuit breaker is open');
       }
@@ -98,28 +112,24 @@ export class CircuitBreaker {
   }
 
   /**
-   * Checks the open state and throws if the circuit is open and the timeout
-   * has not elapsed.  Useful for guard-checking before initiating work that
-   * isn't wrapped via {@link execute}.
-   *
-   * @returns `false` when the circuit is closed (requests may proceed).
-   * @throws `Error('Circuit breaker is open')` when the circuit is open.
+   * Guard check: throws if the circuit is open and timeout has not elapsed.
+   * Returns `false` when the circuit is closed (safe to proceed).
    */
   public handleIsOpen(): boolean {
-    if (this.isOpen) {
+    if (this._state === 'open') {
       if (this.shouldAttemptReset()) {
-        this.reset();
+        this.transitionTo('half-open');
       } else {
         throw new Error('Circuit breaker is open');
       }
     }
-    return this.isOpen;
+    return this._state === 'open';
   }
 
   private handleSuccess(): void {
     this.successes++;
     if (this.successes >= (this.config?.successThreshold ?? 1)) {
-      this.reset();
+      this.transitionTo('closed');
     }
   }
 
@@ -136,22 +146,34 @@ export class CircuitBreaker {
     this.lastFailureTime = now;
 
     if (this.failures >= (this.config?.failureThreshold ?? 1)) {
-      this.trip();
+      this.transitionTo('open');
     }
   }
 
-  private trip(): void {
-    this.isOpen = true;
-    this.lastFailureTime = Date.now();
-  }
+  private transitionTo(next: CircuitState): void {
+    const prev = this._state;
+    if (prev === next) return;
 
-  private reset(): void {
-    this.successes = 0;
-    this.failures = 0;
-    this.isOpen = false;
+    this._state = next;
+
+    if (next === 'open') {
+      this.lastFailureTime = Date.now();
+    }
+
+    if (next === 'closed') {
+      this.successes = 0;
+      this.failures = 0;
+    }
+
+    const event: CircuitStateChangeEvent = { from: prev, to: next, failures: this.failures };
+    this.safeCall(() => this.events?.onCircuitStateChange?.(event));
   }
 
   private shouldAttemptReset(): boolean {
     return Date.now() - this.lastFailureTime >= (this.config?.timeoutMs ?? 0);
+  }
+
+  private safeCall(fn: () => void): void {
+    try { fn(); } catch { /* never affect request path */ }
   }
 }

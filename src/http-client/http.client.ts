@@ -2,25 +2,24 @@ import http from 'http';
 import https from 'https';
 import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
 import { CircuitBreakerConfig, CircuitBreaker } from '../circuit-breaker/circuit-break';
+import { Bulkhead, BulkheadConfig } from '../bulkhead/bulkhead';
+import { RateLimiter, RateLimitConfig } from '../rate-limiter/rate-limiter';
+import { RequestDedup } from '../dedup/request-dedup';
+import { RetryStrategy, FixedRetryStrategy } from '../models/retry.strategy';
+import { ResilienceEvents } from '../models/resilience.events';
 import { HttpClientRequestConfig } from '../models/http.client.request.config';
 import { HttpClientResponse } from '../models/http.client.response';
 
-/**
- * Configuration for the automatic retry behaviour.
- * @internal
- */
+// ─── Internal config types ────────────────────────────────────────────────────
+
 interface RetryConfig {
   retries: number;
-  delayMs: number;
+  strategy: RetryStrategy;
   retryOn?: number[];
 }
 
 /**
  * Options for the underlying Node.js HTTP/HTTPS connection pool.
- *
- * These values are passed directly to `http.Agent` and `https.Agent`.
- * Tuning the pool allows you to balance throughput against resource usage
- * for your specific workload.
  *
  * @example
  * ```ts
@@ -34,64 +33,25 @@ interface RetryConfig {
  * ```
  */
 export interface PoolConfig {
-  /**
-   * Maximum number of concurrent open sockets per host.
-   * @defaultValue 50
-   */
+  /** Max concurrent sockets per host. @defaultValue 50 */
   maxSockets?: number;
-
-  /**
-   * Maximum number of idle (keep-alive) sockets to keep open per host.
-   * @defaultValue 10
-   */
+  /** Max idle keep-alive sockets per host. @defaultValue 10 */
   maxFreeSockets?: number;
-
-  /**
-   * Enable TCP keep-alive on sockets.  Prevents `ECONNRESET` errors that
-   * occur when a server closes an idle persistent connection.
-   * @defaultValue true
-   */
+  /** Enable TCP keep-alive. @defaultValue true */
   keepAlive?: boolean;
-
-  /**
-   * Delay between keep-alive probes in milliseconds.
-   * @defaultValue 1000
-   */
+  /** Keep-alive probe interval (ms). @defaultValue 1000 */
   keepAliveMsecs?: number;
-
-  /**
-   * Global request timeout in milliseconds.  Overrides the value in
-   * {@link HttpClientRequestConfig} when both are set.
-   * @defaultValue 30000
-   */
+  /** Request timeout (ms). @defaultValue 30000 */
   timeout?: number;
 }
 
-/**
- * Network error codes that are considered safe to retry because they are
- * transient and not caused by the request payload itself.
- */
+// ─── Retryable error detection ────────────────────────────────────────────────
+
 const RETRYABLE_CODES = new Set([
-  'ECONNRESET',
-  'ECONNREFUSED',
-  'EPIPE',
-  'ETIMEDOUT',
-  'ENOTFOUND',
-  'EAI_AGAIN',
-  'ECONNABORTED',
+  'ECONNRESET', 'ECONNREFUSED', 'EPIPE', 'ETIMEDOUT',
+  'ENOTFOUND', 'EAI_AGAIN', 'ECONNABORTED',
 ]);
 
-/**
- * Returns `true` when an error is safe to retry.
- *
- * Retryable conditions:
- * - Network-level errors (socket hung up, connection refused, DNS failure, …)
- * - HTTP 5xx responses (server-side transient failures)
- *
- * Non-retryable:
- * - HTTP 4xx (client errors — retrying won't help)
- * - Business logic errors
- */
 interface AxiosLikeError {
   code?: string;
   response?: { status?: number };
@@ -106,25 +66,35 @@ function isRetryableError(error: unknown): boolean {
   return false;
 }
 
+// ─── HttpClient ───────────────────────────────────────────────────────────────
+
 /**
- * A resilient HTTP client that wraps Axios with:
- * - **Connection pooling** — shared `http.Agent`/`https.Agent` with keep-alive
- * - **Smart retry** — retries on network errors and 5xx, skips 4xx
- * - **Circuit breaker** — trips after N failures, recovers automatically
+ * A resilient, production-grade HTTP client built on top of Axios.
  *
- * Instantiate via {@link HttpClientFactory} to get singleton-per-baseURL
- * behaviour with automatic pool reuse. Use the constructor directly when
- * you need full control.
+ * **Resilience features (all opt-in via fluent API):**
+ * - Connection pooling with TCP keep-alive (always on)
+ * - Smart retry with pluggable back-off strategies
+ * - Three-state circuit breaker
+ * - Bulkhead isolation (concurrency limiter)
+ * - Token-bucket rate limiter
+ * - Fallback / graceful degradation
+ * - Request deduplication (idempotent calls)
+ * - Observability hooks (retry, circuit state, bulkhead, fallback, rate-limit)
+ *
+ * Instantiate via {@link HttpClientFactory} for singleton-per-baseURL behaviour.
  *
  * @example
  * ```ts
- * // Factory (recommended)
- * const client = HttpClientFactory.create('https://api.example.com');
- * client.retry(3, 500).circuitBreak({ failureThreshold: 5, successThreshold: 2, timeoutMs: 10_000 });
- * const { data } = await client.get('/users');
+ * const api = HttpClientFactory.create('https://api.example.com')
  *
- * // Direct instantiation
- * const client = new HttpClient('https://api.example.com', {}, undefined, { maxSockets: 100 });
+ * api
+ *   .on({ onRetry: ({ attempt }) => logger.warn(`retry #${attempt}`) })
+ *   .circuitBreak({ failureThreshold: 5, successThreshold: 2, timeoutMs: 10_000 })
+ *   .retry(3, new ExponentialJitterRetryStrategy(100, 10_000))
+ *   .bulkhead({ maxConcurrent: 20, maxQueue: 100 })
+ *   .rateLimit({ permitLimit: 200, windowMs: 60_000 })
+ *
+ * const { data } = await api.get<User[]>('/users')
  * ```
  */
 export class HttpClient {
@@ -132,16 +102,12 @@ export class HttpClient {
   private retryConfig?: RetryConfig;
   private circuitBreakerConfig?: CircuitBreakerConfig;
   private circuitBreaker?: CircuitBreaker;
+  private bulkheadInstance?: Bulkhead;
+  private rateLimiterInstance?: RateLimiter;
+  private dedupInstance?: RequestDedup;
+  private fallbackFn?: (error: unknown) => unknown;
+  private resilienceEvents: ResilienceEvents = {};
 
-  /**
-   * Creates a new `HttpClient`.
-   *
-   * @param baseURL - The base URL prepended to every request path.
-   * @param httpClientRequestConfig - Default Axios config applied to all requests.
-   * @param circuitBreaker - An optional pre-configured {@link CircuitBreaker} instance.
-   *   When omitted, one is created lazily the first time `.circuitBreak()` is called.
-   * @param poolConfig - Connection pool options.  See {@link PoolConfig}.
-   */
   constructor(
     baseURL: string,
     httpClientRequestConfig: HttpClientRequestConfig = {},
@@ -170,42 +136,67 @@ export class HttpClient {
     });
   }
 
-  // ─── Fluent configuration ────────────────────────────────────────────────────
+  // ─── Observability ────────────────────────────────────────────────────────
 
   /**
-   * Enables automatic retry for failed requests.
+   * Registers observability hooks fired at key resilience events.
+   * Multiple calls merge the handlers (last write wins per key).
    *
-   * By default, retries are triggered by network errors (`ECONNRESET`,
-   * `ETIMEDOUT`, etc.) and HTTP 5xx responses.  Pass `retryOn` to restrict
-   * retries to specific HTTP status codes instead.
-   *
-   * @param retries - Maximum number of retry attempts.
-   * @param delayMs - Fixed delay between attempts in milliseconds.
-   * @param retryOn - Optional list of HTTP status codes to retry on.
-   *   When provided, network-level errors are **not** retried unless their
-   *   status code appears in this list.
    * @returns `this` — enables fluent chaining.
    *
    * @example
    * ```ts
-   * client.retry(3, 500);                // retry any network/5xx error
-   * client.retry(3, 500, [429, 503]);    // retry only 429 and 503
+   * client.on({
+   *   onRetry:              ({ attempt, delayMs }) => logger.warn(`retry #${attempt} in ${delayMs} ms`),
+   *   onCircuitStateChange: ({ from, to })         => metrics.increment(`circuit.${from}_${to}`),
+   *   onBulkheadReject:     ()                     => metrics.increment('bulkhead.rejected'),
+   * })
    * ```
    */
-  retry(retries: number, delayMs: number, retryOn?: number[]): this {
-    this.retryConfig = { retries, delayMs, retryOn };
+  on(events: ResilienceEvents): this {
+    this.resilienceEvents = { ...this.resilienceEvents, ...events };
+    return this;
+  }
+
+  // ─── Fluent resilience configuration ─────────────────────────────────────
+
+  /**
+   * Enables automatic retry with a pluggable back-off strategy.
+   *
+   * **Strategy shortcuts:**
+   * - Pass a `number` for fixed delay (backwards-compatible).
+   * - Pass a {@link RetryStrategy} for full control.
+   *
+   * @param retries  - Maximum retry attempts.
+   * @param strategy - Delay strategy or fixed delay in ms.
+   * @param retryOn  - Optional: retry only on these HTTP status codes.
+   *
+   * @example
+   * ```ts
+   * import { ExponentialJitterRetryStrategy } from 'super-http'
+   *
+   * client.retry(3, new ExponentialJitterRetryStrategy(100, 10_000))
+   * client.retry(3, 500)                     // fixed 500 ms (legacy)
+   * client.retry(5, 1000, [429, 503])        // fixed, specific codes
+   * ```
+   */
+  retry(retries: number, strategy: RetryStrategy | number, retryOn?: number[]): this {
+    this.retryConfig = {
+      retries,
+      strategy: typeof strategy === 'number' ? new FixedRetryStrategy(strategy) : strategy,
+      retryOn,
+    };
     return this;
   }
 
   /**
-   * Enables the circuit breaker for this client.
+   * Enables the three-state circuit breaker.
    *
-   * @param config - Circuit breaker thresholds and timeout. See {@link CircuitBreakerConfig}.
-   * @returns `this` — enables fluent chaining.
+   * @param config - Thresholds and timeout. See {@link CircuitBreakerConfig}.
    *
    * @example
    * ```ts
-   * client.circuitBreak({ failureThreshold: 5, successThreshold: 2, timeoutMs: 10_000 });
+   * client.circuitBreak({ failureThreshold: 5, successThreshold: 2, timeoutMs: 10_000 })
    * ```
    */
   circuitBreak(config: CircuitBreakerConfig): this {
@@ -213,107 +204,161 @@ export class HttpClient {
     return this;
   }
 
-  // ─── HTTP convenience methods ─────────────────────────────────────────────────
-
   /**
-   * Sends an HTTP `GET` request.
+   * Enables bulkhead isolation — limits the number of concurrent in-flight
+   * requests and optionally queues excess calls.
    *
-   * @typeParam T - Expected response body type.
-   * @param url - Request path (appended to `baseURL`).
-   * @param config - Optional per-request Axios config.
+   * @param config - See {@link BulkheadConfig}.
    *
    * @example
    * ```ts
-   * const { data } = await client.get<User[]>('/users');
+   * client.bulkhead({ maxConcurrent: 20, maxQueue: 100, queueTimeoutMs: 3_000 })
    * ```
    */
-  get<T = any>(url: string, config?: HttpClientRequestConfig): Promise<HttpClientResponse<T>> {
+  bulkhead(config: BulkheadConfig): this {
+    this.bulkheadInstance = new Bulkhead(config, this.resilienceEvents);
+    return this;
+  }
+
+  /**
+   * Enables token-bucket rate limiting for outgoing requests.
+   *
+   * @param config - See {@link RateLimitConfig}.
+   *
+   * @example
+   * ```ts
+   * client.rateLimit({ permitLimit: 100, windowMs: 60_000 })
+   * ```
+   */
+  rateLimit(config: RateLimitConfig): this {
+    this.rateLimiterInstance = new RateLimiter(config, this.resilienceEvents);
+    return this;
+  }
+
+  /**
+   * Enables request deduplication for idempotent calls.
+   *
+   * When multiple concurrent callers request the same URL + method + params,
+   * only one HTTP request is sent. All callers share the same result.
+   *
+   * **Only use for idempotent requests (GET, HEAD).**
+   *
+   * @example
+   * ```ts
+   * client.dedup()
+   * const [a, b] = await Promise.all([client.get('/users/1'), client.get('/users/1')])
+   * // → single network request
+   * ```
+   */
+  dedup(): this {
+    this.dedupInstance = new RequestDedup();
+    return this;
+  }
+
+  /**
+   * Registers a fallback handler invoked when the request fails after all
+   * retry attempts and the circuit is open (or any unrecoverable error).
+   *
+   * The handler may return a value, throw a different error, or call an
+   * alternative data source.
+   *
+   * @param fn - Receives the original error; must return the fallback value
+   *   (typed as `T`) or throw.
+   *
+   * @example
+   * ```ts
+   * client.fallback(() => ({ items: [], fromFallback: true }))
+   * ```
+   */
+  fallback<T>(fn: (error: unknown) => T | Promise<T>): this {
+    this.fallbackFn = fn as (error: unknown) => unknown;
+    return this;
+  }
+
+  // ─── HTTP convenience methods ─────────────────────────────────────────────
+
+  /**
+   * Sends an HTTP `GET` request.
+   * @example `const { data } = await client.get<User[]>('/users')`
+   */
+  get<T = unknown>(url: string, config?: HttpClientRequestConfig): Promise<HttpClientResponse<T>> {
     return this.request<T>({ ...config, url, method: 'get' });
   }
 
   /**
    * Sends an HTTP `POST` request.
-   *
-   * @typeParam T - Expected response body type.
-   * @param url - Request path (appended to `baseURL`).
-   * @param data - Request body.
-   * @param config - Optional per-request Axios config.
-   *
-   * @example
-   * ```ts
-   * const { data } = await client.post<User>('/users', { name: 'Alice' });
-   * ```
+   * @example `const { data } = await client.post<User>('/users', { name: 'Alice' })`
    */
-  post<T = any>(url: string, data?: unknown, config?: HttpClientRequestConfig): Promise<HttpClientResponse<T>> {
+  post<T = unknown>(url: string, data?: unknown, config?: HttpClientRequestConfig): Promise<HttpClientResponse<T>> {
     return this.request<T>({ ...config, url, method: 'post', data });
   }
 
   /**
    * Sends an HTTP `PUT` request.
-   *
-   * @typeParam T - Expected response body type.
-   * @param url - Request path (appended to `baseURL`).
-   * @param data - Request body.
-   * @param config - Optional per-request Axios config.
    */
-  put<T = any>(url: string, data?: unknown, config?: HttpClientRequestConfig): Promise<HttpClientResponse<T>> {
+  put<T = unknown>(url: string, data?: unknown, config?: HttpClientRequestConfig): Promise<HttpClientResponse<T>> {
     return this.request<T>({ ...config, url, method: 'put', data });
   }
 
   /**
    * Sends an HTTP `PATCH` request.
-   *
-   * @typeParam T - Expected response body type.
-   * @param url - Request path (appended to `baseURL`).
-   * @param data - Partial request body.
-   * @param config - Optional per-request Axios config.
    */
-  patch<T = any>(url: string, data?: unknown, config?: HttpClientRequestConfig): Promise<HttpClientResponse<T>> {
+  patch<T = unknown>(url: string, data?: unknown, config?: HttpClientRequestConfig): Promise<HttpClientResponse<T>> {
     return this.request<T>({ ...config, url, method: 'patch', data });
   }
 
   /**
    * Sends an HTTP `DELETE` request.
-   *
-   * @typeParam T - Expected response body type.
-   * @param url - Request path (appended to `baseURL`).
-   * @param config - Optional per-request Axios config.
    */
-  delete<T = any>(url: string, config?: HttpClientRequestConfig): Promise<HttpClientResponse<T>> {
+  delete<T = unknown>(url: string, config?: HttpClientRequestConfig): Promise<HttpClientResponse<T>> {
     return this.request<T>({ ...config, url, method: 'delete' });
   }
 
   /**
    * Sends a raw request using the full Axios request config.
-   * Prefer the typed convenience methods (`get`, `post`, …) when possible.
-   *
-   * @typeParam T - Expected response body type.
-   * @param config - Full Axios request configuration.
    */
-  request<T = any>(config: AxiosRequestConfig): Promise<HttpClientResponse<T>> {
-    let requestFn: () => Promise<HttpClientResponse<T>> = () => this.axiosInstance.request<T>(config);
+  request<T = unknown>(config: AxiosRequestConfig): Promise<HttpClientResponse<T>> {
+    const dedupKey = this.dedupInstance
+      ? `${config.method?.toUpperCase()}:${config.url}:${JSON.stringify(config.params ?? '')}`
+      : undefined;
 
-    if (this.circuitBreakerConfig) {
-      requestFn = this.withCircuitBreaker(requestFn, this.circuitBreakerConfig);
+    const core = (): Promise<HttpClientResponse<T>> => {
+      let fn: () => Promise<HttpClientResponse<T>> = () =>
+        this.axiosInstance.request<T>(config);
+
+      if (this.circuitBreakerConfig) fn = this.withCircuitBreaker(fn, this.circuitBreakerConfig);
+      if (this.retryConfig) fn = this.withRetry(fn, this.retryConfig);
+      if (this.bulkheadInstance) fn = this.withBulkhead(fn);
+      if (this.rateLimiterInstance) fn = this.withRateLimit(fn);
+
+      return fn();
+    };
+
+    const withFallback = this.fallbackFn
+      ? () =>
+          core().catch((err) => {
+            this.safeCall(() =>
+              this.resilienceEvents.onFallback?.({ error: err }),
+            );
+            return Promise.resolve(this.fallbackFn!(err)) as Promise<HttpClientResponse<T>>;
+          })
+      : core;
+
+    if (this.dedupInstance && dedupKey) {
+      return this.dedupInstance.execute(dedupKey, withFallback);
     }
 
-    if (this.retryConfig) {
-      requestFn = this.withRetry(requestFn, this.retryConfig);
-    }
-
-    return requestFn();
+    return withFallback();
   }
 
-  // ─── Private decorators ───────────────────────────────────────────────────────
+  // ─── Private decorators ───────────────────────────────────────────────────
 
   private withRetry<T>(
     requestFn: () => Promise<HttpClientResponse<T>>,
     retryConfig: RetryConfig,
   ): () => Promise<HttpClientResponse<T>> {
     return async () => {
-      let attempt = 0;
-
-      for (;;) {
+      for (let attempt = 0; ; attempt++) {
         try {
           return await requestFn();
         } catch (error: unknown) {
@@ -322,20 +367,18 @@ export class HttpClient {
 
           if (isCircuitOpen || attempt >= retryConfig.retries) throw error;
 
-          const axiosError = error as Record<string, unknown>;
-          const status =
-            axiosError.response && typeof axiosError.response === 'object'
-              ? (axiosError.response as Record<string, unknown>).status
-              : undefined;
-
+          const status = this.extractStatus(error);
           const shouldRetry = retryConfig.retryOn
             ? typeof status === 'number' && retryConfig.retryOn.includes(status)
             : isRetryableError(error);
 
           if (!shouldRetry) throw error;
 
-          attempt++;
-          await new Promise((resolve) => setTimeout(resolve, retryConfig.delayMs));
+          const delayMs = retryConfig.strategy.computeDelay(attempt, error);
+          this.safeCall(() =>
+            this.resilienceEvents.onRetry?.({ attempt, error, delayMs }),
+          );
+          await this.sleep(delayMs);
         }
       }
     };
@@ -346,8 +389,45 @@ export class HttpClient {
     circuitBreakerConfig: CircuitBreakerConfig,
   ): () => Promise<HttpClientResponse<T>> {
     if (!this.circuitBreaker) this.circuitBreaker = new CircuitBreaker();
-    this.circuitBreaker.setConfig(circuitBreakerConfig);
+    this.circuitBreaker.setConfig(circuitBreakerConfig, this.resilienceEvents);
     const cb = this.circuitBreaker;
     return () => cb.execute(requestFn);
+  }
+
+  private withBulkhead<T>(
+    requestFn: () => Promise<HttpClientResponse<T>>,
+  ): () => Promise<HttpClientResponse<T>> {
+    const bh = this.bulkheadInstance!;
+    // Re-attach events (may have been registered after .bulkhead() call)
+    return () => bh.execute(requestFn);
+  }
+
+  private withRateLimit<T>(
+    requestFn: () => Promise<HttpClientResponse<T>>,
+  ): () => Promise<HttpClientResponse<T>> {
+    const rl = this.rateLimiterInstance!;
+    return async () => {
+      await rl.acquire();
+      return requestFn();
+    };
+  }
+
+  // ─── Utilities ────────────────────────────────────────────────────────────
+
+  private extractStatus(error: unknown): number | undefined {
+    if (!error || typeof error !== 'object') return undefined;
+    const e = error as Record<string, unknown>;
+    const resp = e.response;
+    if (!resp || typeof resp !== 'object') return undefined;
+    const status = (resp as Record<string, unknown>).status;
+    return typeof status === 'number' ? status : undefined;
+  }
+
+  private sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  private safeCall(fn: () => void): void {
+    try { fn(); } catch { /* never affect request path */ }
   }
 }

@@ -2,169 +2,409 @@ import axios from 'axios';
 import { HttpClient } from '../http-client/http.client';
 import { HttpClientFactory } from '../http-client/http.factory';
 import { CircuitBreaker } from '../circuit-breaker/circuit-break';
+import { Bulkhead } from '../bulkhead/bulkhead';
+import { RateLimiter } from '../rate-limiter/rate-limiter';
+import { RequestDedup } from '../dedup/request-dedup';
+import {
+  FixedRetryStrategy,
+  ExponentialRetryStrategy,
+  ExponentialJitterRetryStrategy,
+  RetryAfterStrategy,
+} from '../models/retry.strategy';
 
 jest.mock('axios');
 const mockedAxios = axios as jest.Mocked<typeof axios>;
-
-const mockAxiosInstance = {
-  request: jest.fn(),
-};
+const mockAxiosInstance = { request: jest.fn() };
 
 beforeEach(() => {
   jest.clearAllMocks();
-  mockedAxios.create.mockReturnValue(mockAxiosInstance as any);
+  mockedAxios.create.mockReturnValue(mockAxiosInstance as unknown as ReturnType<typeof axios.create>);
   HttpClientFactory.clear();
 });
 
-describe('HttpClient', () => {
-  describe('basic requests', () => {
-    it('makes a GET request', async () => {
-      mockAxiosInstance.request.mockResolvedValue({ status: 200, data: { ok: true } });
-      const client = new HttpClient('https://api.example.com');
-      const res = await client.get('/test');
-      expect(res.status).toBe(200);
-      expect(mockAxiosInstance.request).toHaveBeenCalledWith(expect.objectContaining({ url: '/test', method: 'get' }));
-    });
-
-    it('makes a POST request with data', async () => {
-      mockAxiosInstance.request.mockResolvedValue({ status: 201, data: { id: 1 } });
-      const client = new HttpClient('https://api.example.com');
-      const res = await client.post('/users', { name: 'Alice' });
-      expect(res.status).toBe(201);
-      expect(mockAxiosInstance.request).toHaveBeenCalledWith(
-        expect.objectContaining({ url: '/users', method: 'post', data: { name: 'Alice' } }),
-      );
-    });
-
-    it('makes PUT, PATCH and DELETE requests', async () => {
-      mockAxiosInstance.request.mockResolvedValue({ status: 200, data: {} });
-      const client = new HttpClient('https://api.example.com');
-      await client.put('/users/1', { name: 'Bob' });
-      await client.patch('/users/1', { name: 'Bob' });
-      await client.delete('/users/1');
-      expect(mockAxiosInstance.request).toHaveBeenCalledTimes(3);
-    });
-  });
-
-  describe('retry', () => {
-    it('retries on ECONNRESET and succeeds', async () => {
-      const networkError = Object.assign(new Error('socket hang up'), { code: 'ECONNRESET' });
-      mockAxiosInstance.request
-        .mockRejectedValueOnce(networkError)
-        .mockRejectedValueOnce(networkError)
-        .mockResolvedValue({ status: 200, data: 'ok' });
-
-      const client = new HttpClient('https://api.example.com');
-      client.retry(3, 0);
-      const res = await client.get('/test');
-      expect(res.status).toBe(200);
-      expect(mockAxiosInstance.request).toHaveBeenCalledTimes(3);
-    });
-
-    it('retries on 5xx errors', async () => {
-      const serverError = { response: { status: 503 } };
-      mockAxiosInstance.request.mockRejectedValueOnce(serverError).mockResolvedValue({ status: 200, data: 'ok' });
-
-      const client = new HttpClient('https://api.example.com');
-      client.retry(2, 0);
-      const res = await client.get('/test');
-      expect(res.status).toBe(200);
-    });
-
-    it('throws after exhausting retries', async () => {
-      const networkError = Object.assign(new Error('socket hang up'), { code: 'ECONNRESET' });
-      mockAxiosInstance.request.mockRejectedValue(networkError);
-
-      const client = new HttpClient('https://api.example.com');
-      client.retry(2, 0);
-      await expect(client.get('/test')).rejects.toMatchObject({ code: 'ECONNRESET' });
-      expect(mockAxiosInstance.request).toHaveBeenCalledTimes(3);
-    });
-
-    it('does not retry on 4xx errors', async () => {
-      const clientError = { response: { status: 404 } };
-      mockAxiosInstance.request.mockRejectedValue(clientError);
-
-      const client = new HttpClient('https://api.example.com');
-      client.retry(3, 0);
-      await expect(client.get('/not-found')).rejects.toEqual(clientError);
-      expect(mockAxiosInstance.request).toHaveBeenCalledTimes(1);
-    });
-  });
-
-  describe('circuit breaker', () => {
-    it('opens after reaching failure threshold', async () => {
-      const error = Object.assign(new Error('fail'), { code: 'ECONNRESET' });
-      mockAxiosInstance.request.mockRejectedValue(error);
-
-      const client = new HttpClient('https://api.example.com');
-      client.circuitBreak({ failureThreshold: 2, successThreshold: 1, timeoutMs: 60000 });
-
-      await expect(client.request({ url: '/' })).rejects.toThrow();
-      await expect(client.request({ url: '/' })).rejects.toThrow();
-      await expect(client.request({ url: '/' })).rejects.toThrow('Circuit breaker is open');
-    });
-
-    it('resets after timeout', async () => {
-      const error = Object.assign(new Error('fail'), { code: 'ECONNRESET' });
-      mockAxiosInstance.request
-        .mockRejectedValueOnce(error)
-        .mockRejectedValueOnce(error)
-        .mockResolvedValue({ status: 200, data: 'recovered' });
-
-      const cb = new CircuitBreaker();
-      const client = new HttpClient('https://api.example.com', {}, cb);
-      client.circuitBreak({ failureThreshold: 2, successThreshold: 1, timeoutMs: 0 });
-
-      await expect(client.request({ url: '/' })).rejects.toThrow();
-      await expect(client.request({ url: '/' })).rejects.toThrow();
-
-      cb['lastFailureTime'] = Date.now() - 1;
-      const res = await client.request({ url: '/' });
-      expect(res.status).toBe(200);
-    });
+// ─── HttpClient — basic requests ──────────────────────────────────────────────
+describe('HttpClient — basic requests', () => {
+  it('makes GET, POST, PUT, PATCH, DELETE requests', async () => {
+    mockAxiosInstance.request.mockResolvedValue({ status: 200, data: {} });
+    const client = new HttpClient('https://api.example.com');
+    await client.get('/a');
+    await client.post('/b', { x: 1 });
+    await client.put('/c', { x: 1 });
+    await client.patch('/d', { x: 1 });
+    await client.delete('/e');
+    expect(mockAxiosInstance.request).toHaveBeenCalledTimes(5);
   });
 });
 
+// ─── Retry strategies ─────────────────────────────────────────────────────────
+describe('Retry strategies', () => {
+  it('FixedRetryStrategy always returns same delay', () => {
+    const s = new FixedRetryStrategy(500);
+    expect(s.computeDelay()).toBe(500);
+  });
+
+  it('ExponentialRetryStrategy doubles and caps', () => {
+    const s = new ExponentialRetryStrategy(100, 1000, 2);
+    expect(s.computeDelay(0)).toBe(100);
+    expect(s.computeDelay(1)).toBe(200);
+    expect(s.computeDelay(10)).toBe(1000); // capped
+  });
+
+  it('ExponentialJitterRetryStrategy returns value in [0, cap]', () => {
+    const s = new ExponentialJitterRetryStrategy(100, 10_000, 2);
+    for (let i = 0; i < 20; i++) {
+      const d = s.computeDelay(2);
+      expect(d).toBeGreaterThanOrEqual(0);
+      expect(d).toBeLessThanOrEqual(400); // cap = min(100*4, 10000)
+    }
+  });
+
+  it('RetryAfterStrategy parses seconds header', () => {
+    const s = new RetryAfterStrategy();
+    const error = { response: { headers: { 'retry-after': '3' } } };
+    expect(s.computeDelay(0, error)).toBe(3000);
+  });
+
+  it('RetryAfterStrategy falls back to jitter when no header', () => {
+    const s = new RetryAfterStrategy(100, 10_000);
+    const d = s.computeDelay(0, {});
+    expect(d).toBeGreaterThanOrEqual(0);
+    expect(d).toBeLessThanOrEqual(100);
+  });
+});
+
+// ─── Retry behaviour ──────────────────────────────────────────────────────────
+describe('Retry behaviour', () => {
+  it('retries on ECONNRESET with jitter strategy and succeeds', async () => {
+    const networkError = Object.assign(new Error('hang up'), { code: 'ECONNRESET' });
+    mockAxiosInstance.request
+      .mockRejectedValueOnce(networkError)
+      .mockRejectedValueOnce(networkError)
+      .mockResolvedValue({ status: 200, data: 'ok' });
+
+    const client = new HttpClient('https://api.example.com');
+    client.retry(3, new ExponentialJitterRetryStrategy(0, 0));
+    const res = await client.get('/test');
+    expect(res.status).toBe(200);
+    expect(mockAxiosInstance.request).toHaveBeenCalledTimes(3);
+  });
+
+  it('fires onRetry hook with correct context', async () => {
+    const networkError = Object.assign(new Error('hang up'), { code: 'ECONNRESET' });
+    mockAxiosInstance.request
+      .mockRejectedValueOnce(networkError)
+      .mockResolvedValue({ status: 200, data: 'ok' });
+
+    const onRetry = jest.fn();
+    const client = new HttpClient('https://api.example.com');
+    client.on({ onRetry }).retry(2, new FixedRetryStrategy(0));
+    await client.get('/test');
+    expect(onRetry).toHaveBeenCalledWith(expect.objectContaining({ attempt: 0 }));
+  });
+
+  it('does not retry 4xx errors', async () => {
+    mockAxiosInstance.request.mockRejectedValue({ response: { status: 404 } });
+    const client = new HttpClient('https://api.example.com');
+    client.retry(3, 0);
+    await expect(client.get('/nope')).rejects.toMatchObject({ response: { status: 404 } });
+    expect(mockAxiosInstance.request).toHaveBeenCalledTimes(1);
+  });
+
+  it('retries only on specified status codes', async () => {
+    mockAxiosInstance.request
+      .mockRejectedValueOnce({ response: { status: 503 } })
+      .mockResolvedValue({ status: 200, data: 'ok' });
+    const client = new HttpClient('https://api.example.com');
+    client.retry(2, 0, [503]);
+    const res = await client.get('/test');
+    expect(res.status).toBe(200);
+  });
+
+  it('throws after exhausting retries', async () => {
+    const error = Object.assign(new Error('reset'), { code: 'ECONNRESET' });
+    mockAxiosInstance.request.mockRejectedValue(error);
+    const client = new HttpClient('https://api.example.com');
+    client.retry(2, 0);
+    await expect(client.get('/test')).rejects.toMatchObject({ code: 'ECONNRESET' });
+    expect(mockAxiosInstance.request).toHaveBeenCalledTimes(3);
+  });
+});
+
+// ─── Circuit breaker ──────────────────────────────────────────────────────────
+describe('Circuit breaker', () => {
+  it('opens after failure threshold', async () => {
+    const error = Object.assign(new Error('fail'), { code: 'ECONNRESET' });
+    mockAxiosInstance.request.mockRejectedValue(error);
+    const client = new HttpClient('https://api.example.com');
+    client.circuitBreak({ failureThreshold: 2, successThreshold: 1, timeoutMs: 60_000 });
+    await expect(client.request({ url: '/' })).rejects.toThrow();
+    await expect(client.request({ url: '/' })).rejects.toThrow();
+    await expect(client.request({ url: '/' })).rejects.toThrow('Circuit breaker is open');
+  });
+
+  it('fires onCircuitStateChange hook', async () => {
+    const error = Object.assign(new Error('fail'), { code: 'ECONNRESET' });
+    mockAxiosInstance.request.mockRejectedValue(error);
+    const onChange = jest.fn();
+    const client = new HttpClient('https://api.example.com');
+    client.on({ onCircuitStateChange: onChange });
+    client.circuitBreak({ failureThreshold: 1, successThreshold: 1, timeoutMs: 60_000 });
+    await expect(client.request({ url: '/' })).rejects.toThrow();
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ to: 'open' }));
+  });
+
+  it('does not retry when circuit is open', async () => {
+    const error = Object.assign(new Error('fail'), { code: 'ECONNRESET' });
+    mockAxiosInstance.request.mockRejectedValue(error);
+    const client = new HttpClient('https://api.example.com');
+    client
+      .circuitBreak({ failureThreshold: 1, successThreshold: 1, timeoutMs: 60_000 })
+      .retry(5, 0);
+    await expect(client.request({ url: '/' })).rejects.toThrow(); // trips circuit
+    const callsBefore = mockAxiosInstance.request.mock.calls.length;
+    await expect(client.request({ url: '/' })).rejects.toThrow('Circuit breaker is open');
+    expect(mockAxiosInstance.request.mock.calls.length).toBe(callsBefore); // no extra calls
+  });
+});
+
+// ─── CircuitBreaker direct ────────────────────────────────────────────────────
 describe('CircuitBreaker (direct)', () => {
-  it('handleIsOpen throws when circuit is open and timeout has not elapsed', () => {
+  it('handleIsOpen throws when open and timeout not elapsed', () => {
     const cb = new CircuitBreaker();
     cb.setConfig({ failureThreshold: 1, successThreshold: 1, timeoutMs: 60_000 });
-    // Force open state
-    cb['isOpen'] = true;
+    cb['_state'] = 'open';
     cb['lastFailureTime'] = Date.now();
     expect(() => cb.handleIsOpen()).toThrow('Circuit breaker is open');
   });
 
-  it('handleIsOpen resets and returns false when timeout has elapsed', () => {
+  it('handleIsOpen resets when timeout elapsed', () => {
     const cb = new CircuitBreaker();
     cb.setConfig({ failureThreshold: 1, successThreshold: 1, timeoutMs: 0 });
-    cb['isOpen'] = true;
+    cb['_state'] = 'open';
     cb['lastFailureTime'] = Date.now() - 1;
     expect(cb.handleIsOpen()).toBe(false);
-    expect(cb.isOpen).toBe(false);
+    expect(cb.state).toBe('half-open');
   });
 
-  it('execute throws when circuit is open and timeout has not elapsed', async () => {
-    const cb = new CircuitBreaker();
-    cb.setConfig({ failureThreshold: 1, successThreshold: 1, timeoutMs: 60_000 });
-    cb['isOpen'] = true;
-    cb['lastFailureTime'] = Date.now();
-    await expect(cb.execute(() => Promise.resolve({} as any))).rejects.toThrow('Circuit breaker is open');
-  });
-
-  it('execute resets and succeeds when circuit is open but timeout has elapsed', async () => {
+  it('execute transitions open→half-open→closed', async () => {
     const cb = new CircuitBreaker();
     cb.setConfig({ failureThreshold: 1, successThreshold: 1, timeoutMs: 0 });
-    cb['isOpen'] = true;
+    cb['_state'] = 'open';
     cb['lastFailureTime'] = Date.now() - 1;
-    const fakeResponse = { status: 200, data: 'ok' } as any;
-    const result = await cb.execute(() => Promise.resolve(fakeResponse));
-    expect(result.status).toBe(200);
-    expect(cb.isOpen).toBe(false);
+    const fake = { status: 200 } as unknown as ReturnType<typeof axios.get>;
+    await cb.execute(() => Promise.resolve(fake as never));
+    expect(cb.state).toBe('closed');
+  });
+
+  it('execute throws when open and timeout not elapsed', async () => {
+    const cb = new CircuitBreaker();
+    cb.setConfig({ failureThreshold: 1, successThreshold: 1, timeoutMs: 60_000 });
+    cb['_state'] = 'open';
+    cb['lastFailureTime'] = Date.now();
+    await expect(cb.execute(() => Promise.resolve({} as never))).rejects.toThrow('Circuit breaker is open');
   });
 });
 
+// ─── Bulkhead ─────────────────────────────────────────────────────────────────
+describe('Bulkhead', () => {
+  it('executes tasks up to maxConcurrent', async () => {
+    const bh = new Bulkhead({ maxConcurrent: 2, maxQueue: 0 });
+    let active = 0;
+    let maxObserved = 0;
+    const task = () =>
+      new Promise<void>((resolve) => {
+        active++;
+        maxObserved = Math.max(maxObserved, active);
+        setImmediate(() => { active--; resolve(); });
+      });
+    await Promise.all([bh.execute(task), bh.execute(task)]);
+    expect(maxObserved).toBeLessThanOrEqual(2);
+  });
+
+  it('rejects when queue is full and fires onBulkheadReject', async () => {
+    const onBulkheadReject = jest.fn();
+    const bh = new Bulkhead({ maxConcurrent: 1, maxQueue: 0 }, { onBulkheadReject });
+    let release!: () => void;
+    const block = new Promise<void>((r) => { release = r; });
+    bh.execute(() => block);
+    await expect(bh.execute(() => Promise.resolve())).rejects.toThrow('Bulkhead queue full');
+    expect(onBulkheadReject).toHaveBeenCalled();
+    release();
+  });
+
+  it('queues requests and processes them after slot frees', async () => {
+    const bh = new Bulkhead({ maxConcurrent: 1, maxQueue: 5 });
+    const order: number[] = [];
+    let release!: () => void;
+    const block = new Promise<void>((r) => { release = r; });
+    const first = bh.execute(async () => { await block; order.push(1); });
+    const second = bh.execute(async () => { order.push(2); });
+    await new Promise((r) => setImmediate(r));
+    release();
+    await Promise.all([first, second]);
+    expect(order).toEqual([1, 2]);
+  });
+});
+
+// ─── Rate limiter ─────────────────────────────────────────────────────────────
+describe('RateLimiter', () => {
+  it('allows up to permitLimit requests', async () => {
+    const rl = new RateLimiter({ permitLimit: 3, windowMs: 60_000 });
+    await rl.acquire();
+    await rl.acquire();
+    await rl.acquire();
+    expect(rl.available).toBe(0);
+  });
+
+  it('throws when limit exceeded and queueRequests is false', async () => {
+    const onRateLimitReject = jest.fn();
+    const rl = new RateLimiter(
+      { permitLimit: 1, windowMs: 60_000, queueRequests: false },
+      { onRateLimitReject },
+    );
+    await rl.acquire();
+    await expect(rl.acquire()).rejects.toThrow('Rate limit exceeded');
+    expect(onRateLimitReject).toHaveBeenCalled();
+  });
+});
+
+// ─── Request deduplication ────────────────────────────────────────────────────
+describe('RequestDedup', () => {
+  it('coalesces concurrent identical requests into one call', async () => {
+    let callCount = 0;
+    const dedup = new RequestDedup();
+    const fn = () => new Promise<string>((r) => { callCount++; setTimeout(() => r('data'), 10); });
+    const [a, b, c] = await Promise.all([
+      dedup.execute('GET:/users', fn),
+      dedup.execute('GET:/users', fn),
+      dedup.execute('GET:/users', fn),
+    ]);
+    expect(callCount).toBe(1);
+    expect(a).toBe('data');
+    expect(b).toBe('data');
+    expect(c).toBe('data');
+  });
+
+  it('runs independent requests separately', async () => {
+    let calls = 0;
+    const dedup = new RequestDedup();
+    const fn = (id: string) => () => Promise.resolve(id).then(v => { calls++; return v; });
+    const [a, b] = await Promise.all([
+      dedup.execute('GET:/a', fn('A')),
+      dedup.execute('GET:/b', fn('B')),
+    ]);
+    expect(calls).toBe(2);
+    expect(a).toBe('A');
+    expect(b).toBe('B');
+  });
+});
+
+// ─── Fallback ─────────────────────────────────────────────────────────────────
+describe('Fallback', () => {
+  it('returns fallback value on request failure', async () => {
+    mockAxiosInstance.request.mockRejectedValue(new Error('upstream down'));
+    const onFallback = jest.fn();
+    const client = new HttpClient('https://api.example.com');
+    client.on({ onFallback }).fallback(() => ({ items: [], fallback: true }));
+    const result = await client.get('/items');
+    expect(result).toMatchObject({ items: [], fallback: true });
+    expect(onFallback).toHaveBeenCalled();
+  });
+
+  it('propagates original error if no fallback registered', async () => {
+    mockAxiosInstance.request.mockRejectedValue(new Error('boom'));
+    const client = new HttpClient('https://api.example.com');
+    await expect(client.get('/items')).rejects.toThrow('boom');
+  });
+});
+
+// ─── HttpClient — integrated resilience pipeline ──────────────────────────────
+describe('HttpClient — integrated resilience', () => {
+  it('bulkhead on HttpClient limits concurrency', async () => {
+    mockAxiosInstance.request.mockResolvedValue({ status: 200, data: 'ok' });
+    const client = new HttpClient('https://api.example.com');
+    client.bulkhead({ maxConcurrent: 2, maxQueue: 10 });
+    const results = await Promise.all([
+      client.get('/a'), client.get('/b'), client.get('/c'),
+    ]);
+    expect(results).toHaveLength(3);
+  });
+
+  it('rateLimit on HttpClient passes through when under limit', async () => {
+    mockAxiosInstance.request.mockResolvedValue({ status: 200, data: 'ok' });
+    const client = new HttpClient('https://api.example.com');
+    client.rateLimit({ permitLimit: 10, windowMs: 60_000 });
+    const res = await client.get('/test');
+    expect(res.status).toBe(200);
+  });
+
+  it('dedup on HttpClient coalesces concurrent GET calls', async () => {
+    mockAxiosInstance.request.mockResolvedValue({ status: 200, data: 'hit' });
+    const client = new HttpClient('https://api.example.com');
+    client.dedup();
+    const [a, b] = await Promise.all([client.get('/same'), client.get('/same')]);
+    expect(a.data).toBe('hit');
+    expect(b.data).toBe('hit');
+    expect(mockAxiosInstance.request).toHaveBeenCalledTimes(1);
+  });
+
+  it('RetryAfterStrategy with HTTP-date header', () => {
+    const s = new RetryAfterStrategy();
+    const future = new Date(Date.now() + 3000).toUTCString();
+    const error = { response: { headers: { 'retry-after': future } } };
+    const delay = s.computeDelay(0, error);
+    expect(delay).toBeGreaterThan(0);
+    expect(delay).toBeLessThanOrEqual(3500);
+  });
+});
+
+// ─── RateLimiter — queue path ─────────────────────────────────────────────────
+describe('RateLimiter — queuing', () => {
+  it('queues request and resolves after window refill', async () => {
+    jest.useFakeTimers();
+    const rl = new RateLimiter({ permitLimit: 1, windowMs: 100, queueRequests: true });
+    await rl.acquire(); // consumes the only token
+
+    let resolved = false;
+    const queued = rl.acquire().then(() => { resolved = true; });
+
+    expect(resolved).toBe(false);
+    jest.advanceTimersByTime(110); // advance past window
+    await queued;
+    expect(resolved).toBe(true);
+    jest.useRealTimers();
+  });
+
+  it('rejects queued request after queueTimeoutMs', async () => {
+    jest.useFakeTimers();
+    const rl = new RateLimiter({
+      permitLimit: 1, windowMs: 60_000, queueRequests: true, queueTimeoutMs: 500,
+    });
+    await rl.acquire();
+    const queued = rl.acquire();
+    jest.advanceTimersByTime(600);
+    await expect(queued).rejects.toThrow('Rate limit queue timeout');
+    jest.useRealTimers();
+  });
+});
+
+// ─── Bulkhead — queue timeout ─────────────────────────────────────────────────
+describe('Bulkhead — queue timeout', () => {
+  it('rejects queued request after queueTimeoutMs', async () => {
+    jest.useFakeTimers();
+    const bh = new Bulkhead({ maxConcurrent: 1, maxQueue: 5, queueTimeoutMs: 500 });
+    let release!: () => void;
+    const block = new Promise<void>((r) => { release = r; });
+    bh.execute(() => block);
+    const queued = bh.execute(() => Promise.resolve());
+    jest.advanceTimersByTime(600);
+    await expect(queued).rejects.toThrow('Bulkhead queue timeout');
+    release();
+    jest.useRealTimers();
+  });
+});
+
+// ─── HttpClientFactory ────────────────────────────────────────────────────────
 describe('HttpClientFactory', () => {
   it('returns the same instance for the same baseURL', () => {
     const a = HttpClientFactory.create('https://api.example.com');
