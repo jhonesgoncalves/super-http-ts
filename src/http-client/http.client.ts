@@ -7,6 +7,8 @@ import { RateLimiter, RateLimitConfig } from '../rate-limiter/rate-limiter';
 import { RequestDedup } from '../dedup/request-dedup';
 import { RetryStrategy, FixedRetryStrategy } from '../models/retry.strategy';
 import { ResilienceEvents } from '../models/resilience.events';
+import { MetricsCollector, MetricsSnapshot } from '../models/metrics';
+import { SuperHttpPlugin } from '../plugins/index';
 import { HttpClientRequestConfig } from '../models/http.client.request.config';
 import { HttpClientResponse } from '../models/http.client.response';
 
@@ -19,18 +21,44 @@ interface RetryConfig {
 }
 
 /**
- * Options for the underlying Node.js HTTP/HTTPS connection pool.
+ * Per-request policy that overrides the client-level resilience config
+ * for a single request.
  *
  * @example
  * ```ts
- * const pool: PoolConfig = {
- *   maxSockets: 100,
- *   maxFreeSockets: 20,
- *   keepAlive: true,
- *   keepAliveMsecs: 2000,
- *   timeout: 15_000,
- * };
+ * // Critical endpoint — tighter timeout and fewer retries
+ * await client.get('/payments', {
+ *   policy: { timeout: 1000, retry: { attempts: 1, delayMs: 100 } }
+ * })
+ *
+ * // Non-critical — silent fallback
+ * await client.get('/recommendations', {
+ *   policy: { fallback: () => [] }
+ * })
  * ```
+ */
+export interface RequestPolicy {
+  /** Override the request timeout (ms) for this request only. */
+  timeout?: number;
+  /**
+   * Override retry config for this request only.
+   * Pass `false` to disable retry even if the client has one configured.
+   */
+  retry?: { attempts: number; delayMs?: number; retryOn?: number[] } | false;
+  /**
+   * Override circuit breaker for this request only.
+   * Pass `false` to bypass the circuit breaker even if one is configured.
+   */
+  circuitBreaker?: Partial<CircuitBreakerConfig> | false;
+  /**
+   * Override fallback for this request only.
+   * If set, this replaces the client-level fallback (if any).
+   */
+  fallback?: (error: unknown) => unknown;
+}
+
+/**
+ * Options for the underlying Node.js HTTP/HTTPS connection pool.
  */
 export interface PoolConfig {
   /** Max concurrent sockets per host. @defaultValue 50 */
@@ -69,32 +97,33 @@ function isRetryableError(error: unknown): boolean {
 // ─── HttpClient ───────────────────────────────────────────────────────────────
 
 /**
- * A resilient, production-grade HTTP client built on top of Axios.
+ * Production-grade HTTP client for Node.js and TypeScript.
  *
- * **Resilience features (all opt-in via fluent API):**
- * - Connection pooling with TCP keep-alive (always on)
+ * **Built for production, not just requests.**
+ *
+ * Features (all opt-in via fluent API or presets):
+ * - Connection pooling with TCP keep-alive
  * - Smart retry with pluggable back-off strategies
  * - Three-state circuit breaker
- * - Bulkhead isolation (concurrency limiter)
+ * - Bulkhead isolation
  * - Token-bucket rate limiter
  * - Fallback / graceful degradation
- * - Request deduplication (idempotent calls)
- * - Observability hooks (retry, circuit state, bulkhead, fallback, rate-limit)
- *
- * Instantiate via {@link HttpClientFactory} for singleton-per-baseURL behaviour.
+ * - Request deduplication
+ * - Observability hooks + built-in metrics
+ * - Per-request policy overrides
+ * - Plugin system
  *
  * @example
  * ```ts
- * const api = HttpClientFactory.create('https://api.example.com')
+ * import { createClient, ExponentialJitterRetryStrategy } from 'super-http'
  *
- * api
- *   .on({ onRetry: ({ attempt }) => logger.warn(`retry #${attempt}`) })
- *   .circuitBreak({ failureThreshold: 5, successThreshold: 2, timeoutMs: 10_000 })
- *   .retry(3, new ExponentialJitterRetryStrategy(100, 10_000))
- *   .bulkhead({ maxConcurrent: 20, maxQueue: 100 })
- *   .rateLimit({ permitLimit: 200, windowMs: 60_000 })
+ * const api = createClient({ baseURL: 'https://api.example.com', preset: 'resilient-api' })
+ *
+ * api.on({ onRetry: ({ attempt }) => logger.warn(`retry #${attempt}`) })
+ * api.use(LoggerPlugin())
  *
  * const { data } = await api.get<User[]>('/users')
+ * const m = api.metrics() // { requests, success, p95Latency, … }
  * ```
  */
 export class HttpClient {
@@ -107,6 +136,8 @@ export class HttpClient {
   private dedupInstance?: RequestDedup;
   private fallbackFn?: (error: unknown) => unknown;
   private resilienceEvents: ResilienceEvents = {};
+  private readonly _metrics = new MetricsCollector();
+  private readonly _plugins = new Set<string>();
 
   constructor(
     baseURL: string,
@@ -134,22 +165,38 @@ export class HttpClient {
       httpAgent,
       httpsAgent,
     });
+
+    // Wire lifecycle hooks (onRequest/onResponse/onError) into axios interceptors.
+    // NOTE: metrics (request/success/failure) are tracked in the request() method
+    // so they work correctly regardless of how the axios instance is mocked.
+    this.axiosInstance.interceptors.request.use((config) => {
+      this.safeCall(() => this.resilienceEvents.onRequest?.(config));
+      return config;
+    });
+
+    this.axiosInstance.interceptors.response.use(
+      (response) => {
+        this.safeCall(() => this.resilienceEvents.onResponse?.(response));
+        return response;
+      },
+      (error: unknown) => {
+        this.safeCall(() => this.resilienceEvents.onError?.(error));
+        return Promise.reject(error);
+      },
+    );
   }
 
   // ─── Observability ────────────────────────────────────────────────────────
 
   /**
-   * Registers observability hooks fired at key resilience events.
-   * Multiple calls merge the handlers (last write wins per key).
-   *
-   * @returns `this` — enables fluent chaining.
+   * Registers observability hooks. Multiple calls merge handlers (last wins per key).
    *
    * @example
    * ```ts
    * client.on({
-   *   onRetry:              ({ attempt, delayMs }) => logger.warn(`retry #${attempt} in ${delayMs} ms`),
-   *   onCircuitStateChange: ({ from, to })         => metrics.increment(`circuit.${from}_${to}`),
-   *   onBulkheadReject:     ()                     => metrics.increment('bulkhead.rejected'),
+   *   onRequest:  (cfg) => logger.debug(`→ ${cfg.method} ${cfg.url}`),
+   *   onRetry:    ({ attempt, delayMs }) => metrics.inc('retry', { attempt }),
+   *   onCircuitStateChange: ({ from, to }) => alerts.notify(`circuit ${from}→${to}`),
    * })
    * ```
    */
@@ -158,26 +205,58 @@ export class HttpClient {
     return this;
   }
 
+  /**
+   * Returns a point-in-time snapshot of runtime metrics for this client.
+   *
+   * @example
+   * ```ts
+   * const m = client.metrics()
+   * console.log(`p99=${m.p99Latency}ms  retries=${m.retries}  cbTrips=${m.circuitBreakerTrips}`)
+   * ```
+   */
+  metrics(): MetricsSnapshot {
+    return this._metrics.snapshot();
+  }
+
+  /**
+   * Resets all accumulated metrics counters and latency history.
+   */
+  resetMetrics(): this {
+    this._metrics.reset();
+    return this;
+  }
+
+  /**
+   * Installs a plugin. Each plugin is installed at most once (deduplicated by name).
+   *
+   * @example
+   * ```ts
+   * import { LoggerPlugin, MetricsReporterPlugin } from 'super-http'
+   * client.use(LoggerPlugin({ prefix: '[payments]' }))
+   * client.use(MetricsReporterPlugin({ intervalMs: 60_000 }))
+   * ```
+   */
+  use(plugin: SuperHttpPlugin): this {
+    if (this._plugins.has(plugin.name)) return this;
+    this._plugins.add(plugin.name);
+    plugin.install(this);
+    return this;
+  }
+
   // ─── Fluent resilience configuration ─────────────────────────────────────
 
   /**
    * Enables automatic retry with a pluggable back-off strategy.
    *
-   * **Strategy shortcuts:**
-   * - Pass a `number` for fixed delay (backwards-compatible).
-   * - Pass a {@link RetryStrategy} for full control.
-   *
-   * @param retries  - Maximum retry attempts.
-   * @param strategy - Delay strategy or fixed delay in ms.
+   * @param retries  - Max retry attempts.
+   * @param strategy - Delay strategy or fixed ms (backwards-compatible).
    * @param retryOn  - Optional: retry only on these HTTP status codes.
    *
    * @example
    * ```ts
-   * import { ExponentialJitterRetryStrategy } from 'super-http'
-   *
    * client.retry(3, new ExponentialJitterRetryStrategy(100, 10_000))
-   * client.retry(3, 500)                     // fixed 500 ms (legacy)
-   * client.retry(5, 1000, [429, 503])        // fixed, specific codes
+   * client.retry(3, 500)                   // fixed delay (legacy)
+   * client.retry(3, 500, [429, 503])       // specific codes only
    * ```
    */
   retry(retries: number, strategy: RetryStrategy | number, retryOn?: number[]): this {
@@ -192,8 +271,6 @@ export class HttpClient {
   /**
    * Enables the three-state circuit breaker.
    *
-   * @param config - Thresholds and timeout. See {@link CircuitBreakerConfig}.
-   *
    * @example
    * ```ts
    * client.circuitBreak({ failureThreshold: 5, successThreshold: 2, timeoutMs: 10_000 })
@@ -205,10 +282,7 @@ export class HttpClient {
   }
 
   /**
-   * Enables bulkhead isolation — limits the number of concurrent in-flight
-   * requests and optionally queues excess calls.
-   *
-   * @param config - See {@link BulkheadConfig}.
+   * Enables bulkhead isolation — limits concurrent in-flight requests.
    *
    * @example
    * ```ts
@@ -221,13 +295,11 @@ export class HttpClient {
   }
 
   /**
-   * Enables token-bucket rate limiting for outgoing requests.
-   *
-   * @param config - See {@link RateLimitConfig}.
+   * Enables token-bucket rate limiting.
    *
    * @example
    * ```ts
-   * client.rateLimit({ permitLimit: 100, windowMs: 60_000 })
+   * client.rateLimit({ permitLimit: 200, windowMs: 60_000 })
    * ```
    */
   rateLimit(config: RateLimitConfig): this {
@@ -238,16 +310,9 @@ export class HttpClient {
   /**
    * Enables request deduplication for idempotent calls.
    *
-   * When multiple concurrent callers request the same URL + method + params,
-   * only one HTTP request is sent. All callers share the same result.
-   *
-   * **Only use for idempotent requests (GET, HEAD).**
-   *
    * @example
    * ```ts
    * client.dedup()
-   * const [a, b] = await Promise.all([client.get('/users/1'), client.get('/users/1')])
-   * // → single network request
    * ```
    */
   dedup(): this {
@@ -256,18 +321,12 @@ export class HttpClient {
   }
 
   /**
-   * Registers a fallback handler invoked when the request fails after all
-   * retry attempts and the circuit is open (or any unrecoverable error).
-   *
-   * The handler may return a value, throw a different error, or call an
-   * alternative data source.
-   *
-   * @param fn - Receives the original error; must return the fallback value
-   *   (typed as `T`) or throw.
+   * Registers a fallback handler invoked when all policies are exhausted.
    *
    * @example
    * ```ts
-   * client.fallback(() => ({ items: [], fromFallback: true }))
+   * client.fallback((error) => ({ items: [], degraded: true }))
+   * client.fallback(async () => cache.get('last-known-good'))
    * ```
    */
   fallback<T>(fn: (error: unknown) => T | Promise<T>): this {
@@ -277,78 +336,108 @@ export class HttpClient {
 
   // ─── HTTP convenience methods ─────────────────────────────────────────────
 
-  /**
-   * Sends an HTTP `GET` request.
-   * @example `const { data } = await client.get<User[]>('/users')`
-   */
+  /** HTTP GET */
   get<T = unknown>(url: string, config?: HttpClientRequestConfig): Promise<HttpClientResponse<T>> {
     return this.request<T>({ ...config, url, method: 'get' });
   }
 
-  /**
-   * Sends an HTTP `POST` request.
-   * @example `const { data } = await client.post<User>('/users', { name: 'Alice' })`
-   */
+  /** HTTP POST */
   post<T = unknown>(url: string, data?: unknown, config?: HttpClientRequestConfig): Promise<HttpClientResponse<T>> {
     return this.request<T>({ ...config, url, method: 'post', data });
   }
 
-  /**
-   * Sends an HTTP `PUT` request.
-   */
+  /** HTTP PUT */
   put<T = unknown>(url: string, data?: unknown, config?: HttpClientRequestConfig): Promise<HttpClientResponse<T>> {
     return this.request<T>({ ...config, url, method: 'put', data });
   }
 
-  /**
-   * Sends an HTTP `PATCH` request.
-   */
+  /** HTTP PATCH */
   patch<T = unknown>(url: string, data?: unknown, config?: HttpClientRequestConfig): Promise<HttpClientResponse<T>> {
     return this.request<T>({ ...config, url, method: 'patch', data });
   }
 
-  /**
-   * Sends an HTTP `DELETE` request.
-   */
+  /** HTTP DELETE */
   delete<T = unknown>(url: string, config?: HttpClientRequestConfig): Promise<HttpClientResponse<T>> {
     return this.request<T>({ ...config, url, method: 'delete' });
   }
 
   /**
-   * Sends a raw request using the full Axios request config.
+   * Sends a raw request. Accepts an optional `policy` field to override
+   * client-level resilience config for this single request.
+   *
+   * @example
+   * ```ts
+   * // Tighter timeout + silent fallback for a non-critical endpoint
+   * await client.request({
+   *   url: '/recommendations',
+   *   method: 'get',
+   *   policy: { timeout: 500, retry: false, fallback: () => [] },
+   * })
+   * ```
    */
-  request<T = unknown>(config: AxiosRequestConfig): Promise<HttpClientResponse<T>> {
+  request<T = unknown>(config: AxiosRequestConfig & { policy?: RequestPolicy }): Promise<HttpClientResponse<T>> {
+    const { policy, ...axiosConfig } = config;
+
+    // Apply per-request timeout override
+    const requestConfig: AxiosRequestConfig = policy?.timeout
+      ? { ...axiosConfig, timeout: policy.timeout }
+      : axiosConfig;
+
     const dedupKey = this.dedupInstance
-      ? `${config.method?.toUpperCase()}:${config.url}:${JSON.stringify(config.params ?? '')}`
+      ? `${requestConfig.method?.toUpperCase()}:${requestConfig.url}:${JSON.stringify(requestConfig.params ?? '')}`
       : undefined;
 
     const core = (): Promise<HttpClientResponse<T>> => {
       let fn: () => Promise<HttpClientResponse<T>> = () =>
-        this.axiosInstance.request<T>(config);
+        this.axiosInstance.request<T>(requestConfig);
 
-      if (this.circuitBreakerConfig) fn = this.withCircuitBreaker(fn, this.circuitBreakerConfig);
-      if (this.retryConfig) fn = this.withRetry(fn, this.retryConfig);
+      // Resolve effective circuit breaker config
+      const effectiveCB = policy?.circuitBreaker === false
+        ? undefined
+        : policy?.circuitBreaker
+          ? { ...(this.circuitBreakerConfig ?? { failureThreshold: 5, successThreshold: 2, timeoutMs: 10_000 }), ...policy.circuitBreaker }
+          : this.circuitBreakerConfig;
+
+      // Resolve effective retry config
+      const effectiveRetry = policy?.retry === false
+        ? undefined
+        : policy?.retry
+          ? { retries: policy.retry.attempts, strategy: new FixedRetryStrategy(policy.retry.delayMs ?? 100), retryOn: policy.retry.retryOn }
+          : this.retryConfig;
+
+      if (effectiveCB) fn = this.withCircuitBreaker(fn, effectiveCB);
+      if (effectiveRetry) fn = this.withRetry(fn, effectiveRetry);
       if (this.bulkheadInstance) fn = this.withBulkhead(fn);
       if (this.rateLimiterInstance) fn = this.withRateLimit(fn);
 
       return fn();
     };
 
-    const withFallback = this.fallbackFn
+    // Resolve effective fallback
+    const effectiveFallback = policy?.fallback !== undefined
+      ? policy.fallback
+      : this.fallbackFn;
+
+    const withFallback = effectiveFallback
       ? () =>
           core().catch((err) => {
-            this.safeCall(() =>
-              this.resilienceEvents.onFallback?.({ error: err }),
-            );
-            return Promise.resolve(this.fallbackFn!(err)) as Promise<HttpClientResponse<T>>;
+            this._metrics.recordFallback();
+            this.safeCall(() => this.resilienceEvents.onFallback?.({ error: err }));
+            return Promise.resolve(effectiveFallback(err)) as Promise<HttpClientResponse<T>>;
           })
       : core;
 
-    if (this.dedupInstance && dedupKey) {
-      return this.dedupInstance.execute(dedupKey, withFallback);
-    }
+    const t0 = Date.now();
+    this._metrics.recordRequest();
 
-    return withFallback();
+    const run = this.dedupInstance && dedupKey
+      ? () => this.dedupInstance!.execute(dedupKey, withFallback)
+      : withFallback;
+
+    return run().then(
+      (res) => { this._metrics.recordSuccess(Date.now() - t0); return res; },
+      (err) => { this._metrics.recordFailure(); throw err; },
+    );
   }
 
   // ─── Private decorators ───────────────────────────────────────────────────
@@ -375,9 +464,8 @@ export class HttpClient {
           if (!shouldRetry) throw error;
 
           const delayMs = retryConfig.strategy.computeDelay(attempt, error);
-          this.safeCall(() =>
-            this.resilienceEvents.onRetry?.({ attempt, error, delayMs }),
-          );
+          this._metrics.recordRetry();
+          this.safeCall(() => this.resilienceEvents.onRetry?.({ attempt, error, delayMs }));
           await this.sleep(delayMs);
         }
       }
@@ -389,7 +477,12 @@ export class HttpClient {
     circuitBreakerConfig: CircuitBreakerConfig,
   ): () => Promise<HttpClientResponse<T>> {
     if (!this.circuitBreaker) this.circuitBreaker = new CircuitBreaker();
-    this.circuitBreaker.setConfig(circuitBreakerConfig, this.resilienceEvents);
+    this.circuitBreaker.setConfig(circuitBreakerConfig, {
+      onCircuitStateChange: (evt) => {
+        if (evt.to === 'open') this._metrics.recordCBTrip();
+        this.safeCall(() => this.resilienceEvents.onCircuitStateChange?.(evt));
+      },
+    });
     const cb = this.circuitBreaker;
     return () => cb.execute(requestFn);
   }
@@ -398,7 +491,6 @@ export class HttpClient {
     requestFn: () => Promise<HttpClientResponse<T>>,
   ): () => Promise<HttpClientResponse<T>> {
     const bh = this.bulkheadInstance!;
-    // Re-attach events (may have been registered after .bulkhead() call)
     return () => bh.execute(requestFn);
   }
 

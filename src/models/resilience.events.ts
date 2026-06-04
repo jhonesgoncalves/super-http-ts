@@ -1,3 +1,5 @@
+import type { AxiosRequestConfig, AxiosResponse } from 'axios';
+
 /**
  * Context passed to the `onRetry` hook.
  */
@@ -52,24 +54,45 @@ export interface RateLimitRejectEvent {
 }
 
 /**
- * Observability hooks fired at key resilience events.
+ * Observability and lifecycle hooks.
  *
  * All handlers are **fire-and-forget** — errors thrown inside them are silently
- * swallowed so they never affect the request path.
+ * swallowed and never affect the request path.
  *
  * @example
  * ```ts
- * const client = HttpClientFactory.create('https://api.example.com');
- *
  * client.on({
- *   onRetry:              ({ attempt, delayMs }) => logger.warn(`retry #${attempt}, waiting ${delayMs} ms`),
- *   onCircuitStateChange: ({ from, to })         => metrics.increment(`circuit.${from}_to_${to}`),
- *   onBulkheadReject:     ({ active })            => metrics.increment('bulkhead.rejected'),
- *   onFallback:           ({ error })             => logger.error('fallback triggered', error),
- * });
+ *   onRequest:  (cfg)           => logger.debug(`→ ${cfg.method} ${cfg.url}`),
+ *   onResponse: (res)           => logger.debug(`← ${res.status}`),
+ *   onError:    (err)           => logger.error('request failed', err),
+ *   onRetry:    ({ attempt })   => metrics.increment('retry', { attempt }),
+ *   onCircuitStateChange: ({ from, to }) => metrics.gauge('circuit', to),
+ * })
  * ```
  */
 export interface ResilienceEvents {
+  // ─── Lifecycle ──────────────────────────────────────────────────────────────
+
+  /**
+   * Fired just before every HTTP request is sent (after all policies are applied).
+   * Use for logging, tracing, or header injection.
+   */
+  onRequest?: (config: AxiosRequestConfig) => void;
+
+  /**
+   * Fired when a successful response is received.
+   * Note: called before the response reaches the caller.
+   */
+  onResponse?: (response: AxiosResponse) => void;
+
+  /**
+   * Fired when a request ultimately fails (after retries, if configured).
+   * Not fired for retried errors that eventually succeed.
+   */
+  onError?: (error: unknown) => void;
+
+  // ─── Resilience ───────────────────────────────────────────────────────────
+
   /** Fired before each retry attempt. */
   onRetry?: (event: RetryEvent) => void;
 

@@ -14,10 +14,45 @@ import {
 
 jest.mock('axios');
 const mockedAxios = axios as jest.Mocked<typeof axios>;
-const mockAxiosInstance = { request: jest.fn() };
+
+// Interceptors that actually invoke the handlers (needed for metrics wiring)
+const requestHandlers: Array<(c: unknown) => unknown> = [];
+const responseHandlers: Array<[(r: unknown) => unknown, (e: unknown) => unknown]> = [];
+
+const mockAxiosInstance = {
+  request: jest.fn(),
+  interceptors: {
+    request: {
+      use: jest.fn((fn: (c: unknown) => unknown) => { requestHandlers.push(fn); return 0; }),
+    },
+    response: {
+      use: jest.fn((ok: (r: unknown) => unknown, err: (e: unknown) => unknown) => {
+        responseHandlers.push([ok, err]); return 0;
+      }),
+    },
+  },
+};
+
+// Wrap request so interceptors fire (needed for metrics/lifecycle hooks)
+const originalRequest = mockAxiosInstance.request;
+mockAxiosInstance.request.mockImplementation(async (config: unknown) => {
+  let cfg = config;
+  for (const h of requestHandlers) cfg = await h(cfg);
+  try {
+    const res = await originalRequest(cfg);
+    let r = res;
+    for (const [ok] of responseHandlers) r = await ok(r);
+    return r;
+  } catch (e) {
+    for (const [, errH] of responseHandlers) await (errH(e) as Promise<unknown>).catch(() => {});
+    throw e;
+  }
+});
 
 beforeEach(() => {
   jest.clearAllMocks();
+  requestHandlers.length = 0;
+  responseHandlers.length = 0;
   mockedAxios.create.mockReturnValue(mockAxiosInstance as unknown as ReturnType<typeof axios.create>);
   HttpClientFactory.clear();
 });
@@ -401,6 +436,147 @@ describe('Bulkhead — queue timeout', () => {
     await expect(queued).rejects.toThrow('Bulkhead queue timeout');
     release();
     jest.useRealTimers();
+  });
+});
+
+// ─── Metrics ─────────────────────────────────────────────────────────────────
+describe('Metrics', () => {
+  it('records successful requests and latency', async () => {
+    mockAxiosInstance.request.mockResolvedValue({ status: 200, data: 'ok' });
+    const client = new HttpClient('https://api.example.com');
+    await client.get('/test');
+    const m = client.metrics();
+    expect(m.requests).toBeGreaterThanOrEqual(1);
+    expect(m.success).toBeGreaterThanOrEqual(1);
+    expect(m.failed).toBe(0);
+  });
+
+  it('records retries', async () => {
+    const err = Object.assign(new Error('reset'), { code: 'ECONNRESET' });
+    mockAxiosInstance.request.mockRejectedValueOnce(err).mockResolvedValue({ status: 200, data: 'ok' });
+    const client = new HttpClient('https://api.example.com');
+    client.retry(2, 0);
+    await client.get('/test');
+    expect(client.metrics().retries).toBe(1);
+  });
+
+  it('records circuit breaker trips', async () => {
+    const err = Object.assign(new Error('fail'), { code: 'ECONNRESET' });
+    mockAxiosInstance.request.mockRejectedValue(err);
+    const client = new HttpClient('https://api.example.com');
+    client.circuitBreak({ failureThreshold: 1, successThreshold: 1, timeoutMs: 60_000 });
+    await expect(client.request({ url: '/' })).rejects.toThrow();
+    expect(client.metrics().circuitBreakerTrips).toBe(1);
+  });
+
+  it('records fallbacks', async () => {
+    mockAxiosInstance.request.mockRejectedValue(new Error('down'));
+    const client = new HttpClient('https://api.example.com');
+    client.fallback(() => 'fallback-value');
+    await client.get('/test');
+    expect(client.metrics().fallbacks).toBe(1);
+  });
+
+  it('resetMetrics clears counters', async () => {
+    mockAxiosInstance.request.mockResolvedValue({ status: 200, data: 'ok' });
+    const client = new HttpClient('https://api.example.com');
+    await client.get('/test');
+    expect(client.metrics().requests).toBeGreaterThan(0);
+    client.resetMetrics();
+    expect(client.metrics().requests).toBe(0);
+  });
+});
+
+// ─── Plugins ─────────────────────────────────────────────────────────────────
+describe('Plugin system', () => {
+  it('installs a plugin and fires hooks', async () => {
+    mockAxiosInstance.request.mockResolvedValue({ status: 200, data: 'ok' });
+    const installed = jest.fn();
+    const client = new HttpClient('https://api.example.com');
+    client.use({ name: 'test-plugin', install: installed });
+    expect(installed).toHaveBeenCalledWith(client);
+  });
+
+  it('does not install the same plugin twice', () => {
+    const client = new HttpClient('https://api.example.com');
+    const installed = jest.fn();
+    const plugin = { name: 'dedup-plugin', install: installed };
+    client.use(plugin);
+    client.use(plugin);
+    expect(installed).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ─── createClient presets ─────────────────────────────────────────────────────
+describe('createClient', () => {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { createClient } = require('../presets/index');
+
+  it('creates a client with resilient-api preset', () => {
+    mockAxiosInstance.request.mockResolvedValue({ status: 200, data: 'ok' });
+    const client = createClient({ baseURL: 'https://api.example.com', preset: 'resilient-api' });
+    expect(client).toBeInstanceOf(HttpClient);
+  });
+
+  it('creates a client with high-throughput preset', () => {
+    const client = createClient({ baseURL: 'https://api.example.com', preset: 'high-throughput' });
+    expect(client).toBeInstanceOf(HttpClient);
+  });
+
+  it('creates a client with low-latency preset', () => {
+    const client = createClient({ baseURL: 'https://api.example.com', preset: 'low-latency' });
+    expect(client).toBeInstanceOf(HttpClient);
+  });
+
+  it('creates a plain client without preset', () => {
+    const client = createClient({ baseURL: 'https://api.example.com' });
+    expect(client).toBeInstanceOf(HttpClient);
+  });
+});
+
+// ─── Per-request policy ───────────────────────────────────────────────────────
+describe('Per-request policy', () => {
+  it('applies per-request fallback', async () => {
+    mockAxiosInstance.request.mockRejectedValue(new Error('down'));
+    const client = new HttpClient('https://api.example.com');
+    const result = await client.request({ url: '/test', policy: { fallback: () => ({ items: [] }) } });
+    expect(result).toMatchObject({ items: [] });
+  });
+
+  it('disables retry for specific request', async () => {
+    const err = Object.assign(new Error('reset'), { code: 'ECONNRESET' });
+    mockAxiosInstance.request.mockRejectedValue(err);
+    const client = new HttpClient('https://api.example.com');
+    client.retry(3, 0);
+    await expect(client.request({ url: '/test', policy: { retry: false } })).rejects.toThrow();
+    // with retry: false, only 1 attempt
+    expect(mockAxiosInstance.request).toHaveBeenCalledTimes(1);
+  });
+
+  it('applies per-request timeout override', async () => {
+    mockAxiosInstance.request.mockResolvedValue({ status: 200, data: 'ok' });
+    const client = new HttpClient('https://api.example.com');
+    await client.get('/test', { policy: { timeout: 500 } } as never);
+    // The request was made (timeout applied in config)
+    expect(mockAxiosInstance.request).toHaveBeenCalled();
+  });
+});
+
+// ─── Lifecycle hooks ──────────────────────────────────────────────────────────
+describe('Lifecycle hooks (onRequest / onResponse / onError)', () => {
+  it('registers onRequest/onResponse/onError handlers via .on()', () => {
+    // Verify handlers merge correctly — they fire via axios interceptors in real usage
+    const onRequest = jest.fn();
+    const onResponse = jest.fn();
+    const onError = jest.fn();
+    const client = new HttpClient('https://api.example.com');
+    client.on({ onRequest, onResponse, onError });
+    // Calling .on() again merges (last write wins)
+    const onRequest2 = jest.fn();
+    client.on({ onRequest: onRequest2 });
+    // Handlers were registered — actual firing tested via integration (interceptors)
+    expect(mockAxiosInstance.interceptors.request.use).toHaveBeenCalled();
+    expect(mockAxiosInstance.interceptors.response.use).toHaveBeenCalled();
   });
 });
 

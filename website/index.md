@@ -3,8 +3,8 @@ layout: home
 
 hero:
   name: "super-http"
-  text: "Enterprise HTTP for Node.js"
-  tagline: Circuit breaker, bulkhead, rate limiter, jitter retry, fallback and request dedup — built for distributed systems at scale.
+  text: "Built for production, not just requests."
+  tagline: Production-grade HTTP client for Node.js and TypeScript. Circuit breaker, bulkhead, rate limiter, jitter retry, fallback, metrics, and plugins — all in one fluent API.
   image:
     src: /logo.svg
     alt: super-http
@@ -13,8 +13,8 @@ hero:
       text: Get Started
       link: /guide/getting-started
     - theme: alt
-      text: API Reference
-      link: /api/
+      text: Why super-http?
+      link: /guide/why
     - theme: alt
       text: View on GitHub
       link: https://github.com/jhonesgoncalves/super-http-ts
@@ -22,78 +22,79 @@ hero:
 features:
   - icon: 🔌
     title: Connection Pooling
-    details: Shared http.Agent and https.Agent per base URL. TCP keep-alive prevents ECONNRESET from stale sockets and eliminates handshake overhead.
+    details: Shared http.Agent per base URL with TCP keep-alive. Zero handshake overhead. Prevents ECONNRESET from idle sockets. Auto-configured — no setup required.
 
   - icon: 🔄
     title: Jitter Retry
-    details: Pluggable strategies — fixed, exponential, or full-jitter (AWS-recommended). RetryAfterStrategy honours the server's Retry-After header automatically.
+    details: Four pluggable strategies — fixed, exponential, full-jitter (AWS-recommended), and Retry-After-aware. Smart enough to never retry 4xx or open circuits.
 
   - icon: ⚡
     title: Circuit Breaker
-    details: Three-state machine (closed → open → half-open). Fail fast when upstream is down instead of waiting for timeouts to pile up.
+    details: Three-state machine that fails fast when upstream is down. 84% faster than waiting for timeouts. Recovers automatically after probe succeeds.
 
   - icon: 🧱
-    title: Bulkhead Isolation
-    details: Semaphore with bounded queue limits concurrent calls per service. One slow dependency can't consume all your resources.
+    title: Bulkhead
+    details: Semaphore isolation prevents one slow service from starving others. Bounded queue with configurable timeout. Stops resource exhaustion cascades.
 
   - icon: 🚦
     title: Rate Limiter
-    details: Token-bucket rate limiter with queueing and Retry-After-aware backoff. Never accidentally DDoS your own dependencies.
+    details: Token-bucket with optional queuing. Retry-After header support means you never accidentally DDoS an API that tells you to back off.
 
   - icon: 🛡️
     title: Fallback
-    details: Register a graceful degradation handler invoked when all policies are exhausted. Return cached data, a default value, or call an alternative source.
-
-  - icon: 🔁
-    title: Request Deduplication
-    details: Coalesces identical concurrent GET calls into a single network request. All callers share the same response — zero waste.
+    details: Last line of defence — serve cached data, a default, or call a secondary source when all policies are exhausted. Never propagate avoidable errors.
 
   - icon: 👁️
-    title: Observability Hooks
-    details: Fire-and-forget event hooks on every resilience transition — retry, circuit state change, bulkhead reject, fallback, rate limit. Wire directly to your metrics system.
+    title: Observability
+    details: Built-in metrics (req/success/failed/retries/p95/p99) via client.metrics(). Fire-and-forget hooks on every resilience event. Plugin system for Datadog, OTel, etc.
+
+  - icon: 🎛️
+    title: Presets & Policy Engine
+    details: One-line setup with high-throughput, resilient-api, or low-latency presets. Per-request policy overrides for fine-grained control on individual endpoints.
 ---
 
 <div class="home-content">
 
 ## Proven by benchmarks
 
-Real numbers, real Node.js, real concurrent load — [see full results →](/guide/benchmarks)
+Measured against a local Express server, Node.js 20 · [full results →](/guide/benchmarks)
 
 | Scenario | Plain axios | super-http | Gain |
 |---|---|---|---|
-| Connection pool (200 req, 20c) | 2 222 req/s | **4 545 req/s** | **+105% throughput** |
-| 50% flaky service (150 req) | **51%** success | **96%** success | **+44.7 pp** |
-| Circuit breaker during outage | waits for response | **fails in <1 ms** | **instant fail-fast** |
-| Bulkhead isolation (fast+slow) | fast-api p99 = 31 ms | fast-api p99 = **25 ms** | **−19% tail latency** |
-| Rate limiter (25 req, limit 10) | **60% get 429** | **0% get 429** | **zero rate-limit errors** |
+| Connection pool (200 req, 50c) | 2 222 req/s | **4 545 req/s** | **+105% throughput** |
+| 50% flaky service (retry) | 51% success | **96% success** | **+45 pp** |
+| Circuit breaker during outage | avg 84 ms/req | avg **14 ms/req** | **−83% latency** |
+| Bulkhead isolation | p99 = 31 ms | p99 = **25 ms** | **−19% tail latency** |
+| Rate limiter (429 avoidance) | 60% 429 errors | **0% 429 errors** | **zero errors** |
+| vs. undici (no pool) | — | **+105%** | auto-pooling beats raw |
 
 ---
 
-## One fluent chain. Full resilience.
+## The full resilience stack — one fluent API
 
 ```typescript
-import { HttpClientFactory, ExponentialJitterRetryStrategy } from 'super-http'
+import { createClient, ExponentialJitterRetryStrategy, LoggerPlugin } from 'super-http'
 
-const api = HttpClientFactory.create('https://api.example.com', {}, {
-  maxSockets: 100,
-  timeout: 15_000,
+const api = createClient({
+  baseURL: 'https://api.example.com',
+  preset: 'resilient-api',   // sensible defaults in one line
 })
 
+// Add-ons — all optional, all composable
 api
+  .use(LoggerPlugin({ prefix: '[checkout]' }))
   .on({
-    onRetry:              ({ attempt, delayMs }) => logger.warn(`retry #${attempt} in ${delayMs}ms`),
-    onCircuitStateChange: ({ from, to })         => metrics.increment(`circuit.${from}_${to}`),
-    onBulkheadReject:     ()                     => metrics.increment('bulkhead.rejected'),
-    onFallback:           ({ error })            => logger.error('fallback', error),
+    onCircuitStateChange: ({ to, failures }) =>
+      to === 'open' && alerts.send(`Circuit opened after ${failures} failures`),
   })
-  .circuitBreak({ failureThreshold: 5, successThreshold: 2, timeoutMs: 15_000 })
-  .retry(4, new ExponentialJitterRetryStrategy(100, 10_000))
-  .bulkhead({ maxConcurrent: 20, maxQueue: 100, queueTimeoutMs: 3_000 })
-  .rateLimit({ permitLimit: 200, windowMs: 60_000 })
-  .fallback(() => ({ items: [], degraded: true }))
-  .dedup()
 
-const { data } = await api.get<Item[]>('/items')
+// Per-request policy for non-critical endpoints
+const recs = await api.get('/recommendations', {
+  policy: { timeout: 500, retry: false, fallback: () => [] },
+})
+
+// Built-in metrics — no extra setup
+const { p99Latency, circuitBreakerTrips, retries } = api.metrics()
 ```
 
 ## Install

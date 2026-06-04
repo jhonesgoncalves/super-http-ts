@@ -2,14 +2,14 @@ import { defineConfig } from 'vitepress'
 
 export default defineConfig({
   title: 'super-http',
-  description: 'Enterprise-grade HTTP client — circuit breaker, bulkhead, rate limiter, jitter retry, fallback and request dedup.',
+  description: 'Production-grade HTTP client for Node.js — built for performance, resilience, and observability.',
   lang: 'en-US',
   base: '/super-http-ts/',
 
   head: [
     ['link', { rel: 'icon', type: 'image/svg+xml', href: '/logo.svg' }],
     ['meta', { name: 'og:title', content: 'super-http' }],
-    ['meta', { name: 'og:description', content: 'Enterprise-grade resilient HTTP client for Node.js.' }],
+    ['meta', { name: 'og:description', content: 'Production-grade HTTP client for Node.js. Built for production, not just requests.' }],
     ['meta', { name: 'twitter:card', content: 'summary_large_image' }],
   ],
 
@@ -19,9 +19,10 @@ export default defineConfig({
 
     nav: [
       { text: 'Guide', link: '/guide/getting-started' },
-      { text: 'API Reference', link: '/api/' },
+      { text: 'API', link: '/api/' },
+      { text: 'Benchmarks', link: '/guide/benchmarks' },
       {
-        text: '1.1.0',
+        text: '1.2.0',
         items: [
           { text: 'Changelog', link: 'https://github.com/jhonesgoncalves/super-http-ts/blob/main/CHANGELOG.md' },
           { text: 'Contributing', link: 'https://github.com/jhonesgoncalves/super-http-ts/blob/main/CONTRIBUTING.md' },
@@ -37,6 +38,7 @@ export default defineConfig({
           items: [
             { text: 'Getting Started', link: '/guide/getting-started' },
             { text: 'Why super-http?', link: '/guide/why' },
+            { text: 'Migrating from Axios', link: '/guide/migration' },
           ],
         },
         {
@@ -49,14 +51,23 @@ export default defineConfig({
             { text: 'Rate Limiter', link: '/guide/rate-limiter' },
             { text: 'Fallback', link: '/guide/fallback' },
             { text: 'Request Dedup', link: '/guide/dedup' },
-            { text: 'Observability', link: '/guide/observability' },
+          ],
+        },
+        {
+          text: 'Observability',
+          items: [
+            { text: 'Hooks & Events', link: '/guide/observability' },
+            { text: 'Built-in Metrics', link: '/guide/observability#metrics' },
+            { text: 'Plugins', link: '/guide/plugins' },
           ],
         },
         {
           text: 'Reference',
           items: [
+            { text: 'Presets', link: '/guide/presets' },
             { text: 'Configuration', link: '/guide/configuration' },
             { text: 'Recipes', link: '/guide/recipes' },
+            { text: 'Production Readiness', link: '/guide/production-readiness' },
             { text: 'Benchmarks', link: '/guide/benchmarks' },
           ],
         },
@@ -66,6 +77,7 @@ export default defineConfig({
           text: 'API Reference',
           items: [
             { text: 'Overview', link: '/api/' },
+            { text: 'createClient', link: '/api/create-client' },
             { text: 'HttpClientFactory', link: '/api/http-client-factory' },
             { text: 'HttpClient', link: '/api/http-client' },
             { text: 'CircuitBreaker', link: '/api/circuit-breaker' },
@@ -74,6 +86,7 @@ export default defineConfig({
             { text: 'Retry Strategies', link: '/api/retry-strategy' },
             { text: 'RequestDedup', link: '/api/request-dedup' },
             { text: 'ResilienceEvents', link: '/api/resilience-events' },
+            { text: 'MetricsSnapshot', link: '/api/metrics' },
             { text: 'PoolConfig', link: '/api/pool-config' },
           ],
         },

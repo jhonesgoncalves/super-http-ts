@@ -15,6 +15,7 @@ import { runCircuitBreakerBenchmark } from './benchmarks/03-circuit-breaker';
 import { runBulkheadBenchmark } from './benchmarks/04-bulkhead';
 import { runRateLimiterBenchmark } from './benchmarks/05-rate-limiter';
 import { runFullStackBenchmark } from './benchmarks/06-full-stack';
+import { runHttpClientsBenchmark } from './benchmarks/07-http-clients';
 import { runMicroserviceScenario } from './scenarios/microservice';
 
 const BENCHMARKS: Record<string, () => Promise<unknown>> = {
@@ -24,6 +25,7 @@ const BENCHMARKS: Record<string, () => Promise<unknown>> = {
   '04': runBulkheadBenchmark,
   '05': runRateLimiterBenchmark,
   '06': runFullStackBenchmark,
+  '07': runHttpClientsBenchmark,
 };
 
 const SCENARIOS: Record<string, () => Promise<unknown>> = {

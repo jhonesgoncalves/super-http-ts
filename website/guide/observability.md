@@ -1,170 +1,122 @@
 # Observability
 
-super-http fires hooks on every resilience event, letting you wire directly into your existing logger, metrics system, or tracing tool.
-
-All handlers are **fire-and-forget** — errors thrown inside them are silently swallowed and never affect the request path.
+super-http provides three layers of observability out of the box: lifecycle hooks, resilience event hooks, and built-in metrics.
 
 ---
 
-## Registering hooks
+## Lifecycle hooks
+
+Fire on every HTTP request, regardless of resilience policies:
 
 ```typescript
 client.on({
-  onRetry:              (event) => { /* ... */ },
-  onCircuitStateChange: (event) => { /* ... */ },
-  onBulkheadReject:     (event) => { /* ... */ },
-  onFallback:           (event) => { /* ... */ },
-  onRateLimitReject:    (event) => { /* ... */ },
+  onRequest:  (config)   => logger.debug(`→ ${config.method} ${config.url}`),
+  onResponse: (response) => logger.debug(`← ${response.status}`),
+  onError:    (error)    => logger.error('request failed', error),
 })
 ```
 
-Calling `.on()` multiple times **merges** the handlers (last write wins per key).
+| Hook | When |
+|---|---|
+| `onRequest` | Just before the HTTP call (after all policies) |
+| `onResponse` | On successful response |
+| `onError` | When a request ultimately fails (after retries) |
 
 ---
 
-## Hook reference
-
-### `onRetry`
-
-Fired before each retry attempt.
-
-```typescript
-interface RetryEvent {
-  attempt: number   // 0-based retry index
-  error:   unknown  // the error that triggered the retry
-  delayMs: number   // delay that will be waited before next attempt
-}
-```
+## Resilience hooks
 
 ```typescript
 client.on({
-  onRetry: ({ attempt, delayMs, error }) => {
-    logger.warn(`Retry #${attempt} in ${delayMs}ms`, { error })
-    metrics.increment('http.retry', { attempt })
+  onRetry:              ({ attempt, error, delayMs }) => { /* ... */ },
+  onCircuitStateChange: ({ from, to, failures })      => { /* ... */ },
+  onBulkheadReject:     ({ active, queued })           => { /* ... */ },
+  onFallback:           ({ error })                   => { /* ... */ },
+  onRateLimitReject:    ({ permitLimit, windowMs })   => { /* ... */ },
+})
+```
+
+See the full [ResilienceEvents reference](../api/resilience-events).
+
+---
+
+## Built-in metrics
+
+`client.metrics()` returns a point-in-time snapshot — no external setup required:
+
+```typescript
+const m = client.metrics()
+
+// m.requests             — total dispatched
+// m.success              — succeeded
+// m.failed               — failed (after all retries)
+// m.retries              — retry attempts fired
+// m.circuitBreakerTrips  — circuit opened N times
+// m.bulkheadRejects      — rejected by bulkhead
+// m.rateLimitRejects     — rejected by rate limiter
+// m.fallbacks            — fallback handler invoked
+// m.avgLatency           — average response time (ms)
+// m.p50Latency           — median (ms)
+// m.p95Latency           — 95th percentile (ms)
+// m.p99Latency           — 99th percentile (ms)
+// m.uptime               — ms since client created
+```
+
+See the full [MetricsSnapshot reference](../api/metrics).
+
+---
+
+## Sending metrics to Prometheus
+
+```typescript
+import { createClient } from 'super-http'
+import { register, Counter, Histogram, Gauge } from 'prom-client'
+
+const httpRetries  = new Counter({ name: 'http_retries_total', labelNames: ['attempt'] })
+const httpLatency  = new Histogram({ name: 'http_latency_ms', buckets: [5,10,25,50,100,250,500] })
+const circuitGauge = new Gauge({ name: 'http_circuit_open', labelNames: ['service'] })
+
+const api = createClient({ baseURL: 'https://api.example.com' })
+
+api.on({
+  onRetry: ({ attempt, delayMs }) => {
+    httpRetries.labels({ attempt: String(attempt) }).inc()
+  },
+  onResponse: (res) => {
+    const latency = Date.now() - (res.config as any).__t0
+    if (latency) httpLatency.observe(latency)
+  },
+  onCircuitStateChange: ({ to }) => {
+    circuitGauge.labels({ service: 'api' }).set(to === 'open' ? 1 : 0)
   },
 })
 ```
 
 ---
 
-### `onCircuitStateChange`
-
-Fired on every circuit breaker state transition.
+## Sending to Datadog
 
 ```typescript
-type CircuitState = 'closed' | 'open' | 'half-open'
-
-interface CircuitStateChangeEvent {
-  from:     CircuitState
-  to:       CircuitState
-  failures: number       // failure count at transition time
-}
-```
-
-```typescript
-client.on({
-  onCircuitStateChange: ({ from, to, failures }) => {
-    logger.warn(`Circuit: ${from} → ${to} (failures: ${failures})`)
-    metrics.gauge('circuit.state', to === 'open' ? 1 : 0)
-
-    if (to === 'open') {
-      alerting.send(`Circuit opened after ${failures} failures`)
-    }
-  },
+api.on({
+  onRetry:              ({ attempt }) => ddMetrics.increment('http.retry', 1, [`attempt:${attempt}`]),
+  onCircuitStateChange: ({ to })      => ddMetrics.gauge('http.circuit.open', to === 'open' ? 1 : 0),
+  onBulkheadReject:     ()            => ddMetrics.increment('http.bulkhead.rejected'),
+  onFallback:           ()            => ddMetrics.increment('http.fallback'),
+  onRateLimitReject:    ()            => ddMetrics.increment('http.rate_limit.rejected'),
 })
 ```
 
 ---
 
-### `onBulkheadReject`
+## Plugins
 
-Fired when a request is rejected because the bulkhead is full.
-
-```typescript
-interface BulkheadRejectEvent {
-  active: number  // in-flight requests at rejection time
-  queued: number  // queued requests at rejection time
-}
-```
+For plug-and-play observability, use the built-in plugins:
 
 ```typescript
-client.on({
-  onBulkheadReject: ({ active, queued }) => {
-    metrics.increment('bulkhead.rejected')
-    logger.warn(`Bulkhead full — active: ${active}, queued: ${queued}`)
-  },
-})
+import { LoggerPlugin, MetricsReporterPlugin } from 'super-http'
+
+api.use(LoggerPlugin({ prefix: '[my-service]', level: 'info' }))
+api.use(MetricsReporterPlugin({ intervalMs: 60_000 }))
 ```
 
----
-
-### `onFallback`
-
-Fired when the fallback handler is invoked.
-
-```typescript
-interface FallbackEvent {
-  error: unknown  // the original error that triggered the fallback
-}
-```
-
-```typescript
-client.on({
-  onFallback: ({ error }) => {
-    metrics.increment('fallback.triggered')
-    logger.error('Fallback invoked', { error })
-  },
-})
-```
-
----
-
-### `onRateLimitReject`
-
-Fired when a request is rejected by the rate limiter.
-
-```typescript
-interface RateLimitRejectEvent {
-  permitLimit: number  // configured limit
-  windowMs:    number  // window size in ms
-}
-```
-
-```typescript
-client.on({
-  onRateLimitReject: ({ permitLimit, windowMs }) => {
-    metrics.increment('rate_limit.rejected')
-    logger.warn(`Rate limit hit — ${permitLimit} req / ${windowMs}ms`)
-  },
-})
-```
-
----
-
-## Full example with Prometheus-style metrics
-
-```typescript
-import { HttpClientFactory, ExponentialJitterRetryStrategy } from 'super-http'
-
-const api = HttpClientFactory.create('https://api.example.com')
-
-api
-  .on({
-    onRetry: ({ attempt, delayMs }) => {
-      retryCounter.inc({ attempt })
-      retryDelayHistogram.observe(delayMs / 1000)
-    },
-    onCircuitStateChange: ({ from, to, failures }) => {
-      circuitStateGauge.set({ state: to }, 1)
-      circuitStateGauge.set({ state: from }, 0)
-      if (to === 'open') circuitOpenCounter.inc({ failures })
-    },
-    onBulkheadReject: () => bulkheadRejectedCounter.inc(),
-    onFallback:       () => fallbackCounter.inc(),
-    onRateLimitReject: () => rateLimitRejectedCounter.inc(),
-  })
-  .circuitBreak({ failureThreshold: 5, successThreshold: 2, timeoutMs: 15_000 })
-  .retry(4, new ExponentialJitterRetryStrategy(100, 10_000))
-  .bulkhead({ maxConcurrent: 20, maxQueue: 100 })
-  .rateLimit({ permitLimit: 200, windowMs: 60_000 })
-```
+See the [Plugins guide](./plugins) for writing custom plugins for OTel, Datadog, etc.
