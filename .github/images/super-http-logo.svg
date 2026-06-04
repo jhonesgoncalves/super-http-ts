@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0f172a"/>
+      <stop offset="100%" style="stop-color:#1e293b"/>
+    </linearGradient>
+    <linearGradient id="bolt" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#38bdf8"/>
+      <stop offset="100%" style="stop-color:#6366f1"/>
+    </linearGradient>
+    <linearGradient id="arc" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#38bdf8;stop-opacity:0.8"/>
+      <stop offset="100%" style="stop-color:#6366f1;stop-opacity:0.2"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+  </defs>
+
+  <!-- Background circle -->
+  <circle cx="100" cy="100" r="98" fill="url(#bg)" stroke="#334155" stroke-width="1.5"/>
+
+  <!-- Outer arc (connection pool / resilience ring) -->
+  <path d="M 30 100 A 70 70 0 0 1 170 100" fill="none" stroke="url(#arc)" stroke-width="4" stroke-linecap="round" opacity="0.6"/>
+  <path d="M 30 100 A 70 70 0 0 0 170 100" fill="none" stroke="url(#arc)" stroke-width="4" stroke-linecap="round" opacity="0.3"/>
+
+  <!-- Circuit dots on ring -->
+  <circle cx="30" cy="100" r="5" fill="#38bdf8" filter="url(#glow)"/>
+  <circle cx="170" cy="100" r="5" fill="#6366f1" filter="url(#glow)"/>
+  <circle cx="100" cy="30" r="4" fill="#38bdf8" opacity="0.5"/>
+  <circle cx="100" cy="170" r="4" fill="#6366f1" opacity="0.5"/>
+
+  <!-- Lightning bolt (performance / speed) -->
+  <path d="M 113 55 L 88 105 L 105 105 L 87 148 L 118 93 L 100 93 Z"
+        fill="url(#bolt)" filter="url(#glow)"/>
+
+  <!-- Text: super-http -->
+  <text x="100" y="176" font-family="'SF Mono', 'Fira Code', monospace" font-size="13"
+        font-weight="700" fill="#94a3b8" text-anchor="middle" letter-spacing="1">
+    super-http
+  </text>
+</svg>

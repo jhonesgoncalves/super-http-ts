@@ -1,86 +1,193 @@
 <p align="center">
- <img width="100px" src="https://raw.githubusercontent.com/hebertcisco/ts-npm-package-boilerplate/main/.github/images/favicon512x512-npm.png" align="center" alt=":package: ts-npm-package-boilerplate" />
- <h2 align="center">:package: ts-npm-package-boilerplate</h2>
- <p align="center">TypeScript NPM Module Boilerplate</p>
+  <img width="140px" src=".github/images/super-http-logo.svg" align="center" alt="super-http" />
+  <h2 align="center">super-http</h2>
+  <p align="center">A resilient HTTP client built on top of Axios — circuit breaker, connection pooling, keep-alive and smart retry out of the box.</p>
   <p align="center">
-    <a href="https://github.com/hebertcisco/ts-npm-package-boilerplate/issues">
-      <img alt="Issues" src="https://img.shields.io/github/issues/hebertcisco/ts-npm-package-boilerplate?style=flat&color=336791" />
+    <a href="https://github.com/hebertcisco/super-http/issues">
+      <img alt="Issues" src="https://img.shields.io/github/issues/hebertcisco/super-http?style=flat&color=0ea5e9" />
     </a>
-    <a href="https://github.com/hebertcisco/ts-npm-package-boilerplate/pulls">
-      <img alt="GitHub pull requests" src="https://img.shields.io/github/issues-pr/hebertcisco/ts-npm-package-boilerplate?style=flat&color=336791" />
+    <a href="https://github.com/hebertcisco/super-http/pulls">
+      <img alt="Pull Requests" src="https://img.shields.io/github/issues-pr/hebertcisco/super-http?style=flat&color=0ea5e9" />
     </a>
-     <a href="https://github.com/hebertcisco/ts-npm-package-boilerplate">
-      <img alt="GitHub Downloads" src="https://img.shields.io/npm/dw/ts-npm-package-boilerplate?style=flat&color=336791" />
+    <a href="https://www.npmjs.com/package/super-http">
+      <img alt="npm version" src="https://img.shields.io/npm/v/super-http?style=flat&color=0ea5e9" />
     </a>
-    <a href="https://github.com/hebertcisco/ts-npm-package-boilerplate">
-      <img alt="GitHub Total Downloads" src="https://img.shields.io/npm/dt/ts-npm-package-boilerplate?color=336791&label=Total%20downloads" />
+    <a href="https://www.npmjs.com/package/super-http">
+      <img alt="npm downloads" src="https://img.shields.io/npm/dw/super-http?style=flat&color=0ea5e9" />
     </a>
- <a href="https://github.com/hebertcisco/ts-npm-package-boilerplate">
-      <img alt="GitHub release" src="https://img.shields.io/github/release/hebertcisco/ts-npm-package-boilerplate.svg?style=flat&color=336791" />
-    </a>
-    <br />
-    <br />
-  <a href="https://github.com/hebertcisco/ts-npm-package-boilerplate/issues/new/choose">Report Bug</a>
-  <a href="https://github.com/hebertcisco/ts-npm-package-boilerplate/issues/new/choose">Request Feature</a>
-  </p>
- <h3 align="center">Systems on which it has been tested:</h3>
- <p align="center">
-   <a href="https://www.apple.com/br/macos/">
-      <img alt="Macos" src="https://img.shields.io/badge/mac%20os-000000?style=for-the-badge&logo=apple&logoColor=white&style=flat" />
-    </a>
-    <a href="https://ubuntu.com/download">
-      <img alt="Ubuntu" src="https://img.shields.io/badge/Ubuntu-E95420?style=for-the-badge&logo=ubuntu&logoColor=white&style=flat" />
-    </a>
-    <a href="https://www.microsoft.com/pt-br/windows/">
-      <img alt="Windows" src="https://img.shields.io/badge/Windows-0078D6?style=for-the-badge&logo=windows&logoColor=white&style=flat" />
+    <a href="LICENSE.md">
+      <img alt="License" src="https://img.shields.io/github/license/hebertcisco/super-http?style=flat&color=0ea5e9" />
     </a>
   </p>
-<p align="center">Did you like the project? Please, considerate <a href="https://www.buymeacoffee.com/hebertcisco">a donation</a> to help improve!</p>
+</p>
 
-<p align="center"><strong>TypeScript NPM Module Boilerplate</strong>✨</p>
+---
 
-[![codecov](https://codecov.io/gh/hebertcisco/ts-npm-package-boilerplate/branch/main/graph/badge.svg?token=Q9fr548J0D)](https://codecov.io/gh/hebertcisco/ts-npm-package-boilerplate)
+## Why super-http?
 
-# Getting started
+Node's default HTTP behaviour leaves a lot to be desired in production:
+
+- **Socket hung up** — when a server closes a keep-alive connection your client gets `ECONNRESET`. super-http retries those transparently.
+- **No connection pool** — without a shared agent every request opens a new socket. super-http creates a single `http.Agent` / `https.Agent` per base URL with configurable `maxSockets` and `keepAlive`.
+- **No resilience** — a flaky dependency can cascade into full outages. The built-in **circuit breaker** trips after N failures and gives the dependency time to recover before trying again.
+- **Verbose retry logic** — writing your own `while (retries--)` with back-off is boilerplate. super-http gives you `.retry(n, delayMs)`.
+
+---
 
 ## Installation
 
-> Clone this repository: `git clone https://github.com/hebertcisco/ts-npm-package-boilerplate`
-
-### Open the directory and run the script line:
-
 ```bash
-cd ts-npm-package-boilerplate 
+npm install super-http
+# or
+yarn add super-http
 ```
-```bash
-npm i  # or yarn
+
+---
+
+## Quick start
+
+```typescript
+import { HttpClientFactory } from 'super-http';
+
+const client = HttpClientFactory.create('https://api.example.com');
+
+// Convenience methods
+const { data } = await client.get('/users');
+const { data: user } = await client.post('/users', { name: 'Alice' });
 ```
-```bash
-rm -rf .git && git init && git add . && git commit -m "Initial commit" #Optional
+
+---
+
+## Features
+
+### Connection pool + keep-alive
+
+`HttpClientFactory.create` returns a **singleton per base URL** backed by a shared `http.Agent` and `https.Agent`. Connections are reused across requests, eliminating TCP handshake overhead and preventing `ECONNRESET` from stale sockets.
+
+```typescript
+const client = HttpClientFactory.create('https://api.example.com', {}, {
+  maxSockets: 100,       // max concurrent connections per host (default: 50)
+  maxFreeSockets: 20,    // idle connections kept alive (default: 10)
+  keepAlive: true,       // reuse TCP connections (default: true)
+  keepAliveMsecs: 2000,  // keep-alive probe interval in ms (default: 1000)
+  timeout: 15000,        // request timeout in ms (default: 30000)
+});
 ```
-Or create use the button "Use this template"
 
-Edit the Icon on Figma:
+### Retry
 
-<a href="https://www.figma.com/file/vpevGX3j9tmtW8OyLQ9eUm/ts-npm-package-boilerplate-icon?node-id=0%3A1">
-   <img alt="Figma Icon" src="https://raw.githubusercontent.com/hebertcisco/ts-npm-package-boilerplate/main/.github/images/figma-badge.png"/>
-</a>
+Retries on network errors (`ECONNRESET`, `ECONNREFUSED`, `ETIMEDOUT`, `EPIPE`, …) and 5xx responses. You can also pin it to specific status codes.
 
-## 🤝 Contributing
+```typescript
+client
+  .retry(3, 500)              // up to 3 retries, 500 ms between each
+  .get('/unstable-endpoint');
 
-Contributions, issues and feature requests are welcome!<br />Feel free to check [issues page](issues).
+// Retry only on specific status codes
+client
+  .retry(3, 500, [429, 503])
+  .get('/rate-limited');
+```
 
-## Show your support
+### Circuit breaker
 
-Give a ⭐️ if this project helped you!
+Trips after `failureThreshold` consecutive failures within `timeoutMs`. While open, requests fail fast with `"Circuit breaker is open"`. After `timeoutMs` elapses, a single probe is allowed through; on success the circuit closes.
 
-Or buy me a coffee 🙌🏾
+```typescript
+client
+  .circuitBreak({
+    failureThreshold: 5,   // trip after 5 failures
+    successThreshold: 2,   // close after 2 consecutive successes
+    timeoutMs: 10000,      // stay open for 10 s before probing
+  })
+  .get('/service');
+```
 
-<a href="https://www.buymeacoffee.com/hebertcisco">
-    <img src="https://img.buymeacoffee.com/button-api/?text=Buy me a coffee&emoji=&slug=hebertcisco&button_colour=FFDD00&font_colour=000000&font_family=Inter&outline_colour=000000&coffee_colour=ffffff" />
-</a>
+### Chaining
 
-## 📝 License
+Both `.retry()` and `.circuitBreak()` return `this`, so they chain naturally:
 
-Copyright © 2022 [Hebert F Barros](https://github.com/hebertcisco).<br />
-This project is [MIT](LICENSE) licensed.
+```typescript
+const client = HttpClientFactory.create('https://api.example.com');
+
+client
+  .circuitBreak({ failureThreshold: 3, successThreshold: 2, timeoutMs: 6000 })
+  .retry(3, 1000)
+  .get('/health');
+```
+
+---
+
+## API
+
+### `HttpClientFactory.create(baseURL, httpConfig?, poolConfig?)`
+
+Returns a singleton `HttpClient` for the given base URL. Subsequent calls with the same URL return the cached instance.
+
+| Param | Type | Description |
+|---|---|---|
+| `baseURL` | `string` | Base URL for all requests |
+| `httpConfig` | `HttpClientRequestConfig` | Axios request config applied to every request |
+| `poolConfig` | `PoolConfig` | Connection pool options (see above) |
+
+### `HttpClient` methods
+
+| Method | Description |
+|---|---|
+| `get(url, config?)` | HTTP GET |
+| `post(url, data?, config?)` | HTTP POST |
+| `put(url, data?, config?)` | HTTP PUT |
+| `patch(url, data?, config?)` | HTTP PATCH |
+| `delete(url, config?)` | HTTP DELETE |
+| `request(config)` | Raw Axios request |
+| `retry(retries, delayMs, retryOn?)` | Configure retry — returns `this` |
+| `circuitBreak(config)` | Configure circuit breaker — returns `this` |
+
+### `PoolConfig`
+
+| Option | Default | Description |
+|---|---|---|
+| `maxSockets` | `50` | Max concurrent sockets per host |
+| `maxFreeSockets` | `10` | Max idle keep-alive sockets |
+| `keepAlive` | `true` | Enable TCP keep-alive |
+| `keepAliveMsecs` | `1000` | Keep-alive probe interval (ms) |
+| `timeout` | `30000` | Request timeout (ms) |
+
+### `CircuitBreakerConfig`
+
+| Option | Description |
+|---|---|
+| `failureThreshold` | Number of failures before the circuit trips |
+| `successThreshold` | Consecutive successes needed to close the circuit |
+| `timeoutMs` | How long to keep the circuit open before probing |
+
+---
+
+## Full example
+
+```typescript
+import { HttpClientFactory } from 'super-http';
+
+const api = HttpClientFactory.create('https://jsonplaceholder.typicode.com', {}, {
+  maxSockets: 50,
+  timeout: 10000,
+});
+
+api
+  .circuitBreak({ failureThreshold: 3, successThreshold: 2, timeoutMs: 8000 })
+  .retry(3, 500);
+
+// Reuse the same instance anywhere — connections are pooled automatically
+const { data: todos } = await api.get('/todos');
+const { data: todo } = await api.post('/todos', { title: 'Buy milk', completed: false });
+```
+
+---
+
+## Contributing
+
+Contributions, issues and feature requests are welcome! Check the [issues page](https://github.com/hebertcisco/super-http/issues).
+
+## License
+
+Copyright © 2024 [Hebert F Barros](https://github.com/hebertcisco). MIT licensed — see [LICENSE.md](LICENSE.md).

@@ -1,4 +1,6 @@
-import axios, { AxiosInstance } from 'axios';
+import http from 'http';
+import https from 'https';
+import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
 import { CircuitBreakerConfig, CircuitBreaker } from '../circuit-breaker/circuit-break';
 import { HttpClientRequestConfig } from '../models/http.client.request.config';
 import { HttpClientResponse } from '../models/http.client.response';
@@ -6,6 +8,23 @@ import { HttpClientResponse } from '../models/http.client.response';
 interface RetryConfig {
   retries: number;
   delayMs: number;
+  retryOn?: number[];
+}
+
+export interface PoolConfig {
+  maxSockets?: number;
+  maxFreeSockets?: number;
+  keepAlive?: boolean;
+  keepAliveMsecs?: number;
+  timeout?: number;
+}
+
+const SOCKET_ERRORS = new Set(['ECONNRESET', 'ECONNREFUSED', 'EPIPE', 'ETIMEDOUT', 'ENOTFOUND', 'EAI_AGAIN']);
+
+function isRetryableError(error: any): boolean {
+  if (error?.code && SOCKET_ERRORS.has(error.code)) return true;
+  if (error?.response?.status >= 500) return true;
+  return false;
 }
 
 export class HttpClient {
@@ -14,20 +33,36 @@ export class HttpClient {
   private circuitBreakerConfig?: CircuitBreakerConfig;
   private circuitBreaker?: CircuitBreaker;
 
-  constructor(baseURL: string, httpClientRequestConfig: HttpClientRequestConfig = {}, circuitBreaker?: CircuitBreaker) {
+  constructor(
+    baseURL: string,
+    httpClientRequestConfig: HttpClientRequestConfig = {},
+    circuitBreaker?: CircuitBreaker,
+    poolConfig: PoolConfig = {},
+  ) {
     this.circuitBreaker = circuitBreaker;
+
+    const {
+      maxSockets = 50,
+      maxFreeSockets = 10,
+      keepAlive = true,
+      keepAliveMsecs = 1000,
+      timeout,
+    } = poolConfig;
+
+    const httpAgent = new http.Agent({ maxSockets, maxFreeSockets, keepAlive, keepAliveMsecs });
+    const httpsAgent = new https.Agent({ maxSockets, maxFreeSockets, keepAlive, keepAliveMsecs });
+
     this.axiosInstance = axios.create({
       ...httpClientRequestConfig,
       baseURL,
-      timeout: 1000,
+      timeout: timeout ?? httpClientRequestConfig.timeout ?? 30000,
+      httpAgent,
+      httpsAgent,
     });
   }
 
-  retry(retries: number, delayMs: number): this {
-    this.retryConfig = {
-      retries,
-      delayMs,
-    };
+  retry(retries: number, delayMs: number, retryOn?: number[]): this {
+    this.retryConfig = { retries, delayMs, retryOn };
     return this;
   }
 
@@ -36,8 +71,28 @@ export class HttpClient {
     return this;
   }
 
-  request<T = any>(config: HttpClientRequestConfig): Promise<HttpClientResponse<T>> {
-    let requestFn = () => this.axiosInstance.request(config);
+  get<T = any>(url: string, config?: HttpClientRequestConfig): Promise<HttpClientResponse<T>> {
+    return this.request<T>({ ...config, url, method: 'get' });
+  }
+
+  post<T = any>(url: string, data?: any, config?: HttpClientRequestConfig): Promise<HttpClientResponse<T>> {
+    return this.request<T>({ ...config, url, method: 'post', data });
+  }
+
+  put<T = any>(url: string, data?: any, config?: HttpClientRequestConfig): Promise<HttpClientResponse<T>> {
+    return this.request<T>({ ...config, url, method: 'put', data });
+  }
+
+  patch<T = any>(url: string, data?: any, config?: HttpClientRequestConfig): Promise<HttpClientResponse<T>> {
+    return this.request<T>({ ...config, url, method: 'patch', data });
+  }
+
+  delete<T = any>(url: string, config?: HttpClientRequestConfig): Promise<HttpClientResponse<T>> {
+    return this.request<T>({ ...config, url, method: 'delete' });
+  }
+
+  request<T = any>(config: AxiosRequestConfig): Promise<HttpClientResponse<T>> {
+    let requestFn: () => Promise<HttpClientResponse<T>> = () => this.axiosInstance.request<T>(config);
 
     if (this.circuitBreakerConfig) {
       requestFn = this.withCircuitBreaker(requestFn, this.circuitBreakerConfig);
@@ -55,20 +110,25 @@ export class HttpClient {
     retryConfig: RetryConfig,
   ): () => Promise<HttpClientResponse<T>> {
     return async () => {
-      let retries = 0;
-
-      if (this.circuitBreaker?.handleIsOpen()) {
-        throw new Error('Circuit breaker is open');
-      }
+      let attempt = 0;
 
       while (true) {
         try {
           return await requestFn();
-        } catch (error) {
-          if (retries >= retryConfig.retries) {
+        } catch (error: any) {
+          const isCircuitOpen = error?.message === 'Circuit breaker is open';
+
+          if (isCircuitOpen || attempt >= retryConfig.retries) {
             throw error;
           }
-          retries++;
+
+          const shouldRetry = retryConfig.retryOn
+            ? retryConfig.retryOn.includes(error?.response?.status)
+            : isRetryableError(error);
+
+          if (!shouldRetry) throw error;
+
+          attempt++;
           await new Promise((resolve) => setTimeout(resolve, retryConfig.delayMs));
         }
       }
@@ -78,13 +138,10 @@ export class HttpClient {
   private withCircuitBreaker<T>(
     requestFn: () => Promise<HttpClientResponse<T>>,
     circuitBreakerConfig: CircuitBreakerConfig,
-  ): () => Promise<HttpClientResponse<T> | any> {
+  ): () => Promise<HttpClientResponse<T>> {
     if (!this.circuitBreaker) this.circuitBreaker = new CircuitBreaker();
-
     this.circuitBreaker.setConfig(circuitBreakerConfig);
 
-    return async () => {
-      return this.circuitBreaker?.execute(requestFn);
-    };
+    return () => this.circuitBreaker!.execute(requestFn);
   }
 }
