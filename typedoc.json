@@ -1,0 +1,16 @@
+{
+  "entryPoints": ["src/index.ts"],
+  "out": "docs/api",
+  "plugin": ["typedoc-plugin-markdown"],
+  "readme": "none",
+  "name": "super-http",
+  "includeVersion": true,
+  "categorizeByGroup": true,
+  "excludePrivate": true,
+  "excludeInternal": true,
+  "excludeExternals": false,
+  "navigationLinks": {
+    "GitHub": "https://github.com/jhonesgoncalves/super-http-ts",
+    "npm": "https://www.npmjs.com/package/super-http"
+  }
+}

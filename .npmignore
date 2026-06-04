@@ -1,0 +1,20 @@
+# Source & tests
+src/
+example/
+docs/
+
+# Config
+.circleci/
+.github/
+.gitpod.yml
+.eslintignore
+.eslintrc
+.prettierrc
+jest.config.js
+tsconfig.json
+typedoc.json
+renovate.json
+
+# Misc
+*.log
+coverage/
