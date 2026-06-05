@@ -491,7 +491,17 @@ export class HttpClient {
     requestFn: () => Promise<HttpClientResponse<T>>,
   ): () => Promise<HttpClientResponse<T>> {
     const bh = this.bulkheadInstance!;
-    return () => bh.execute(requestFn);
+    return async () => {
+      try {
+        return await bh.execute(requestFn);
+      } catch (err) {
+        const isBulkheadReject =
+          err instanceof Error &&
+          (err.message === 'Bulkhead queue full' || err.message === 'Bulkhead queue timeout');
+        if (isBulkheadReject) this._metrics.recordBHReject();
+        throw err;
+      }
+    };
   }
 
   private withRateLimit<T>(
@@ -499,7 +509,12 @@ export class HttpClient {
   ): () => Promise<HttpClientResponse<T>> {
     const rl = this.rateLimiterInstance!;
     return async () => {
-      await rl.acquire();
+      try {
+        await rl.acquire();
+      } catch (err) {
+        this._metrics.recordRLReject();
+        throw err;
+      }
       return requestFn();
     };
   }

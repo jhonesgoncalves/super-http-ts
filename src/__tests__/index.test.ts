@@ -594,3 +594,322 @@ describe('HttpClientFactory', () => {
     expect(a).not.toBe(b);
   });
 });
+
+// ─── Bulkhead — getters ───────────────────────────────────────────────────────
+describe('Bulkhead — getters', () => {
+  it('queuedCount reflects requests waiting in queue', async () => {
+    const bh = new Bulkhead({ maxConcurrent: 1, maxQueue: 5 });
+    let release!: () => void;
+    const block = new Promise<void>((r) => { release = r; });
+    bh.execute(() => block); // occupies the slot
+    // Enqueue a second task without awaiting
+    const second = bh.execute(() => Promise.resolve());
+    await new Promise((r) => setImmediate(r)); // let microtasks settle
+    expect(bh.queuedCount).toBe(1);
+    expect(bh.activeCount).toBe(1);
+    release();
+    await second;
+    expect(bh.queuedCount).toBe(0);
+  });
+});
+
+// ─── CircuitBreaker — isOpen getter ──────────────────────────────────────────
+describe('CircuitBreaker — isOpen getter', () => {
+  it('isOpen returns true when state is open', () => {
+    const cb = new CircuitBreaker();
+    cb.setConfig({ failureThreshold: 1, successThreshold: 1, timeoutMs: 60_000 });
+    expect(cb.isOpen).toBe(false);
+    cb['_state'] = 'open';
+    expect(cb.isOpen).toBe(true);
+  });
+});
+
+// ─── RequestDedup — size getter ───────────────────────────────────────────────
+describe('RequestDedup — size getter', () => {
+  it('size reflects in-flight deduplicated requests', async () => {
+    const dedup = new RequestDedup();
+    let resolve!: (v: string) => void;
+    const pending = new Promise<string>((r) => { resolve = r; });
+    const exec = dedup.execute('GET:/thing', () => pending);
+    await new Promise((r) => setImmediate(r));
+    expect(dedup.size).toBe(1);
+    resolve('done');
+    await exec;
+    expect(dedup.size).toBe(0);
+  });
+});
+
+// ─── Lifecycle hooks — fired during requests ──────────────────────────────────
+describe('Lifecycle hooks — fired during requests', () => {
+  it('fires onRequest hook via request interceptor', async () => {
+    const onRequest = jest.fn();
+    const client = new HttpClient('https://api.example.com');
+    client.on({ onRequest });
+    // Invoke the request interceptor handler registered by this client
+    const reqHandler = requestHandlers[requestHandlers.length - 1];
+    const fakeConfig = { url: '/test' };
+    const result = await reqHandler(fakeConfig);
+    expect(onRequest).toHaveBeenCalledWith(fakeConfig);
+    expect(result).toBe(fakeConfig); // interceptor returns config unchanged
+  });
+
+  it('fires onResponse hook via response interceptor', async () => {
+    const onResponse = jest.fn();
+    const client = new HttpClient('https://api.example.com');
+    client.on({ onResponse });
+    const [resHandler] = responseHandlers[responseHandlers.length - 1];
+    const fakeResponse = { status: 200, data: 'ok' };
+    const result = await resHandler(fakeResponse);
+    expect(onResponse).toHaveBeenCalledWith(fakeResponse);
+    expect(result).toBe(fakeResponse);
+  });
+
+  it('fires onError hook via response error interceptor', async () => {
+    const onError = jest.fn();
+    const client = new HttpClient('https://api.example.com');
+    client.on({ onError });
+    const [, errHandler] = responseHandlers[responseHandlers.length - 1];
+    const fakeError = new Error('network error');
+    await (errHandler(fakeError) as Promise<unknown>).catch(() => {});
+    expect(onError).toHaveBeenCalledWith(fakeError);
+  });
+});
+
+// ─── Metrics — bulkhead and rate-limit rejects ────────────────────────────────
+describe('Metrics — bulkhead and rate-limit rejects', () => {
+  it('records bulkheadRejects when bulkhead queue is full', async () => {
+    mockAxiosInstance.request.mockResolvedValue({ status: 200, data: 'ok' });
+    const client = new HttpClient('https://api.example.com');
+    client.bulkhead({ maxConcurrent: 1, maxQueue: 0 });
+
+    let release!: () => void;
+    const block = new Promise<void>((r) => { release = r; });
+    // Block the one slot
+    mockAxiosInstance.request.mockImplementationOnce(() => block as never);
+    const first = client.get('/block').catch(() => {});
+    await new Promise((r) => setImmediate(r));
+    // Second request hits full bulkhead
+    await client.get('/reject').catch(() => {});
+    release();
+    await first;
+    expect(client.metrics().bulkheadRejects).toBe(1);
+  });
+
+  it('records rateLimitRejects when rate limit exceeded', async () => {
+    mockAxiosInstance.request.mockResolvedValue({ status: 200, data: 'ok' });
+    const client = new HttpClient('https://api.example.com');
+    client.rateLimit({ permitLimit: 1, windowMs: 60_000, queueRequests: false });
+    await client.get('/first'); // consumes the token
+    await client.get('/second').catch(() => {}); // should be rate-limited
+    expect(client.metrics().rateLimitRejects).toBe(1);
+  });
+});
+
+// ─── RetryAfterStrategy — invalid header fallback ────────────────────────────
+describe('RetryAfterStrategy — invalid header', () => {
+  it('returns 1000ms fallback when header is not a number or date', () => {
+    const s = new RetryAfterStrategy();
+    const error = { response: { headers: { 'retry-after': 'not-a-date' } } };
+    const delay = s.computeDelay(0, error);
+    expect(delay).toBe(1000);
+  });
+});
+
+// ─── RateLimiter — queue with queueTimeoutMs and clearTimeout on drain ────────
+describe('RateLimiter — queue timer cleared on drain', () => {
+  it('clears the queue timer when token becomes available before timeout', async () => {
+    jest.useFakeTimers();
+    const rl = new RateLimiter({
+      permitLimit: 1,
+      windowMs: 100,
+      queueRequests: true,
+      queueTimeoutMs: 5_000, // long timeout — should be cleared when refill happens
+    });
+    await rl.acquire(); // consume token
+
+    let resolved = false;
+    const queued = rl.acquire().then(() => { resolved = true; });
+
+    expect(resolved).toBe(false);
+    jest.advanceTimersByTime(110); // refill window
+    await queued;
+    expect(resolved).toBe(true);
+    jest.useRealTimers();
+  });
+});
+
+// ─── Bulkhead — default maxQueue and safeCall with no-event path ─────────────
+describe('Bulkhead — default maxQueue', () => {
+  it('uses default maxQueue of 50 when not specified', async () => {
+    // Bulkhead created WITHOUT maxQueue — covers the ?? 50 default branch
+    const bh = new Bulkhead({ maxConcurrent: 2 });
+    const results = await Promise.all([
+      bh.execute(() => Promise.resolve(1)),
+      bh.execute(() => Promise.resolve(2)),
+    ]);
+    expect(results).toEqual([1, 2]);
+  });
+
+  it('rejects when queue full and no event handler provided', async () => {
+    // Covers the onBulkheadReject?. branch when events are not provided
+    const bh = new Bulkhead({ maxConcurrent: 1, maxQueue: 0 }); // no events arg
+    let release!: () => void;
+    const block = new Promise<void>((r) => { release = r; });
+    bh.execute(() => block);
+    await expect(bh.execute(() => Promise.resolve())).rejects.toThrow('Bulkhead queue full');
+    release();
+  });
+});
+
+// ─── Retry — 5xx triggers retry via isRetryableError ─────────────────────────
+describe('Retry — 5xx without retryOn filter', () => {
+  it('retries automatically on 5xx response status', async () => {
+    const err = { response: { status: 503 } };
+    mockAxiosInstance.request
+      .mockRejectedValueOnce(err)
+      .mockResolvedValue({ status: 200, data: 'ok' });
+    const client = new HttpClient('https://api.example.com');
+    client.retry(2, 0);
+    const res = await client.get('/test');
+    expect(res.status).toBe(200);
+    expect(mockAxiosInstance.request).toHaveBeenCalledTimes(2);
+  });
+});
+
+// ─── CircuitBreaker — handleSuccess below threshold ──────────────────────────
+describe('CircuitBreaker — partial success in half-open', () => {
+  it('does not close if successes below successThreshold', async () => {
+    const cb = new CircuitBreaker();
+    cb.setConfig({ failureThreshold: 1, successThreshold: 3, timeoutMs: 0 });
+    cb['_state'] = 'half-open';
+    cb['successes'] = 0;
+    // First success — still below threshold
+    cb['handleSuccess']();
+    expect(cb.state).toBe('half-open'); // not yet closed
+    // Second success
+    cb['handleSuccess']();
+    expect(cb.state).toBe('half-open');
+    // Third success closes it
+    cb['handleSuccess']();
+    expect(cb.state).toBe('closed');
+  });
+
+  it('transitionTo is a no-op when already in target state', () => {
+    const cb = new CircuitBreaker();
+    cb.setConfig({ failureThreshold: 1, successThreshold: 1, timeoutMs: 60_000 });
+    cb['_state'] = 'closed';
+    cb['transitionTo']('closed'); // same state — should not throw or change anything
+    expect(cb.state).toBe('closed');
+  });
+
+  it('accumulates failures without opening when below failureThreshold', () => {
+    const cb = new CircuitBreaker();
+    cb.setConfig({ failureThreshold: 5, successThreshold: 1, timeoutMs: 60_000 });
+    cb['handleFailure']();
+    cb['handleFailure']();
+    cb['handleFailure']();
+    expect(cb.state).toBe('closed'); // threshold not reached
+    expect(cb['failures']).toBe(3);
+  });
+});
+
+// ─── Retry strategy — default constructor parameters ─────────────────────────
+describe('Retry strategies — default constructor parameters', () => {
+  it('ExponentialRetryStrategy uses default maxDelayMs and factor', () => {
+    const s = new ExponentialRetryStrategy(100);
+    // factor defaults to 2: attempt 1 → 100*2=200, attempt 20 → capped at 30_000
+    expect(s.computeDelay(1)).toBe(200);
+    expect(s.computeDelay(20)).toBe(30_000);
+  });
+
+  it('ExponentialJitterRetryStrategy uses default maxDelayMs and factor', () => {
+    const s = new ExponentialJitterRetryStrategy(100);
+    const d = s.computeDelay(1);
+    expect(d).toBeGreaterThanOrEqual(0);
+    expect(d).toBeLessThanOrEqual(200); // cap = min(100*2^1, 30_000)
+  });
+
+  it('RetryAfterStrategy returns jitter when error is null', () => {
+    const s = new RetryAfterStrategy();
+    const d = s.computeDelay(0, null);
+    expect(d).toBeGreaterThanOrEqual(0);
+  });
+
+  it('RetryAfterStrategy returns jitter when error has no response', () => {
+    const s = new RetryAfterStrategy();
+    const d = s.computeDelay(0, { code: 'ECONNRESET' });
+    expect(d).toBeGreaterThanOrEqual(0);
+  });
+
+  it('RetryAfterStrategy returns jitter when response has no headers', () => {
+    const s = new RetryAfterStrategy();
+    const d = s.computeDelay(0, { response: {} });
+    expect(d).toBeGreaterThanOrEqual(0);
+  });
+
+  it('RetryAfterStrategy returns jitter when retry-after value is not a string', () => {
+    const s = new RetryAfterStrategy();
+    const d = s.computeDelay(0, { response: { headers: { 'retry-after': 42 } } });
+    expect(d).toBeGreaterThanOrEqual(0);
+  });
+});
+
+// ─── CircuitBreaker — handleFailure reset path ───────────────────────────────
+describe('CircuitBreaker — handleFailure reset path', () => {
+  it('resets failure counter when gap between failures exceeds timeoutMs', () => {
+    const cb = new CircuitBreaker();
+    cb.setConfig({ failureThreshold: 10, successThreshold: 1, timeoutMs: 500 });
+    // Simulate 3 prior failures 1s ago (> timeoutMs)
+    cb['lastFailureTime'] = Date.now() - 1_000;
+    cb['failures'] = 3;
+    // Next failure should RESET counter to 1 (gap > timeoutMs)
+    cb['handleFailure']();
+    expect(cb['failures']).toBe(1);
+  });
+});
+
+// ─── Per-request policy — CB override and retry with attempts ────────────────
+describe('Per-request policy — advanced', () => {
+  it('policy.circuitBreaker: false bypasses an open circuit', async () => {
+    const err = Object.assign(new Error('fail'), { code: 'ECONNRESET' });
+    mockAxiosInstance.request.mockRejectedValueOnce(err);
+    const client = new HttpClient('https://api.example.com');
+    client.circuitBreak({ failureThreshold: 1, successThreshold: 1, timeoutMs: 60_000 });
+    // Trip the circuit
+    await expect(client.request({ url: '/' })).rejects.toThrow();
+    // Bypass with policy
+    mockAxiosInstance.request.mockResolvedValue({ status: 200, data: 'ok' });
+    const res = await client.request({ url: '/', policy: { circuitBreaker: false } });
+    expect(res.status).toBe(200);
+  });
+
+  it('policy.circuitBreaker overrides CB config for a single request', async () => {
+    const err = Object.assign(new Error('fail'), { code: 'ECONNRESET' });
+    mockAxiosInstance.request.mockRejectedValue(err);
+    const client = new HttpClient('https://api.example.com');
+    // Base config requires 10 failures — per-request requires only 1
+    client.circuitBreak({ failureThreshold: 10, successThreshold: 1, timeoutMs: 60_000 });
+    await expect(client.request({ url: '/', policy: { circuitBreaker: { failureThreshold: 1 } } })).rejects.toThrow();
+    await expect(client.request({ url: '/', policy: { circuitBreaker: { failureThreshold: 1 } } })).rejects.toThrow('Circuit breaker is open');
+  });
+
+  it('policy.retry with attempts object retries on network error', async () => {
+    const err = Object.assign(new Error('reset'), { code: 'ECONNRESET' });
+    mockAxiosInstance.request
+      .mockRejectedValueOnce(err)
+      .mockResolvedValue({ status: 200, data: 'ok' });
+    const client = new HttpClient('https://api.example.com');
+    const res = await client.request({ url: '/test', policy: { retry: { attempts: 2, delayMs: 0 } } });
+    expect(res.status).toBe(200);
+    expect(mockAxiosInstance.request).toHaveBeenCalledTimes(2);
+  });
+
+  it('policy.retry with retryOn limits retry to specific status codes', async () => {
+    mockAxiosInstance.request
+      .mockRejectedValueOnce({ response: { status: 503 } })
+      .mockResolvedValue({ status: 200, data: 'ok' });
+    const client = new HttpClient('https://api.example.com');
+    const res = await client.request({ url: '/test', policy: { retry: { attempts: 2, delayMs: 0, retryOn: [503] } } });
+    expect(res.status).toBe(200);
+  });
+});
