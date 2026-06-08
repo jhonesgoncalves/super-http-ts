@@ -1,6 +1,7 @@
 import { defineConfig } from 'vitepress'
+import { withMermaid } from 'vitepress-plugin-mermaid'
 
-export default defineConfig({
+export default withMermaid(defineConfig({
   title: 'super-http',
   description: 'Production-grade HTTP client for Node.js — built for performance, resilience, and observability.',
   lang: 'en-US',
@@ -12,6 +13,14 @@ export default defineConfig({
     ['meta', { name: 'og:description', content: 'Production-grade HTTP client for Node.js. Built for production, not just requests.' }],
     ['meta', { name: 'twitter:card', content: 'summary_large_image' }],
   ],
+
+  mermaid: {
+    // Mermaid config — theme follows the VitePress color scheme
+  },
+
+  mermaidPlugin: {
+    class: 'mermaid',
+  },
 
   themeConfig: {
     logo: '/logo.svg',
@@ -118,4 +127,4 @@ export default defineConfig({
 
     search: { provider: 'local' },
   },
-})
+}))

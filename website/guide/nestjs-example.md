@@ -24,162 +24,129 @@ starting point for your own project.
 
 ---
 
-## Architecture overview
-
-The application is a REST API backed by [JSONPlaceholder](https://jsonplaceholder.typicode.com). It has three feature modules, each consuming HTTP clients in a different way.
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                        AppModule                            │
-│                                                             │
-│  SuperHttpModule.forRootAsync(useClass: SuperHttpConfig)    │
-│  ↳ registers default SuperHttpService (globally)           │
-│                                                             │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐  │
-│  │ UsersModule  │  │ PostsModule  │  │  HealthModule    │  │
-│  │              │  │              │  │                  │  │
-│  │ SuperHttp    │  │ forFeature(  │  │ SuperHttpService │  │
-│  │ Service ↓   │  │  POSTS       │  │ .metrics() ↓    │  │
-│  │             │  │  COMMENTS)   │  │                  │  │
-│  │ GET /users  │  │              │  │ GET /health     │  │
-│  │ POST /users │  │ GET /posts   │  │                  │  │
-│  │ PUT         │  │ GET /posts/  │  └──────────────────┘  │
-│  │ DELETE      │  │  :id/with-   │                         │
-│  └──────────────┘  │  comments   │                         │
-│                    │ POST /posts │                         │
-│                    └──────────────┘                         │
-└─────────────────────────────────────────────────────────────┘
-```
-
----
-
 ## Module dependency diagram
+
+How the NestJS modules are wired together. `SuperHttpModule` is `@Global()` —
+the default `SuperHttpService` is available everywhere once registered in `AppModule`.
 
 ```mermaid
 graph TD
-    AppModule -->|forRootAsync| SuperHttpModule
+    AppModule -->|"forRootAsync(useClass)"| SuperHttpModule
     AppModule --> UsersModule
     AppModule --> PostsModule
     AppModule --> HealthModule
 
-    SuperHttpModule -->|provides globally| SuperHttpService
+    SuperHttpModule -->|"@Global() — provides"| SuperHttpService
 
     UsersModule -->|injects| SuperHttpService
     HealthModule -->|injects| SuperHttpService
 
-    PostsModule -->|forFeature| PostsSuperHttpModule["SuperHttpModule\n(POSTS + COMMENTS)"]
-    PostsSuperHttpModule -->|provides| PostsClient["HttpClient (POSTS)"]
-    PostsSuperHttpModule -->|provides| CommentsClient["HttpClient (COMMENTS)"]
-    PostsService -->|@InjectSuperHttp POSTS| PostsClient
-    PostsService -->|@InjectSuperHttp COMMENTS| CommentsClient
+    PostsModule -->|"forFeature([POSTS, COMMENTS])"| PostsSuperHttpModule["SuperHttpModule<br/>(feature)"]
+    PostsSuperHttpModule -->|provides| PostsClient["HttpClient<br/>POSTS"]
+    PostsSuperHttpModule -->|provides| CommentsClient["HttpClient<br/>COMMENTS"]
+
+    PostsService -->|"@InjectSuperHttp('POSTS')"| PostsClient
+    PostsService -->|"@InjectSuperHttp('COMMENTS')"| CommentsClient
 ```
 
 ---
 
 ## HTTP client topology
 
-Each HTTP client has its own connection pool, circuit breaker, retry queue, and
-bulkhead — they are fully isolated from each other.
+Each client has its own independent connection pool, circuit breaker, retry engine,
+and bulkhead. Failures in one client never affect the others.
 
 ```mermaid
 graph LR
-    subgraph Default client — resilient-api preset
-        SHS["SuperHttpService\n(default)"] --> Pool1["Connection Pool\n100 sockets"]
+    subgraph default["Default client — resilient-api preset"]
+        SHS["SuperHttpService"] --> Pool1["Pool\n100 sockets"]
         Pool1 --> CB1["Circuit Breaker\ntrip @ 10 failures"]
-        CB1 --> Retry1["Retry × 3\nexponential jitter"]
-        Retry1 --> BH1["Bulkhead\n50 concurrent / 200 queue"]
+        CB1 --> Retry1["Retry ×3\nexponential jitter"]
+        Retry1 --> BH1["Bulkhead\n50 concurrent"]
     end
 
-    subgraph Named client — POSTS — high-throughput preset
-        PC["HttpClient\nPOSTS"] --> Pool2["Connection Pool\n200 sockets"]
-        Pool2 --> Retry2["Retry × 1\nquick jitter"]
+    subgraph posts["Named: POSTS — high-throughput preset"]
+        PC["HttpClient POSTS"] --> Pool2["Pool\n200 sockets"]
+        Pool2 --> Retry2["Retry ×1\nquick jitter"]
     end
 
-    subgraph Named client — COMMENTS — resilient-api preset
-        CC["HttpClient\nCOMMMENTS"] --> Pool3["Connection Pool\n100 sockets"]
+    subgraph comments["Named: COMMENTS — resilient-api preset"]
+        CC["HttpClient COMMENTS"] --> Pool3["Pool\n100 sockets"]
         Pool3 --> CB3["Circuit Breaker\ntrip @ 10 failures"]
-        CB3 --> Retry3["Retry × 3\nexponential jitter"]
-        Retry3 --> BH3["Bulkhead\n50 concurrent / 200 queue"]
+        CB3 --> Retry3["Retry ×3\nexponential jitter"]
+        Retry3 --> BH3["Bulkhead\n50 concurrent"]
     end
 
-    BH1 --> JSONPlaceholder
-    Retry2 --> JSONPlaceholder
-    BH3 --> JSONPlaceholder
+    BH1 --> API["JSONPlaceholder"]
+    Retry2 --> API
+    BH3 --> API
 ```
 
 ---
 
 ## Request lifecycle
 
-When a request enters the NestJS controller, it passes through a layered
-resilience pipeline before hitting the network.
+`GET /api/posts/:id/with-comments` fetches post data and comments **in parallel**
+from two independent clients. Both requests run through their own resilience pipelines.
 
 ```mermaid
 sequenceDiagram
-    participant Client as HTTP Client
-    participant Controller
-    participant Service
-    participant Bulkhead
-    participant CircuitBreaker
-    participant Retry
-    participant Upstream as JSONPlaceholder
+    participant C as HTTP Client
+    participant Ctrl as PostsController
+    participant Svc as PostsService
+    participant BP as POSTS pipeline
+    participant CP as COMMENTS pipeline
+    participant API as JSONPlaceholder
 
-    Client->>Controller: GET /api/posts/1/with-comments
-    Controller->>Service: postsService.findWithComments(1)
+    C->>Ctrl: GET /api/posts/1/with-comments
+    Ctrl->>Svc: findWithComments(1)
 
     par Parallel fetch
-        Service->>Bulkhead: postsClient.get('/posts/1')
-        Bulkhead->>CircuitBreaker: execute
-        CircuitBreaker->>Retry: execute
-        Retry->>Upstream: GET /posts/1
-        Upstream-->>Retry: 200 OK
-        Retry-->>CircuitBreaker: success
-        CircuitBreaker-->>Bulkhead: success
-        Bulkhead-->>Service: { data: post }
+        Svc->>BP: postsClient.get('/posts/1')
+        BP->>API: GET /posts/1
+        API-->>BP: 200 OK { post }
+        BP-->>Svc: { data: post }
     and
-        Service->>Bulkhead: commentsClient.get('/posts/1/comments')
-        Bulkhead->>CircuitBreaker: execute
-        CircuitBreaker->>Retry: execute
-        Retry->>Upstream: GET /posts/1/comments
-        Upstream-->>Retry: 200 OK
-        Retry-->>CircuitBreaker: success
-        CircuitBreaker-->>Bulkhead: success
-        Bulkhead-->>Service: { data: comments[] }
+        Svc->>CP: commentsClient.get('/posts/1/comments')
+        CP->>API: GET /posts/1/comments
+        API-->>CP: 200 OK [comments]
+        CP-->>Svc: { data: comments[] }
     end
 
-    Service-->>Controller: { ...post, comments }
-    Controller-->>Client: 200 { id, title, body, comments[] }
+    Svc-->>Ctrl: { ...post, comments }
+    Ctrl-->>C: 200 { id, title, body, comments[] }
 ```
 
 ---
 
 ## Circuit breaker state machine
 
-The COMMENTS client uses a circuit breaker to protect the posts endpoint from
-cascading failures when the comments service is down.
+The COMMENTS client uses a circuit breaker to avoid waiting for a down service.
+When it trips, requests fail immediately at ~1ms instead of waiting for a timeout.
 
 ```mermaid
 stateDiagram-v2
     [*] --> Closed
 
     Closed --> Open : 10 consecutive failures
+    Open --> HalfOpen : 10 s timeout elapsed
+    HalfOpen --> Closed : 3 consecutive successes
+    HalfOpen --> Open : any failure
+
     note right of Closed
-        Requests pass through.
+        Normal operation.
         Failures are counted.
     end note
 
-    Open --> HalfOpen : 10s timeout elapsed
     note right of Open
-        Requests fail immediately
-        (no network call made).
-        p99 latency drops to ~1ms.
+        Requests fail immediately.
+        No network call made.
+        p99 latency ≈ 1ms.
     end note
 
-    HalfOpen --> Closed : 3 consecutive successes
-    HalfOpen --> Open   : any failure
     note right of HalfOpen
-        One probe request allowed.
-        Success resets the breaker.
+        One probe allowed.
+        Success resets breaker.
     end note
 ```
 
@@ -187,14 +154,9 @@ stateDiagram-v2
 
 ## Retry strategy
 
-Both the default client and the COMMENTS client use **exponential jitter retry** — each attempt waits a random delay within a growing window, preventing thundering-herd on recovery.
-
-```
-Attempt 1 → wait random(0..100ms)
-Attempt 2 → wait random(0..200ms)
-Attempt 3 → wait random(0..400ms)
-            max cap: 10 000ms
-```
+Both the default client and the COMMENTS client use **exponential jitter** retry.
+Each attempt waits a random delay within a growing window — this prevents
+thundering-herd storms when an upstream recovers.
 
 ```mermaid
 sequenceDiagram
@@ -204,38 +166,34 @@ sequenceDiagram
 
     S->>R: request
     R->>U: attempt 1
-    U-->>R: 503 Service Unavailable
-
+    U-->>R: 503 Unavailable
     Note over R: wait ~47ms (jitter)
-
     R->>U: attempt 2
-    U-->>R: 503 Service Unavailable
-
+    U-->>R: 503 Unavailable
     Note over R: wait ~183ms (jitter)
-
     R->>U: attempt 3
     U-->>R: 200 OK
-    R-->>S: success
+    R-->>S: success ✓
 ```
 
 ---
 
 ## Metrics flow
 
-Every request updates the in-memory `MetricsCollector` regardless of retry or
-circuit breaker state. The `GET /health` endpoint exposes a live snapshot.
+Every request updates the in-memory `MetricsCollector`. The `GET /health` endpoint
+exposes a live snapshot — no external monitoring required for basic observability.
 
 ```mermaid
 flowchart LR
-    Req["Incoming\nrequest"] --> MC["MetricsCollector\n.recordRequest()"]
-    MC --> Succeed{"success?"}
-    Succeed -->|yes| RS[".recordSuccess()\n.recordLatency(ms)"]
-    Succeed -->|no| RF[".recordFailure()"]
-    Retry["Retry fired"] --> RR[".recordRetry()"]
-    CBTrip["Circuit trips"] --> RT[".recordCBTrip()"]
-    BHReject["Bulkhead full"] --> RB[".recordBHReject()"]
+    Req["Request"] --> MC["MetricsCollector"]
+    MC --> Succeed{success?}
+    Succeed -->|yes| RS["recordSuccess\nrecordLatency"]
+    Succeed -->|no| RF["recordFailure"]
+    Retry["retry fired"] --> RR["recordRetry"]
+    CBTrip["circuit trips"] --> RT["recordCBTrip"]
+    BHFull["bulkhead full"] --> RB["recordBHReject"]
 
-    RS & RF & RR & RT & RB --> Snap["MetricsSnapshot\n.snapshot()"]
+    RS & RF & RR & RT & RB --> Snap["MetricsSnapshot"]
     Snap --> Health["GET /api/health\n{ requests, failed,\n  p99Latency, ... }"]
 ```
 
@@ -258,11 +216,11 @@ example/nestjs-app/
 │   │   ├── users.service.spec.ts   ← unit tests (mocked)
 │   │   ├── users.controller.spec.ts
 │   │   └── dto/
-│   │       └── create-user.dto.ts  ← class-validator decorators
+│   │       └── create-user.dto.ts  ← @IsString / @IsEmail decorators
 │   │
 │   ├── posts/                      ← two named clients (POSTS + COMMENTS)
 │   │   ├── posts.module.ts         ← forFeature([POSTS, COMMENTS])
-│   │   ├── posts.controller.ts     ← GET / POST /posts, GET /posts/:id/with-comments
+│   │   ├── posts.controller.ts     ← GET / POST /posts, with-comments
 │   │   ├── posts.service.ts        ← @InjectSuperHttp('POSTS') + ('COMMENTS')
 │   │   └── posts.service.spec.ts
 │   │
@@ -390,8 +348,8 @@ constructor(
 ### 3. Parallel fetch across two clients
 
 `findWithComments` fetches post and comments **simultaneously** from two
-independent clients. If comments fail, the circuit breaker on the COMMENTS
-client trips, failing fast on subsequent calls.
+independent clients. If comments fail, the circuit breaker trips,
+failing fast on subsequent calls without touching the posts client.
 
 ```ts
 async findWithComments(postId: number) {
@@ -427,7 +385,7 @@ async create(dto: Omit<Post, 'id'>) {
 ### 5. Live metrics endpoint
 
 `HealthController` reads the default client's `MetricsSnapshot` and computes a
-simple health status in real time — no external monitoring required for basic observability.
+simple health status in real time.
 
 ```ts
 @Get()
@@ -483,23 +441,23 @@ import { getSuperHttpClientToken } from 'super-http/nestjs'
 When you use `import type { MyDto }` in a controller, TypeScript erases the
 import at runtime. The compiler then emits `Function` instead of `MyDto` in the
 parameter metadata — `ValidationPipe(transform: true)` can't construct the DTO
-and passes the **class constructor itself** as the argument.
+and passes the **class constructor itself** as the argument, causing Axios to fail
+serialising it.
 
 ```ts
-// ❌ import type erases runtime metadata
+// ❌ type import erases the constructor at runtime
 import type { CreateUserDto } from './dto/create-user.dto'
 
 // ✅ value import preserves metadata for reflection
 import { CreateUserDto } from './dto/create-user.dto'
 ```
 
-### Missing `@IsString()` / class-validator decorators
+### Missing class-validator decorators
 
-`ValidationPipe({ whitelist: true })` strips all properties that have no
+`ValidationPipe({ whitelist: true })` strips all properties without a
 class-validator decorator. Always annotate DTO properties:
 
 ```ts
-// ✅
 export class CreateUserDto {
   @IsString() @MinLength(2) name: string
   @IsEmail()               email: string
@@ -509,9 +467,8 @@ export class CreateUserDto {
 
 ### `ConfigModule` not in `forRootAsync` imports
 
-When using `useClass`, the factory class is instantiated inside the
-`SuperHttpModule` context. Any injected dependency (e.g. `ConfigService`) must
-be imported there:
+When using `useClass`, the factory is instantiated inside the `SuperHttpModule`
+context. Any injected dependency (e.g. `ConfigService`) must be explicitly imported:
 
 ```ts
 // ✅
@@ -521,13 +478,13 @@ SuperHttpModule.forRootAsync({
 })
 ```
 
-### Always enable `emitDecoratorMetadata` in `tsconfig.json`
+### Always enable `emitDecoratorMetadata`
 
 ```json
 {
   "compilerOptions": {
     "experimentalDecorators": true,
-    "emitDecoratorMetadata": true   // ← required for NestJS DI + ValidationPipe
+    "emitDecoratorMetadata": true
   }
 }
 ```
