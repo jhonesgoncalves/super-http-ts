@@ -1,6 +1,7 @@
 import { Module, DynamicModule, Provider, Global } from '@nestjs/common';
 import { HttpClientFactory } from '../http-client/http.factory';
 import { createClient } from '../presets/index';
+import { createGrpcClient } from '../grpc/grpc-client';
 import { SuperHttpService } from './super-http.service';
 import { SUPER_HTTP_DEFAULT_CLIENT, SUPER_HTTP_MODULE_OPTIONS, getSuperHttpClientToken } from './super-http.constants';
 import type {
@@ -8,6 +9,7 @@ import type {
   SuperHttpModuleAsyncOptions,
   SuperHttpFeatureOptions,
   SuperHttpOptionsFactory,
+  AnyFeatureOptions,
 } from './super-http.interfaces';
 
 /**
@@ -138,13 +140,17 @@ export class SuperHttpModule {
    * export class PaymentsModule {}
    * ```
    */
-  static forFeature(clients: SuperHttpFeatureOptions[]): DynamicModule {
+  static forFeature(clients: AnyFeatureOptions[]): DynamicModule {
     const providers: Provider[] = clients.map((opts) => ({
       provide: getSuperHttpClientToken(opts.name),
       useFactory: () => {
-        // Each named client gets its own isolated instance (not shared with factory cache)
+        if (opts.grpc === true) {
+          // gRPC client — no HttpClientFactory involved
+          return createGrpcClient(opts.service, opts.address, opts);
+        }
+        // HTTP client — each named client gets its own isolated instance
         HttpClientFactory.clear();
-        return createClient(opts);
+        return createClient(opts as SuperHttpFeatureOptions);
       },
     }));
 

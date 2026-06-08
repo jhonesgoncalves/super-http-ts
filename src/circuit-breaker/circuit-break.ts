@@ -1,4 +1,3 @@
-import { AxiosResponse } from 'axios';
 import { CircuitState, CircuitStateChangeEvent, ResilienceEvents } from '../models/resilience.events';
 
 /**
@@ -89,7 +88,7 @@ export class CircuitBreaker {
    * @throws `Error('Circuit breaker is open')` when the circuit is open and
    *   the timeout has not elapsed.
    */
-  async execute<T>(fn: () => Promise<AxiosResponse<T>>): Promise<AxiosResponse<T>> {
+  async execute<T>(fn: () => Promise<T>): Promise<T> {
     if (this._state === 'open') {
       if (this.shouldAttemptReset()) {
         this.transitionTo('half-open');

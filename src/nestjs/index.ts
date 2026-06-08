@@ -15,5 +15,7 @@ export type {
   SuperHttpModuleOptions,
   SuperHttpModuleAsyncOptions,
   SuperHttpFeatureOptions,
+  SuperHttpGrpcFeatureOptions,
+  AnyFeatureOptions,
   SuperHttpOptionsFactory,
 } from './super-http.interfaces';

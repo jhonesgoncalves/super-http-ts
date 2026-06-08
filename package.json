@@ -1,6 +1,6 @@
 {
   "name": "super-http",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "A resilient HTTP client built on top of Axios — circuit breaker, connection pooling, keep-alive and smart retry",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -14,6 +14,11 @@
       "require": "./lib/nestjs/index.js",
       "import": "./lib/nestjs/index.js",
       "types": "./lib/nestjs/index.d.ts"
+    },
+    "./grpc": {
+      "require": "./lib/grpc/index.js",
+      "import": "./lib/grpc/index.js",
+      "types": "./lib/grpc/index.d.ts"
     }
   },
   "engines": {
@@ -53,7 +58,11 @@
     "resilience",
     "typescript",
     "node",
-    "http-client"
+    "http-client",
+    "grpc",
+    "connect-rpc",
+    "grpc-client",
+    "grpc-typescript"
   ],
   "author": "Jhones Gonçalves <jhonesgoncalves@github.com>",
   "license": "MIT",
@@ -98,6 +107,9 @@
     "*": {
       "nestjs": [
         "lib/nestjs/index.d.ts"
+      ],
+      "grpc": [
+        "lib/grpc/index.d.ts"
       ]
     }
   },
