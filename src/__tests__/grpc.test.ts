@@ -15,7 +15,6 @@ import {
   shouldTripCircuit,
 } from '../grpc/grpc-error-mapper';
 import { applyGrpcPreset } from '../grpc/grpc-presets';
-import { GrpcChannelRegistry } from '../grpc/grpc-channel-registry';
 import { GrpcTransport } from '../transport/grpc-transport';
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
@@ -562,13 +561,15 @@ describe('createGrpcClient — server streaming resilience', () => {
   });
 
   it('records failure when stream throws', async () => {
-    async function* failing(): AsyncIterable<User> { throw new GrpcError('internal', 'stream error'); }
+    // eslint-disable-next-line require-yield
+    async function* failing(): AsyncGenerator<User> { throw new GrpcError('internal', 'stream error'); }
     jest.spyOn(GrpcTransport.prototype, 'serverStream').mockReturnValue(failing());
 
     const client = createGrpcClient(UserServiceDef, 'grpc://localhost:50051');
 
     await expect(async () => {
-      for await (const _ of client.listUsers({})) { /* consume */ }
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      for await (const _msg of client.listUsers({})) { /* consume */ }
     }).rejects.toThrow('stream error');
 
     expect(client.metrics().failed).toBe(1);
@@ -597,14 +598,16 @@ describe('createGrpcClient — bidi streaming failure', () => {
   afterEach(() => jest.restoreAllMocks());
 
   it('records failure on bidiStream error', async () => {
-    async function* failing(): AsyncIterable<ChatMessage> { throw new GrpcError('internal', 'bidi error'); }
+    // eslint-disable-next-line require-yield
+    async function* failing(): AsyncGenerator<ChatMessage> { throw new GrpcError('internal', 'bidi error'); }
     jest.spyOn(GrpcTransport.prototype, 'bidiStream').mockReturnValue(failing());
 
     const client = createGrpcClient(UserServiceDef, 'grpc://localhost:50051');
     async function* msgs() { yield { text: 'hi' }; }
 
     await expect(async () => {
-      for await (const _ of client.chat(msgs())) { /* consume */ }
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      for await (const _msg of client.chat(msgs())) { /* consume */ }
     }).rejects.toThrow('bidi error');
 
     expect(client.metrics().failed).toBe(1);
