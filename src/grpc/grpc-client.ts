@@ -29,7 +29,7 @@
  * ```
  */
 
-import { CircuitBreaker, CircuitBreakerConfig } from '../circuit-breaker/circuit-break';
+import { CircuitBreaker } from '../circuit-breaker/circuit-break';
 import { Bulkhead } from '../bulkhead/bulkhead';
 import { RateLimiter } from '../rate-limiter/rate-limiter';
 import { RequestDedup } from '../dedup/request-dedup';
@@ -40,7 +40,7 @@ import type { GrpcClientConfig, GrpcCallOptions } from '../models/grpc.client.co
 import type { ServiceDefinition, ServiceMethods, GrpcClientAPI } from './service-definition';
 import { GrpcTransport } from '../transport/grpc-transport';
 import { applyGrpcPreset } from './grpc-presets';
-import { isGrpcRetryable, GrpcError } from './grpc-error-mapper';
+import { isGrpcRetryable } from './grpc-error-mapper';
 
 // ─── Public type ──────────────────────────────────────────────────────────────
 

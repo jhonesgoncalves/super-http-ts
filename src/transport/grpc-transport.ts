@@ -13,7 +13,6 @@
  * as a request/response — no `.proto` files, no code generation.
  */
 
-import * as http2 from 'http2';
 import type { Transport, TransportMeta, TransportRequest, TransportResponse } from './transport';
 import { GrpcError, GrpcCode } from '../grpc/grpc-error-mapper';
 import { GrpcChannelRegistry, resolveOrigin } from '../grpc/grpc-channel-registry';
