@@ -31,6 +31,7 @@ export default withMermaid(defineConfig({
       { text: 'NestJS', link: '/guide/nestjs' },
       { text: 'API', link: '/api/' },
       { text: 'Benchmarks', link: '/guide/benchmarks' },
+      { text: 'Author', link: '/about' },
       {
         text: '1.4.0',
         items: [
