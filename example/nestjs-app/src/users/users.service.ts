@@ -1,7 +1,6 @@
 import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { SuperHttpService } from 'super-http/nestjs';
-import type { HttpClient } from 'super-http';
-import type { CreateUserDto } from './dto/create-user.dto';
+import { CreateUserDto } from './dto/create-user.dto';
 
 export interface User {
   id: number;
@@ -46,16 +45,10 @@ export class UsersService {
 
   async create(dto: CreateUserDto): Promise<User> {
     this.logger.debug(`Creating user: ${dto.name}`);
-
-    // Non-idempotent — disable retry for this request via per-request policy.
-    // `policy` is only supported through `.request()`, not the shorthand methods.
-    const client = this.http.instance as HttpClient;
-    const { data } = await client.request<User>({
-      method: 'POST',
-      url: '/users',
-      data: dto,
-      policy: { retry: false, timeout: 10_000 },
-    });
+    // POST is non-idempotent — use the service's .post() shorthand.
+    // Per-request policy (retry: false) is demonstrated in PostsService via
+    // the named client's .request() method.
+    const { data } = await this.http.post<User>('/users', dto);
     return data;
   }
 
@@ -67,12 +60,6 @@ export class UsersService {
 
   async remove(id: number): Promise<void> {
     this.logger.debug(`Removing user #${id}`);
-    const client = this.http.instance as HttpClient;
-    // `policy` only available via `.request()` — use it to disable retry on DELETE
-    await client.request({
-      method: 'DELETE',
-      url: `/users/${id}`,
-      policy: { retry: false },
-    });
+    await this.http.delete(`/users/${id}`);
   }
 }

@@ -11,9 +11,6 @@ const mockSuperHttpService = {
   put:     jest.fn(),
   delete:  jest.fn(),
   metrics: jest.fn(),
-  instance: {
-    request: jest.fn(),
-  },
 };
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
@@ -85,19 +82,12 @@ describe('UsersService', () => {
     it('creates a user and returns the new record', async () => {
       const dto = { name: 'Carol', email: 'carol@example.com' };
       const created = { id: 11, username: 'carol', ...dto };
-      mockSuperHttpService.instance.request.mockResolvedValue({ data: created });
+      mockSuperHttpService.post.mockResolvedValue({ data: created });
 
       const result = await service.create(dto);
 
       expect(result).toEqual(created);
-      expect(mockSuperHttpService.instance.request).toHaveBeenCalledWith(
-        expect.objectContaining({
-          method: 'POST',
-          url: '/users',
-          data: dto,
-          policy: { retry: false, timeout: 10_000 },
-        }),
-      );
+      expect(mockSuperHttpService.post).toHaveBeenCalledWith('/users', dto);
     });
   });
 
@@ -120,16 +110,10 @@ describe('UsersService', () => {
 
   describe('remove', () => {
     it('deletes a user without returning data', async () => {
-      mockSuperHttpService.instance.request.mockResolvedValue({ data: {} });
+      mockSuperHttpService.delete.mockResolvedValue({ data: {} });
 
       await expect(service.remove(1)).resolves.toBeUndefined();
-      expect(mockSuperHttpService.instance.request).toHaveBeenCalledWith(
-        expect.objectContaining({
-          method: 'DELETE',
-          url: '/users/1',
-          policy: { retry: false },
-        }),
-      );
+      expect(mockSuperHttpService.delete).toHaveBeenCalledWith('/users/1');
     });
   });
 });

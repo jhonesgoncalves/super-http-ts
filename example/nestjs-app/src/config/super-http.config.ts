@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { SuperHttpOptionsFactory, SuperHttpModuleOptions } from 'super-http/nestjs';
-import { ExponentialJitterRetryStrategy } from 'super-http';
 
 /**
  * Factory class for super-http configuration.

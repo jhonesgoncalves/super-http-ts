@@ -5,7 +5,7 @@
   "testRegex": ".e2e-spec.ts$",
   "transform": { "^.+\\.(t|j)s$": "ts-jest" },
   "moduleNameMapper": {
-    "^super-http/nestjs$": "<rootDir>/../node_modules/super-http/dist/nestjs/index.js",
-    "^super-http$": "<rootDir>/../node_modules/super-http/dist/index.js"
+    "^super-http/nestjs$": "<rootDir>/../node_modules/super-http/lib/nestjs/index.js",
+    "^super-http$": "<rootDir>/../node_modules/super-http/lib/index.js"
   }
 }

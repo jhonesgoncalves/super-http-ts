@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
 import { SuperHttpModule } from 'super-http/nestjs';
 import { SuperHttpConfigService } from './config/super-http.config';
 import { AppController } from './app.controller';
@@ -8,17 +9,21 @@ import { HealthModule } from './health/health.module';
 
 @Module({
   imports: [
+    // Make process.env available via ConfigService throughout the app
+    ConfigModule.forRoot({ isGlobal: true }),
+
     /**
      * Register the default SuperHttpService globally via forRootAsync.
      *
      * SuperHttpConfigService implements SuperHttpOptionsFactory and builds the
-     * options from the environment — it is injected as `useClass`.
+     * options from environment variables via ConfigService.
      *
-     * Because SuperHttpModule is @Global(), the default SuperHttpService is
-     * available throughout the application without needing to re-import this
-     * module in every feature module.
+     * `imports` is forwarded to the dynamic module context so that ConfigModule
+     * (and therefore ConfigService) is available when NestJS instantiates
+     * SuperHttpConfigService via `useClass`.
      */
     SuperHttpModule.forRootAsync({
+      imports:  [ConfigModule],
       useClass: SuperHttpConfigService,
     }),
 
