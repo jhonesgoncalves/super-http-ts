@@ -19,10 +19,11 @@ export default defineConfig({
 
     nav: [
       { text: 'Guide', link: '/guide/getting-started' },
+      { text: 'NestJS', link: '/guide/nestjs' },
       { text: 'API', link: '/api/' },
       { text: 'Benchmarks', link: '/guide/benchmarks' },
       {
-        text: '1.2.0',
+        text: '1.2.1',
         items: [
           { text: 'Changelog', link: 'https://github.com/jhonesgoncalves/super-http-ts/blob/main/CHANGELOG.md' },
           { text: 'Contributing', link: 'https://github.com/jhonesgoncalves/super-http-ts/blob/main/CONTRIBUTING.md' },
@@ -59,6 +60,12 @@ export default defineConfig({
             { text: 'Hooks & Events', link: '/guide/observability' },
             { text: 'Built-in Metrics', link: '/guide/observability#metrics' },
             { text: 'Plugins', link: '/guide/plugins' },
+          ],
+        },
+        {
+          text: 'Integrations',
+          items: [
+            { text: 'NestJS', link: '/guide/nestjs' },
           ],
         },
         {

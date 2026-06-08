@@ -23,11 +23,15 @@ const mockAxiosInstance = {
   request: jest.fn(),
   interceptors: {
     request: {
-      use: jest.fn((fn: (c: unknown) => unknown) => { requestHandlers.push(fn); return 0; }),
+      use: jest.fn((fn: (c: unknown) => unknown) => {
+        requestHandlers.push(fn);
+        return 0;
+      }),
     },
     response: {
       use: jest.fn((ok: (r: unknown) => unknown, err: (e: unknown) => unknown) => {
-        responseHandlers.push([ok, err]); return 0;
+        responseHandlers.push([ok, err]);
+        return 0;
       }),
     },
   },
@@ -126,9 +130,7 @@ describe('Retry behaviour', () => {
 
   it('fires onRetry hook with correct context', async () => {
     const networkError = Object.assign(new Error('hang up'), { code: 'ECONNRESET' });
-    mockAxiosInstance.request
-      .mockRejectedValueOnce(networkError)
-      .mockResolvedValue({ status: 200, data: 'ok' });
+    mockAxiosInstance.request.mockRejectedValueOnce(networkError).mockResolvedValue({ status: 200, data: 'ok' });
 
     const onRetry = jest.fn();
     const client = new HttpClient('https://api.example.com');
@@ -192,9 +194,7 @@ describe('Circuit breaker', () => {
     const error = Object.assign(new Error('fail'), { code: 'ECONNRESET' });
     mockAxiosInstance.request.mockRejectedValue(error);
     const client = new HttpClient('https://api.example.com');
-    client
-      .circuitBreak({ failureThreshold: 1, successThreshold: 1, timeoutMs: 60_000 })
-      .retry(5, 0);
+    client.circuitBreak({ failureThreshold: 1, successThreshold: 1, timeoutMs: 60_000 }).retry(5, 0);
     await expect(client.request({ url: '/' })).rejects.toThrow(); // trips circuit
     const callsBefore = mockAxiosInstance.request.mock.calls.length;
     await expect(client.request({ url: '/' })).rejects.toThrow('Circuit breaker is open');
@@ -250,7 +250,10 @@ describe('Bulkhead', () => {
       new Promise<void>((resolve) => {
         active++;
         maxObserved = Math.max(maxObserved, active);
-        setImmediate(() => { active--; resolve(); });
+        setImmediate(() => {
+          active--;
+          resolve();
+        });
       });
     await Promise.all([bh.execute(task), bh.execute(task)]);
     expect(maxObserved).toBeLessThanOrEqual(2);
@@ -260,7 +263,9 @@ describe('Bulkhead', () => {
     const onBulkheadReject = jest.fn();
     const bh = new Bulkhead({ maxConcurrent: 1, maxQueue: 0 }, { onBulkheadReject });
     let release!: () => void;
-    const block = new Promise<void>((r) => { release = r; });
+    const block = new Promise<void>((r) => {
+      release = r;
+    });
     bh.execute(() => block);
     await expect(bh.execute(() => Promise.resolve())).rejects.toThrow('Bulkhead queue full');
     expect(onBulkheadReject).toHaveBeenCalled();
@@ -271,9 +276,16 @@ describe('Bulkhead', () => {
     const bh = new Bulkhead({ maxConcurrent: 1, maxQueue: 5 });
     const order: number[] = [];
     let release!: () => void;
-    const block = new Promise<void>((r) => { release = r; });
-    const first = bh.execute(async () => { await block; order.push(1); });
-    const second = bh.execute(async () => { order.push(2); });
+    const block = new Promise<void>((r) => {
+      release = r;
+    });
+    const first = bh.execute(async () => {
+      await block;
+      order.push(1);
+    });
+    const second = bh.execute(async () => {
+      order.push(2);
+    });
     await new Promise((r) => setImmediate(r));
     release();
     await Promise.all([first, second]);
@@ -293,10 +305,7 @@ describe('RateLimiter', () => {
 
   it('throws when limit exceeded and queueRequests is false', async () => {
     const onRateLimitReject = jest.fn();
-    const rl = new RateLimiter(
-      { permitLimit: 1, windowMs: 60_000, queueRequests: false },
-      { onRateLimitReject },
-    );
+    const rl = new RateLimiter({ permitLimit: 1, windowMs: 60_000, queueRequests: false }, { onRateLimitReject });
     await rl.acquire();
     await expect(rl.acquire()).rejects.toThrow('Rate limit exceeded');
     expect(onRateLimitReject).toHaveBeenCalled();
@@ -308,7 +317,11 @@ describe('RequestDedup', () => {
   it('coalesces concurrent identical requests into one call', async () => {
     let callCount = 0;
     const dedup = new RequestDedup();
-    const fn = () => new Promise<string>((r) => { callCount++; setTimeout(() => r('data'), 10); });
+    const fn = () =>
+      new Promise<string>((r) => {
+        callCount++;
+        setTimeout(() => r('data'), 10);
+      });
     const [a, b, c] = await Promise.all([
       dedup.execute('GET:/users', fn),
       dedup.execute('GET:/users', fn),
@@ -323,11 +336,12 @@ describe('RequestDedup', () => {
   it('runs independent requests separately', async () => {
     let calls = 0;
     const dedup = new RequestDedup();
-    const fn = (id: string) => () => Promise.resolve(id).then(v => { calls++; return v; });
-    const [a, b] = await Promise.all([
-      dedup.execute('GET:/a', fn('A')),
-      dedup.execute('GET:/b', fn('B')),
-    ]);
+    const fn = (id: string) => () =>
+      Promise.resolve(id).then((v) => {
+        calls++;
+        return v;
+      });
+    const [a, b] = await Promise.all([dedup.execute('GET:/a', fn('A')), dedup.execute('GET:/b', fn('B'))]);
     expect(calls).toBe(2);
     expect(a).toBe('A');
     expect(b).toBe('B');
@@ -359,9 +373,7 @@ describe('HttpClient — integrated resilience', () => {
     mockAxiosInstance.request.mockResolvedValue({ status: 200, data: 'ok' });
     const client = new HttpClient('https://api.example.com');
     client.bulkhead({ maxConcurrent: 2, maxQueue: 10 });
-    const results = await Promise.all([
-      client.get('/a'), client.get('/b'), client.get('/c'),
-    ]);
+    const results = await Promise.all([client.get('/a'), client.get('/b'), client.get('/c')]);
     expect(results).toHaveLength(3);
   });
 
@@ -401,7 +413,9 @@ describe('RateLimiter — queuing', () => {
     await rl.acquire(); // consumes the only token
 
     let resolved = false;
-    const queued = rl.acquire().then(() => { resolved = true; });
+    const queued = rl.acquire().then(() => {
+      resolved = true;
+    });
 
     expect(resolved).toBe(false);
     jest.advanceTimersByTime(110); // advance past window
@@ -413,7 +427,10 @@ describe('RateLimiter — queuing', () => {
   it('rejects queued request after queueTimeoutMs', async () => {
     jest.useFakeTimers();
     const rl = new RateLimiter({
-      permitLimit: 1, windowMs: 60_000, queueRequests: true, queueTimeoutMs: 500,
+      permitLimit: 1,
+      windowMs: 60_000,
+      queueRequests: true,
+      queueTimeoutMs: 500,
     });
     await rl.acquire();
     const queued = rl.acquire();
@@ -429,7 +446,9 @@ describe('Bulkhead — queue timeout', () => {
     jest.useFakeTimers();
     const bh = new Bulkhead({ maxConcurrent: 1, maxQueue: 5, queueTimeoutMs: 500 });
     let release!: () => void;
-    const block = new Promise<void>((r) => { release = r; });
+    const block = new Promise<void>((r) => {
+      release = r;
+    });
     bh.execute(() => block);
     const queued = bh.execute(() => Promise.resolve());
     jest.advanceTimersByTime(600);
@@ -600,7 +619,9 @@ describe('Bulkhead — getters', () => {
   it('queuedCount reflects requests waiting in queue', async () => {
     const bh = new Bulkhead({ maxConcurrent: 1, maxQueue: 5 });
     let release!: () => void;
-    const block = new Promise<void>((r) => { release = r; });
+    const block = new Promise<void>((r) => {
+      release = r;
+    });
     bh.execute(() => block); // occupies the slot
     // Enqueue a second task without awaiting
     const second = bh.execute(() => Promise.resolve());
@@ -629,7 +650,9 @@ describe('RequestDedup — size getter', () => {
   it('size reflects in-flight deduplicated requests', async () => {
     const dedup = new RequestDedup();
     let resolve!: (v: string) => void;
-    const pending = new Promise<string>((r) => { resolve = r; });
+    const pending = new Promise<string>((r) => {
+      resolve = r;
+    });
     const exec = dedup.execute('GET:/thing', () => pending);
     await new Promise((r) => setImmediate(r));
     expect(dedup.size).toBe(1);
@@ -683,7 +706,9 @@ describe('Metrics — bulkhead and rate-limit rejects', () => {
     client.bulkhead({ maxConcurrent: 1, maxQueue: 0 });
 
     let release!: () => void;
-    const block = new Promise<void>((r) => { release = r; });
+    const block = new Promise<void>((r) => {
+      release = r;
+    });
     // Block the one slot
     mockAxiosInstance.request.mockImplementationOnce(() => block as never);
     const first = client.get('/block').catch(() => {});
@@ -728,7 +753,9 @@ describe('RateLimiter — queue timer cleared on drain', () => {
     await rl.acquire(); // consume token
 
     let resolved = false;
-    const queued = rl.acquire().then(() => { resolved = true; });
+    const queued = rl.acquire().then(() => {
+      resolved = true;
+    });
 
     expect(resolved).toBe(false);
     jest.advanceTimersByTime(110); // refill window
@@ -743,10 +770,7 @@ describe('Bulkhead — default maxQueue', () => {
   it('uses default maxQueue of 50 when not specified', async () => {
     // Bulkhead created WITHOUT maxQueue — covers the ?? 50 default branch
     const bh = new Bulkhead({ maxConcurrent: 2 });
-    const results = await Promise.all([
-      bh.execute(() => Promise.resolve(1)),
-      bh.execute(() => Promise.resolve(2)),
-    ]);
+    const results = await Promise.all([bh.execute(() => Promise.resolve(1)), bh.execute(() => Promise.resolve(2))]);
     expect(results).toEqual([1, 2]);
   });
 
@@ -754,7 +778,9 @@ describe('Bulkhead — default maxQueue', () => {
     // Covers the onBulkheadReject?. branch when events are not provided
     const bh = new Bulkhead({ maxConcurrent: 1, maxQueue: 0 }); // no events arg
     let release!: () => void;
-    const block = new Promise<void>((r) => { release = r; });
+    const block = new Promise<void>((r) => {
+      release = r;
+    });
     bh.execute(() => block);
     await expect(bh.execute(() => Promise.resolve())).rejects.toThrow('Bulkhead queue full');
     release();
@@ -765,9 +791,7 @@ describe('Bulkhead — default maxQueue', () => {
 describe('Retry — 5xx without retryOn filter', () => {
   it('retries automatically on 5xx response status', async () => {
     const err = { response: { status: 503 } };
-    mockAxiosInstance.request
-      .mockRejectedValueOnce(err)
-      .mockResolvedValue({ status: 200, data: 'ok' });
+    mockAxiosInstance.request.mockRejectedValueOnce(err).mockResolvedValue({ status: 200, data: 'ok' });
     const client = new HttpClient('https://api.example.com');
     client.retry(2, 0);
     const res = await client.get('/test');
@@ -890,14 +914,14 @@ describe('Per-request policy — advanced', () => {
     // Base config requires 10 failures — per-request requires only 1
     client.circuitBreak({ failureThreshold: 10, successThreshold: 1, timeoutMs: 60_000 });
     await expect(client.request({ url: '/', policy: { circuitBreaker: { failureThreshold: 1 } } })).rejects.toThrow();
-    await expect(client.request({ url: '/', policy: { circuitBreaker: { failureThreshold: 1 } } })).rejects.toThrow('Circuit breaker is open');
+    await expect(client.request({ url: '/', policy: { circuitBreaker: { failureThreshold: 1 } } })).rejects.toThrow(
+      'Circuit breaker is open',
+    );
   });
 
   it('policy.retry with attempts object retries on network error', async () => {
     const err = Object.assign(new Error('reset'), { code: 'ECONNRESET' });
-    mockAxiosInstance.request
-      .mockRejectedValueOnce(err)
-      .mockResolvedValue({ status: 200, data: 'ok' });
+    mockAxiosInstance.request.mockRejectedValueOnce(err).mockResolvedValue({ status: 200, data: 'ok' });
     const client = new HttpClient('https://api.example.com');
     const res = await client.request({ url: '/test', policy: { retry: { attempts: 2, delayMs: 0 } } });
     expect(res.status).toBe(200);

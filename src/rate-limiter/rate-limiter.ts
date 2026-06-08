@@ -98,10 +98,7 @@ export class RateLimiter {
       const entry: (typeof this.waitQueue)[number] = { resolve, reject };
 
       if (this.config.queueTimeoutMs !== undefined) {
-        entry.timer = setTimeout(
-          () => reject(new Error('Rate limit queue timeout')),
-          this.config.queueTimeoutMs,
-        );
+        entry.timer = setTimeout(() => reject(new Error('Rate limit queue timeout')), this.config.queueTimeoutMs);
       }
 
       this.waitQueue.push(entry);
@@ -136,6 +133,10 @@ export class RateLimiter {
   }
 
   private safeCall(fn: () => void): void {
-    try { fn(); } catch { /* never affect request path */ }
+    try {
+      fn();
+    } catch {
+      /* never affect request path */
+    }
   }
 }

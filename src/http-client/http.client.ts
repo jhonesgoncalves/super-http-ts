@@ -76,8 +76,13 @@ export interface PoolConfig {
 // ─── Retryable error detection ────────────────────────────────────────────────
 
 const RETRYABLE_CODES = new Set([
-  'ECONNRESET', 'ECONNREFUSED', 'EPIPE', 'ETIMEDOUT',
-  'ENOTFOUND', 'EAI_AGAIN', 'ECONNABORTED',
+  'ECONNRESET',
+  'ECONNREFUSED',
+  'EPIPE',
+  'ETIMEDOUT',
+  'ENOTFOUND',
+  'EAI_AGAIN',
+  'ECONNABORTED',
 ]);
 
 interface AxiosLikeError {
@@ -147,13 +152,7 @@ export class HttpClient {
   ) {
     this.circuitBreaker = circuitBreaker;
 
-    const {
-      maxSockets = 50,
-      maxFreeSockets = 10,
-      keepAlive = true,
-      keepAliveMsecs = 1000,
-      timeout,
-    } = poolConfig;
+    const { maxSockets = 50, maxFreeSockets = 10, keepAlive = true, keepAliveMsecs = 1000, timeout } = poolConfig;
 
     const httpAgent = new http.Agent({ maxSockets, maxFreeSockets, keepAlive, keepAliveMsecs });
     const httpsAgent = new https.Agent({ maxSockets, maxFreeSockets, keepAlive, keepAliveMsecs });
@@ -388,21 +387,29 @@ export class HttpClient {
       : undefined;
 
     const core = (): Promise<HttpClientResponse<T>> => {
-      let fn: () => Promise<HttpClientResponse<T>> = () =>
-        this.axiosInstance.request<T>(requestConfig);
+      let fn: () => Promise<HttpClientResponse<T>> = () => this.axiosInstance.request<T>(requestConfig);
 
       // Resolve effective circuit breaker config
-      const effectiveCB = policy?.circuitBreaker === false
-        ? undefined
-        : policy?.circuitBreaker
-          ? { ...(this.circuitBreakerConfig ?? { failureThreshold: 5, successThreshold: 2, timeoutMs: 10_000 }), ...policy.circuitBreaker }
+      const effectiveCB =
+        policy?.circuitBreaker === false
+          ? undefined
+          : policy?.circuitBreaker
+          ? {
+              ...(this.circuitBreakerConfig ?? { failureThreshold: 5, successThreshold: 2, timeoutMs: 10_000 }),
+              ...policy.circuitBreaker,
+            }
           : this.circuitBreakerConfig;
 
       // Resolve effective retry config
-      const effectiveRetry = policy?.retry === false
-        ? undefined
-        : policy?.retry
-          ? { retries: policy.retry.attempts, strategy: new FixedRetryStrategy(policy.retry.delayMs ?? 100), retryOn: policy.retry.retryOn }
+      const effectiveRetry =
+        policy?.retry === false
+          ? undefined
+          : policy?.retry
+          ? {
+              retries: policy.retry.attempts,
+              strategy: new FixedRetryStrategy(policy.retry.delayMs ?? 100),
+              retryOn: policy.retry.retryOn,
+            }
           : this.retryConfig;
 
       if (effectiveCB) fn = this.withCircuitBreaker(fn, effectiveCB);
@@ -414,9 +421,7 @@ export class HttpClient {
     };
 
     // Resolve effective fallback
-    const effectiveFallback = policy?.fallback !== undefined
-      ? policy.fallback
-      : this.fallbackFn;
+    const effectiveFallback = policy?.fallback !== undefined ? policy.fallback : this.fallbackFn;
 
     const withFallback = effectiveFallback
       ? () =>
@@ -430,13 +435,18 @@ export class HttpClient {
     const t0 = Date.now();
     this._metrics.recordRequest();
 
-    const run = this.dedupInstance && dedupKey
-      ? () => this.dedupInstance!.execute(dedupKey, withFallback)
-      : withFallback;
+    const run =
+      this.dedupInstance && dedupKey ? () => this.dedupInstance!.execute(dedupKey, withFallback) : withFallback;
 
     return run().then(
-      (res) => { this._metrics.recordSuccess(Date.now() - t0); return res; },
-      (err) => { this._metrics.recordFailure(); throw err; },
+      (res) => {
+        this._metrics.recordSuccess(Date.now() - t0);
+        return res;
+      },
+      (err) => {
+        this._metrics.recordFailure();
+        throw err;
+      },
     );
   }
 
@@ -451,8 +461,7 @@ export class HttpClient {
         try {
           return await requestFn();
         } catch (error: unknown) {
-          const isCircuitOpen =
-            error instanceof Error && error.message === 'Circuit breaker is open';
+          const isCircuitOpen = error instanceof Error && error.message === 'Circuit breaker is open';
 
           if (isCircuitOpen || attempt >= retryConfig.retries) throw error;
 
@@ -487,26 +496,21 @@ export class HttpClient {
     return () => cb.execute(requestFn);
   }
 
-  private withBulkhead<T>(
-    requestFn: () => Promise<HttpClientResponse<T>>,
-  ): () => Promise<HttpClientResponse<T>> {
+  private withBulkhead<T>(requestFn: () => Promise<HttpClientResponse<T>>): () => Promise<HttpClientResponse<T>> {
     const bh = this.bulkheadInstance!;
     return async () => {
       try {
         return await bh.execute(requestFn);
       } catch (err) {
         const isBulkheadReject =
-          err instanceof Error &&
-          (err.message === 'Bulkhead queue full' || err.message === 'Bulkhead queue timeout');
+          err instanceof Error && (err.message === 'Bulkhead queue full' || err.message === 'Bulkhead queue timeout');
         if (isBulkheadReject) this._metrics.recordBHReject();
         throw err;
       }
     };
   }
 
-  private withRateLimit<T>(
-    requestFn: () => Promise<HttpClientResponse<T>>,
-  ): () => Promise<HttpClientResponse<T>> {
+  private withRateLimit<T>(requestFn: () => Promise<HttpClientResponse<T>>): () => Promise<HttpClientResponse<T>> {
     const rl = this.rateLimiterInstance!;
     return async () => {
       try {
@@ -535,6 +539,10 @@ export class HttpClient {
   }
 
   private safeCall(fn: () => void): void {
-    try { fn(); } catch { /* never affect request path */ }
+    try {
+      fn();
+    } catch {
+      /* never affect request path */
+    }
   }
 }

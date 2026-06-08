@@ -57,21 +57,36 @@ export class MetricsCollector {
   private _latencies: number[] = [];
   private readonly _startTime = Date.now();
 
-  recordRequest(): void { this._requests++; }
-  recordSuccess(latencyMs: number): void { this._success++; this._latencies.push(latencyMs); }
-  recordFailure(): void { this._failed++; }
-  recordRetry(): void { this._retries++; }
-  recordCBTrip(): void { this._cbTrips++; }
-  recordBHReject(): void { this._bhRejects++; }
-  recordRLReject(): void { this._rlRejects++; }
-  recordFallback(): void { this._fallbacks++; }
+  recordRequest(): void {
+    this._requests++;
+  }
+  recordSuccess(latencyMs: number): void {
+    this._success++;
+    this._latencies.push(latencyMs);
+  }
+  recordFailure(): void {
+    this._failed++;
+  }
+  recordRetry(): void {
+    this._retries++;
+  }
+  recordCBTrip(): void {
+    this._cbTrips++;
+  }
+  recordBHReject(): void {
+    this._bhRejects++;
+  }
+  recordRLReject(): void {
+    this._rlRejects++;
+  }
+  recordFallback(): void {
+    this._fallbacks++;
+  }
 
   /** Returns a point-in-time snapshot of all metrics. */
   snapshot(): MetricsSnapshot {
     const sorted = [...this._latencies].sort((a, b) => a - b);
-    const avg = sorted.length
-      ? sorted.reduce((a, b) => a + b, 0) / sorted.length
-      : 0;
+    const avg = sorted.length ? sorted.reduce((a, b) => a + b, 0) / sorted.length : 0;
     return {
       requests: this._requests,
       success: this._success,

@@ -71,26 +71,22 @@ export function LoggerPlugin(options: LoggerPluginOptions = {}): SuperHttpPlugin
     install(client) {
       client.on({
         ...(logRequests && {
-          onRequest: (cfg) =>
-            log(`${prefix} → ${(cfg.method ?? 'GET').toUpperCase()} ${cfg.url}`),
+          onRequest: (cfg) => log(`${prefix} → ${(cfg.method ?? 'GET').toUpperCase()} ${cfg.url}`),
         }),
         ...(logResponses && {
-          onResponse: (res) =>
-            log(`${prefix} ← ${res.status} ${res.config?.url ?? ''}`),
+          onResponse: (res) => log(`${prefix} ← ${res.status} ${res.config?.url ?? ''}`),
           onError: (err: unknown) => {
             const msg = err instanceof Error ? err.message : String(err);
             console.error(`${prefix} ✗ ${msg}`);
           },
         }),
         ...(logResilience && {
-          onRetry: ({ attempt, delayMs }) =>
-            warn(`${prefix} retry #${attempt + 1} in ${delayMs.toFixed(0)}ms`),
+          onRetry: ({ attempt, delayMs }) => warn(`${prefix} retry #${attempt + 1} in ${delayMs.toFixed(0)}ms`),
           onCircuitStateChange: ({ from, to, failures }) =>
             warn(`${prefix} circuit ${from} → ${to} (failures: ${failures})`),
           onBulkheadReject: ({ active, queued }) =>
             warn(`${prefix} bulkhead full — active: ${active}, queued: ${queued}`),
-          onFallback: ({ error }) =>
-            warn(`${prefix} fallback triggered`, error),
+          onFallback: ({ error }) => warn(`${prefix} fallback triggered`, error),
           onRateLimitReject: ({ permitLimit, windowMs }) =>
             warn(`${prefix} rate limit hit — ${permitLimit}/${windowMs}ms`),
         }),
@@ -116,8 +112,8 @@ export function MetricsReporterPlugin(options: { intervalMs?: number } = {}): Su
         const m = client.metrics();
         console.log(
           `[super-http:metrics] requests=${m.requests} success=${m.success} ` +
-          `failed=${m.failed} retries=${m.retries} cb_trips=${m.circuitBreakerTrips} ` +
-          `avg=${m.avgLatency}ms p95=${m.p95Latency}ms p99=${m.p99Latency}ms`,
+            `failed=${m.failed} retries=${m.retries} cb_trips=${m.circuitBreakerTrips} ` +
+            `avg=${m.avgLatency}ms p95=${m.p95Latency}ms p99=${m.p99Latency}ms`,
         );
       }, intervalMs);
       // Allow process to exit even if the timer is still active

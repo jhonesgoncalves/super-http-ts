@@ -78,10 +78,7 @@ export class CircuitBreaker {
    * @param config - The new {@link CircuitBreakerConfig}.
    * @param events - Optional observability hooks.
    */
-  public setConfig(
-    config: CircuitBreakerConfig,
-    events?: Pick<ResilienceEvents, 'onCircuitStateChange'>,
-  ): void {
+  public setConfig(config: CircuitBreakerConfig, events?: Pick<ResilienceEvents, 'onCircuitStateChange'>): void {
     this.config = config;
     if (events) this.events = events;
   }
@@ -174,6 +171,10 @@ export class CircuitBreaker {
   }
 
   private safeCall(fn: () => void): void {
-    try { fn(); } catch { /* never affect request path */ }
+    try {
+      fn();
+    } catch {
+      /* never affect request path */
+    }
   }
 }

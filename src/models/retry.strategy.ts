@@ -96,11 +96,7 @@ export class ExponentialJitterRetryStrategy implements RetryStrategy {
 export class RetryAfterStrategy implements RetryStrategy {
   private readonly fallback: ExponentialJitterRetryStrategy;
 
-  constructor(
-    initialDelayMs: number = 200,
-    maxDelayMs: number = 60_000,
-    factor: number = 2,
-  ) {
+  constructor(initialDelayMs: number = 200, maxDelayMs: number = 60_000, factor: number = 2) {
     this.fallback = new ExponentialJitterRetryStrategy(initialDelayMs, maxDelayMs, factor);
   }
 
