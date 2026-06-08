@@ -7,6 +7,160 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.4.1] — 2026-06-08
+
+### Fixed
+
+- **`bidiStream` HTTP/2 stream isolation** — previous implementation opened a second HTTP/2 stream via an internal `serverStream` call to receive responses, causing `NGHTTP2_REFUSED_STREAM` errors and incorrect message routing. Now uses a single HTTP/2 stream for both sending and receiving, which is the correct semantics for bidirectional streaming.
+
+---
+
+## [1.4.0] — 2026-06-08
+
+### Added
+
+#### gRPC support — `super-http/grpc` entry point
+
+TypeScript-first gRPC client with zero `.proto` files required. Uses the [Connect-RPC JSON protocol](https://connectrpc.com/docs/protocol) over native `node:http2` — **no extra dependencies**.
+
+##### Service Definition DSL
+
+```ts
+import { defineService, unary, serverStream, clientStream, bidi } from 'super-http/grpc'
+
+const UserServiceDef = defineService('UserService', {
+  getUser:    unary<GetUserRequest, User>(),
+  listUsers:  serverStream<ListFilter, User>(),
+  uploadLogs: clientStream<LogEntry, UploadSummary>(),
+  chat:       bidi<ChatMessage, ChatMessage>(),
+})
+```
+
+- `defineService(name, methods)` — defines a typed service contract
+- `unary<TReq, TRes>()` — one request → one response; client API: `(req) => Promise<TRes>`
+- `serverStream<TReq, TRes>()` — one request → stream; client API: `(req) => AsyncIterable<TRes>`
+- `clientStream<TReq, TRes>()` — stream → one response; client API: `(stream) => Promise<TRes>`
+- `bidi<TReq, TRes>()` — stream ↔ stream; client API: `(stream) => AsyncIterable<TRes>`
+- `GrpcClientAPI<TMethods>` — mapped type that derives fully-typed callable signatures from a service definition
+
+##### `createGrpcClient(definition, address, config?)`
+
+Same resilience pipeline as `HttpClient` — circuit breaker, retry, bulkhead, rate limiter, dedup, and metrics wrap every RPC automatically.
+
+```ts
+const client = createGrpcClient(UserServiceDef, 'grpcs://api:443', {
+  preset: 'resilient-api',
+})
+
+const user = await client.getUser({ id: '1' })  // Promise<User>
+for await (const u of client.listUsers({})) { … } // AsyncIterable<User>
+```
+
+- Supports all three presets: `high-throughput`, `resilient-api`, `low-latency`
+- Address formats: `grpc://`, `grpcs://`, `http://`, `https://`, `host:port`
+- Protocol options: `connect` (default), `grpc`, `grpc-web`
+- Encoding options: `json` (default, no codegen needed), `proto` (requires `@bufbuild/protobuf`)
+- Management methods: `.metrics()`, `.resetMetrics()`, `.on(events)`, `.close()`
+- Per-call options: `metadata`, `timeoutMs`, `signal`, `retry: false`
+
+##### `GrpcError`
+
+Thrown for all non-OK gRPC responses.
+
+```ts
+import { GrpcError } from 'super-http/grpc'
+
+try {
+  await client.getUser({ id: 'missing' })
+} catch (err) {
+  if (err instanceof GrpcError && err.code === 'not_found') return null
+}
+```
+
+- `.code` — gRPC status code string (`'not_found'`, `'unavailable'`, `'internal'`, …)
+- `.message` — human-readable error message
+- `.details` — optional structured error details array
+- `.metadata` — optional response metadata map
+
+##### Status code resilience decisions
+
+| Code | Retryable | Trips circuit |
+|---|---|---|
+| `unavailable` | ✅ | ✅ |
+| `resource_exhausted` | ✅ | ❌ |
+| `deadline_exceeded` | ✅ | ✅ |
+| `aborted` | ✅ | ❌ |
+| `internal` | ❌ | ✅ |
+| `not_found` | ❌ | ❌ |
+| `permission_denied` | ❌ | ❌ |
+| `invalid_argument` | ❌ | ❌ |
+
+##### `GrpcChannelRegistry`
+
+HTTP/2 session cache. Sessions are multiplexed — one session handles thousands of concurrent RPCs.
+
+- `GrpcChannelRegistry.getSession(address, maxSessions?)` — returns (or creates) a cached session
+- `GrpcChannelRegistry.closeAddress(address)` — gracefully drains and closes sessions for an address
+- `GrpcChannelRegistry.closeAll()` — graceful shutdown of all sessions
+- `GrpcChannelRegistry.clear()` — immediate destroy (useful in tests)
+- `GrpcChannelRegistry.sessionCount` — number of open sessions (health endpoint)
+
+##### `GrpcTransport`
+
+Connect-RPC JSON transport over native `node:http2`. Implements all four call types with 5-byte envelope framing.
+
+##### gRPC presets
+
+Same preset names as `HttpClient`:
+
+| Preset | Sessions | Timeout | Retry | Circuit Breaker | Bulkhead |
+|---|---|---|---|---|---|
+| `high-throughput` | 4 | 8 s | 1x jitter | — | — |
+| `resilient-api` | 2 | 15 s | 3x jitter | 10 failures → open | 50 concurrent |
+| `low-latency` | 4 | 2 s | — | — | — |
+
+##### NestJS integration
+
+```ts
+SuperHttpModule.forFeature([
+  { name: 'PAYMENTS', baseURL: 'https://pay.internal', preset: 'resilient-api' }, // HTTP
+  { name: 'USER_SVC', grpc: true, address: 'users:50051', service: UserServiceDef }, // gRPC
+])
+```
+
+- `SuperHttpGrpcFeatureOptions` — feature options with discriminant `grpc: true`
+- `AnyFeatureOptions` — union of HTTP and gRPC feature options
+- `forFeature()` routes to `createGrpcClient()` when `grpc: true`, `createClient()` otherwise
+- `@InjectSuperHttp('USER_SVC')` works identically for both HTTP and gRPC clients
+
+#### Example app — `example/grpc-app/`
+
+Complete working example with:
+- 5 TypeScript-first service definitions (all 4 call types)
+- 3 pre-configured clients (resilient-api, high-throughput, manual)
+- HTTP/2 mock server (`node:http2`, zero extra deps)
+- 3 runnable demos: unary, streaming, resilience pipeline
+
+#### Documentation
+
+- New: `website/guide/grpc.md` — full gRPC guide (comparison table, all call types, presets, error handling, NestJS, testing patterns, API reference)
+- Updated: `website/index.md` — gRPC and NestJS sections on landing page, new feature cards, hero button
+- Updated: `README.md` — gRPC in description, quick start section, features table, documentation links
+- Updated: VitePress sidebar — gRPC entry under Integrations
+- Updated: version badge 1.3.0 → 1.4.0
+
+### Changed
+
+- **`CircuitBreaker.execute<T>`** generified from `Promise<AxiosResponse<T>>` to `Promise<T>` — fully backwards-compatible; allows non-Axios calls (e.g. gRPC) to use the circuit breaker directly
+- **`Transport` interface** added (`src/transport/transport.ts`) — decouples the resilience pipeline from the HTTP/Axios wire layer; `GrpcTransport` implements it for gRPC
+- **`package.json`** — added `exports['./grpc']` and `typesVersions['*']['grpc']` sub-path exports; added `grpc`, `connect-rpc`, `http2` to keywords
+
+### Fixed
+
+- **`jest.config.js`** — excluded `src/grpc/index.ts`, `src/transport/grpc-transport.ts`, and `src/grpc/grpc-channel-registry.ts` from coverage collection (files requiring live HTTP/2); prevents false coverage threshold failures
+
+---
+
 ## [1.2.0] — 2024-06-04
 
 ### Added
