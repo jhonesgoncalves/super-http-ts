@@ -12,5 +12,4 @@ export const SUPER_HTTP_MODULE_OPTIONS = 'SUPER_HTTP_MODULE_OPTIONS';
  * getSuperHttpClientToken('PAYMENTS') // → 'SUPER_HTTP_CLIENT_PAYMENTS'
  * ```
  */
-export const getSuperHttpClientToken = (name: string): string =>
-  `SUPER_HTTP_CLIENT_${name.toUpperCase()}`;
+export const getSuperHttpClientToken = (name: string): string => `SUPER_HTTP_CLIENT_${name.toUpperCase()}`;

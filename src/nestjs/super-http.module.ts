@@ -2,11 +2,7 @@ import { Module, DynamicModule, Provider, Global } from '@nestjs/common';
 import { HttpClientFactory } from '../http-client/http.factory';
 import { createClient } from '../presets/index';
 import { SuperHttpService } from './super-http.service';
-import {
-  SUPER_HTTP_DEFAULT_CLIENT,
-  SUPER_HTTP_MODULE_OPTIONS,
-  getSuperHttpClientToken,
-} from './super-http.constants';
+import { SUPER_HTTP_DEFAULT_CLIENT, SUPER_HTTP_MODULE_OPTIONS, getSuperHttpClientToken } from './super-http.constants';
 import type {
   SuperHttpModuleOptions,
   SuperHttpModuleAsyncOptions,
@@ -161,9 +157,7 @@ export class SuperHttpModule {
 
   // ─── Private helpers ───────────────────────────────────────────────────────
 
-  private static createAsyncProviders(
-    asyncOptions: SuperHttpModuleAsyncOptions,
-  ): Provider[] {
+  private static createAsyncProviders(asyncOptions: SuperHttpModuleAsyncOptions): Provider[] {
     if (asyncOptions.useFactory) {
       return [
         {
@@ -178,8 +172,7 @@ export class SuperHttpModule {
       return [
         {
           provide: SUPER_HTTP_MODULE_OPTIONS,
-          useFactory: async (factory: SuperHttpOptionsFactory) =>
-            factory.createSuperHttpOptions(),
+          useFactory: async (factory: SuperHttpOptionsFactory) => factory.createSuperHttpOptions(),
           inject: [asyncOptions.useClass],
         },
         { provide: asyncOptions.useClass, useClass: asyncOptions.useClass },
@@ -190,8 +183,7 @@ export class SuperHttpModule {
       return [
         {
           provide: SUPER_HTTP_MODULE_OPTIONS,
-          useFactory: async (factory: SuperHttpOptionsFactory) =>
-            factory.createSuperHttpOptions(),
+          useFactory: async (factory: SuperHttpOptionsFactory) => factory.createSuperHttpOptions(),
           inject: [asyncOptions.useExisting],
         },
       ];
