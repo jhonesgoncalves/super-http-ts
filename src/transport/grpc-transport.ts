@@ -350,13 +350,14 @@ export class GrpcTransport implements Transport {
     const { path, headers } = this.buildRequestMeta(meta);
     const session = GrpcChannelRegistry.getSession(this.origin, this.maxSessions);
 
+    // Use ONE HTTP/2 stream for both sending and receiving.
     const req = session.request({
       ':method': 'POST',
       ':path':   path,
       ...headers,
     });
 
-    // Send in the background
+    // Send messages in the background on the same stream.
     const sendPromise = (async () => {
       for await (const msg of stream) {
         req.write(encodeEnvelope(this.encodeMessage(msg)));
@@ -364,10 +365,56 @@ export class GrpcTransport implements Transport {
       req.end();
     })();
 
-    // Yield responses
-    yield* this.serverStream<unknown, TRes>({ service: meta.service, method: meta.method, input: undefined });
+    // Receive responses from the SAME req stream using the envelope queue pattern.
+    type ChunkEvent = { type: 'data'; chunk: Buffer } | { type: 'end' } | { type: 'error'; error: unknown };
+    const queue: ChunkEvent[] = [];
+    let notify: (() => void) | null = null;
 
-    await sendPromise;
+    function push(event: ChunkEvent) {
+      queue.push(event);
+      notify?.();
+    }
+
+    req.on('data',  (chunk: Buffer) => push({ type: 'data', chunk }));
+    req.on('end',   () => push({ type: 'end' }));
+    req.on('error', (err) => push({ type: 'error', error: err }));
+
+    let remaining = Buffer.alloc(0);
+    let done = false;
+
+    try {
+      while (!done) {
+        while (queue.length > 0) {
+          const event = queue.shift()!;
+          if (event.type === 'error') throw event.error;
+          if (event.type === 'end') { done = true; break; }
+
+          remaining = Buffer.concat([remaining, event.chunk]);
+          const { envelopes, remaining: leftover } = parseEnvelopes(remaining);
+          remaining = leftover;
+
+          for (const env of envelopes) {
+            if (env.flags === FLAG_END_STREAM) {
+              const trailer = this.parseJson<{ error?: { code: string; message: string } }>(env.data);
+              if (trailer?.error) throw new GrpcError(trailer.error.code as GrpcCode, trailer.error.message);
+              done = true;
+              break;
+            }
+            if (env.flags === FLAG_DATA) {
+              const msg = this.parseJson<TRes>(env.data);
+              if (msg !== null) yield msg;
+            }
+          }
+        }
+
+        if (!done && queue.length === 0) {
+          await new Promise<void>((r) => { notify = r; });
+          notify = null;
+        }
+      }
+    } finally {
+      await sendPromise;
+    }
   }
 
   // ─── Lifecycle ─────────────────────────────────────────────────────────────

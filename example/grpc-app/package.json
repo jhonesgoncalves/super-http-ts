@@ -1,0 +1,25 @@
+{
+  "name": "super-http-grpc-example",
+  "version": "1.0.0",
+  "description": "Complete gRPC example using super-http — TypeScript-first gRPC with circuit breaker, retry, bulkhead, streaming and NestJS integration",
+  "private": true,
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "ts-node src/main.ts",
+    "start:dev": "ts-node-dev --respawn --transpile-only src/main.ts",
+    "demo:unary": "ts-node src/demos/unary.ts",
+    "demo:streaming": "ts-node src/demos/streaming.ts",
+    "demo:resilience": "ts-node src/demos/resilience.ts",
+    "demo:all": "ts-node src/demos/index.ts",
+    "mock-server": "ts-node src/mock-server/index.ts"
+  },
+  "dependencies": {
+    "super-http": "file:../.."
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "ts-node": "^10.9.0",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.3.0"
+  }
+}
