@@ -4,7 +4,7 @@ layout: home
 hero:
   name: "super-http"
   text: "Built for production, not just requests."
-  tagline: Production-grade HTTP client for Node.js and TypeScript. Circuit breaker, bulkhead, rate limiter, jitter retry, fallback, metrics, and plugins — all in one fluent API.
+  tagline: Production-grade HTTP + gRPC client for Node.js and TypeScript. Circuit breaker, bulkhead, rate limiter, jitter retry, fallback, metrics, and plugins — all in one fluent API.
   image:
     src: /logo.svg
     alt: super-http
@@ -15,6 +15,9 @@ hero:
     - theme: alt
       text: Why super-http?
       link: /guide/why
+    - theme: alt
+      text: gRPC Guide
+      link: /guide/grpc
     - theme: alt
       text: View on GitHub
       link: https://github.com/jhonesgoncalves/super-http-ts
@@ -51,6 +54,14 @@ features:
   - icon: 🎛️
     title: Presets & Policy Engine
     details: One-line setup with high-throughput, resilient-api, or low-latency presets. Per-request policy overrides for fine-grained control on individual endpoints.
+
+  - icon: 📡
+    title: gRPC — TypeScript-first
+    details: First-class gRPC via super-http/grpc. No .proto files, no code generation. Define services in pure TypeScript — the same circuit breaker, retry, bulkhead and metrics wrap every RPC automatically.
+
+  - icon: 🏗️
+    title: NestJS Integration
+    details: Register HTTP and gRPC clients in SuperHttpModule.forFeature(). Inject with @InjectSuperHttp() in any provider. All resilience features available inside NestJS DI out of the box.
 ---
 
 <div class="home-content">
@@ -107,6 +118,99 @@ npm install super-http
 Node.js ≥ 20 · TypeScript ≥ 5
 :::
 
+---
+
+## gRPC — TypeScript-first, zero `.proto` files
+
+`super-http/grpc` brings the same resilience pipeline to gRPC. Define your service contract in TypeScript and get a fully-typed client with circuit breaker, retry, bulkhead, and metrics — with zero extra dependencies.
+
+```typescript
+import { defineService, unary, serverStream, createGrpcClient, GrpcError } from 'super-http/grpc'
+
+// ① Define service in pure TypeScript — no .proto, no codegen
+const UserService = defineService('UserService', {
+  getUser:   unary<{ id: string }, User>(),
+  listUsers: serverStream<{ active?: boolean }, User>(),
+})
+
+// ② Create client with full resilience pipeline
+const users = createGrpcClient(UserService, 'grpcs://user-service:443', {
+  preset: 'resilient-api',   // circuit breaker + retry x3 + bulkhead
+})
+
+// ③ Unary call — typed response, retry + circuit breaker active
+const user = await users.getUser({ id: '42' })
+
+// ④ Server streaming — native AsyncIterable, HTTP/2 backpressure
+for await (const u of users.listUsers({ active: true })) {
+  await processUser(u)
+}
+
+// ⑤ Typed error handling by gRPC status code
+try {
+  await users.getUser({ id: 'missing' })
+} catch (err) {
+  if (err instanceof GrpcError && err.code === 'not_found') return null
+}
+```
+
+[Full gRPC guide →](/guide/grpc)
+
+---
+
+## NestJS Integration
+
+Register HTTP and gRPC clients together in the same module. Inject with the same `@InjectSuperHttp()` decorator — no separate setup needed.
+
+```typescript
+// app.module.ts
+@Module({
+  imports: [
+    SuperHttpModule.forFeature([
+      // HTTP client
+      {
+        name:    'PAYMENTS',
+        baseURL: 'https://payments.internal',
+        preset:  'resilient-api',
+      },
+      // gRPC client — same module, same decorator
+      {
+        name:    'USER_SVC',
+        grpc:    true,
+        address: 'user-service.internal:50051',
+        service: UserServiceDef,
+        preset:  'resilient-api',
+      },
+    ]),
+  ],
+})
+export class AppModule {}
+```
+
+```typescript
+// posts.service.ts
+@Injectable()
+export class PostsService {
+  constructor(
+    @InjectSuperHttp('PAYMENTS')
+    private readonly payments: HttpClient,
+
+    @InjectSuperHttp('USER_SVC')
+    private readonly users: GrpcClient<typeof UserServiceDef>,
+  ) {}
+
+  async createPost(dto: CreatePostDto) {
+    const [author, charge] = await Promise.all([
+      this.users.getUser({ id: dto.authorId }),   // gRPC
+      this.payments.post('/charges', dto.payment), // HTTP
+    ])
+    return { ...dto, author, charge }
+  }
+}
+```
+
+[Full NestJS guide →](/guide/nestjs)
+
 </div>
 
 <style>
@@ -119,5 +223,10 @@ Node.js ≥ 20 · TypeScript ≥ 5
   font-size: 1.6rem;
   font-weight: 700;
   margin: 48px 0 16px;
+}
+.home-content hr {
+  margin: 48px 0;
+  border: none;
+  border-top: 1px solid var(--vp-c-divider);
 }
 </style>
