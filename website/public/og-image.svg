@@ -1,0 +1,169 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0b0f1a"/>
+      <stop offset="100%" style="stop-color:#0f172a"/>
+    </linearGradient>
+    <linearGradient id="brand" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#0ea5e9"/>
+      <stop offset="100%" style="stop-color:#38bdf8"/>
+    </linearGradient>
+    <linearGradient id="brand2" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#1d4ed8"/>
+      <stop offset="100%" style="stop-color:#3b82f6"/>
+    </linearGradient>
+    <linearGradient id="title" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#f8fafc"/>
+      <stop offset="60%" style="stop-color:#e2e8f0"/>
+      <stop offset="100%" style="stop-color:#38bdf8"/>
+    </linearGradient>
+    <linearGradient id="arrow" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#06b6d4"/>
+      <stop offset="100%" style="stop-color:#67e8f9"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="softglow">
+      <feGaussianBlur stdDeviation="12" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="ambient">
+      <feGaussianBlur stdDeviation="80" result="blur"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="630" fill="url(#bg)"/>
+
+  <!-- Ambient glow blobs -->
+  <circle cx="240" cy="200" r="200" fill="#0ea5e920" filter="url(#ambient)"/>
+  <circle cx="960" cy="430" r="180" fill="#3b82f615" filter="url(#ambient)"/>
+
+  <!-- Grid lines (subtle) -->
+  <g stroke="#ffffff06" stroke-width="1">
+    <line x1="0" y1="105" x2="1200" y2="105"/>
+    <line x1="0" y1="210" x2="1200" y2="210"/>
+    <line x1="0" y1="315" x2="1200" y2="315"/>
+    <line x1="0" y1="420" x2="1200" y2="420"/>
+    <line x1="0" y1="525" x2="1200" y2="525"/>
+    <line x1="150" y1="0" x2="150" y2="630"/>
+    <line x1="300" y1="0" x2="300" y2="630"/>
+    <line x1="450" y1="0" x2="450" y2="630"/>
+    <line x1="600" y1="0" x2="600" y2="630"/>
+    <line x1="750" y1="0" x2="750" y2="630"/>
+    <line x1="900" y1="0" x2="900" y2="630"/>
+    <line x1="1050" y1="0" x2="1050" y2="630"/>
+  </g>
+
+  <!-- Border frame -->
+  <rect x="32" y="32" width="1136" height="566" rx="16" fill="none" stroke="#ffffff0d" stroke-width="1.5"/>
+
+  <!-- ─── Logo icon (left side) ─────────────────────────── -->
+  <g transform="translate(200, 315)" filter="url(#softglow)">
+    <!-- Left bolt -->
+    <g transform="rotate(-18) translate(-55, -10) scale(1.6)">
+      <path d="M 10 -90 L -18 -10 L 0 -10 L -22 90 L 20 5 L 2 5 Z"
+            fill="url(#brand)" opacity="0.95"/>
+    </g>
+    <!-- Right bolt -->
+    <g transform="rotate(18) translate(40, -10) scale(1.6)">
+      <path d="M 10 -90 L -18 -10 L 0 -10 L -22 90 L 20 5 L 2 5 Z"
+            fill="url(#brand2)" opacity="0.90"/>
+    </g>
+    <!-- Center blend -->
+    <g transform="translate(-8, -5) scale(1.6)">
+      <path d="M 14 -60 L 0 0 L 10 0 L -4 55 L 18 5 L 8 5 Z"
+            fill="#60c8f5" opacity="0.3"/>
+    </g>
+    <!-- Arrow -->
+    <g transform="translate(46, -100) rotate(-5)" filter="url(#glow)">
+      <rect x="-5" y="0" width="10" height="75" rx="5" fill="url(#arrow)"/>
+      <polygon points="0,-22 -17,14 17,14" fill="url(#arrow)"/>
+    </g>
+  </g>
+
+  <!-- Divider line between icon and text -->
+  <line x1="370" y1="130" x2="370" y2="500" stroke="#ffffff0d" stroke-width="1.5"/>
+
+  <!-- ─── Right side — text ──────────────────────────────── -->
+
+  <!-- npm badge -->
+  <g transform="translate(430, 145)">
+    <rect width="90" height="28" rx="6" fill="#cc3534"/>
+    <text x="45" y="19" font-family="'SF Pro Display',Arial,sans-serif"
+          font-size="13" font-weight="700" fill="white" text-anchor="middle" letter-spacing="1">npm</text>
+    <rect x="96" width="76" height="28" rx="6" fill="#1e3a5f"/>
+    <text x="134" y="19" font-family="'SF Pro Display',Arial,sans-serif"
+          font-size="13" font-weight="700" fill="#38bdf8" text-anchor="middle">v1.4.2</text>
+    <!-- TS badge -->
+    <rect x="182" width="54" height="28" rx="6" fill="#1e3a8a"/>
+    <text x="209" y="19" font-family="'SF Pro Display',Arial,sans-serif"
+          font-size="14" font-weight="900" fill="white" text-anchor="middle" letter-spacing="0.5">TS</text>
+  </g>
+
+  <!-- Title -->
+  <text x="430" y="270"
+        font-family="'SF Pro Display','Segoe UI',Arial,sans-serif"
+        font-size="86" font-weight="900" fill="url(#title)"
+        letter-spacing="-3">super-http</text>
+
+  <!-- Tagline -->
+  <text x="432" y="318"
+        font-family="'SF Pro Display','Segoe UI',Arial,sans-serif"
+        font-size="24" font-weight="400" fill="#94a3b8"
+        letter-spacing="0.2">Production-grade HTTP &amp; gRPC client for Node.js</text>
+
+  <!-- Feature pills row 1 -->
+  <g transform="translate(432, 355)">
+    <!-- Circuit Breaker -->
+    <rect width="172" height="36" rx="18" fill="#0ea5e915" stroke="#0ea5e940" stroke-width="1.5"/>
+    <text x="86" y="23" font-family="'SF Pro Display',Arial,sans-serif"
+          font-size="14" font-weight="600" fill="#38bdf8" text-anchor="middle">⚡ Circuit Breaker</text>
+    <!-- Retry -->
+    <rect x="182" width="118" height="36" rx="18" fill="#0ea5e915" stroke="#0ea5e940" stroke-width="1.5"/>
+    <text x="241" y="23" font-family="'SF Pro Display',Arial,sans-serif"
+          font-size="14" font-weight="600" fill="#38bdf8" text-anchor="middle">🔁 Retry</text>
+    <!-- Bulkhead -->
+    <rect x="310" width="128" height="36" rx="18" fill="#0ea5e915" stroke="#0ea5e940" stroke-width="1.5"/>
+    <text x="374" y="23" font-family="'SF Pro Display',Arial,sans-serif"
+          font-size="14" font-weight="600" fill="#38bdf8" text-anchor="middle">🛡 Bulkhead</text>
+    <!-- gRPC -->
+    <rect x="448" width="100" height="36" rx="18" fill="#3b82f615" stroke="#3b82f640" stroke-width="1.5"/>
+    <text x="498" y="23" font-family="'SF Pro Display',Arial,sans-serif"
+          font-size="14" font-weight="600" fill="#60a5fa" text-anchor="middle">📡 gRPC</text>
+  </g>
+
+  <!-- Feature pills row 2 -->
+  <g transform="translate(432, 403)">
+    <!-- Rate Limiter -->
+    <rect width="140" height="36" rx="18" fill="#8b5cf615" stroke="#8b5cf640" stroke-width="1.5"/>
+    <text x="70" y="23" font-family="'SF Pro Display',Arial,sans-serif"
+          font-size="14" font-weight="600" fill="#a78bfa" text-anchor="middle">🚦 Rate Limiter</text>
+    <!-- NestJS -->
+    <rect x="150" width="118" height="36" rx="18" fill="#e11d4815" stroke="#e11d4840" stroke-width="1.5"/>
+    <text x="209" y="23" font-family="'SF Pro Display',Arial,sans-serif"
+          font-size="14" font-weight="600" fill="#fb7185" text-anchor="middle">🔴 NestJS</text>
+    <!-- Metrics -->
+    <rect x="278" width="128" height="36" rx="18" fill="#10b98115" stroke="#10b98140" stroke-width="1.5"/>
+    <text x="342" y="23" font-family="'SF Pro Display',Arial,sans-serif"
+          font-size="14" font-weight="600" fill="#34d399" text-anchor="middle">📊 Metrics</text>
+    <!-- Presets -->
+    <rect x="416" width="114" height="36" rx="18" fill="#f59e0b15" stroke="#f59e0b40" stroke-width="1.5"/>
+    <text x="473" y="23" font-family="'SF Pro Display',Arial,sans-serif"
+          font-size="14" font-weight="600" fill="#fbbf24" text-anchor="middle">🎯 Presets</text>
+  </g>
+
+  <!-- Bottom: URL -->
+  <text x="432" y="510"
+        font-family="'SF Mono','Fira Code',monospace"
+        font-size="17" font-weight="500" fill="#475569"
+        letter-spacing="0.5">jhonesgoncalves.github.io/super-http-ts</text>
+
+  <!-- Bottom right: author -->
+  <text x="1140" y="510"
+        font-family="'SF Pro Display',Arial,sans-serif"
+        font-size="16" font-weight="500" fill="#334155"
+        text-anchor="end">by Jhones Gonçalves</text>
+</svg>

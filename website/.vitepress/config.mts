@@ -8,10 +8,35 @@ export default withMermaid(defineConfig({
   base: '/super-http-ts/',
 
   head: [
-    ['link', { rel: 'icon', type: 'image/svg+xml', href: '/logo.svg' }],
-    ['meta', { name: 'og:title', content: 'super-http' }],
-    ['meta', { name: 'og:description', content: 'Production-grade HTTP client for Node.js. Built for production, not just requests.' }],
-    ['meta', { name: 'twitter:card', content: 'summary_large_image' }],
+    // Favicon
+    ['link', { rel: 'icon', type: 'image/svg+xml', href: '/super-http-ts/logo.svg' }],
+    ['link', { rel: 'shortcut icon', href: '/super-http-ts/logo.svg' }],
+
+    // ── Open Graph ───────────────────────────────────────────────────
+    ['meta', { property: 'og:type',        content: 'website' }],
+    ['meta', { property: 'og:site_name',   content: 'super-http' }],
+    ['meta', { property: 'og:title',       content: 'super-http — Production-grade HTTP & gRPC client for Node.js' }],
+    ['meta', { property: 'og:description', content: 'TypeScript-first HTTP and gRPC client with circuit breaker, retry, bulkhead, rate limiter, NestJS integration and zero-config presets. Built for production, not just requests.' }],
+    ['meta', { property: 'og:url',         content: 'https://jhonesgoncalves.github.io/super-http-ts/' }],
+    ['meta', { property: 'og:image',       content: 'https://jhonesgoncalves.github.io/super-http-ts/og-image.svg' }],
+    ['meta', { property: 'og:image:width',  content: '1200' }],
+    ['meta', { property: 'og:image:height', content: '630' }],
+    ['meta', { property: 'og:image:alt',    content: 'super-http — Production-grade HTTP & gRPC client for Node.js' }],
+    ['meta', { property: 'og:locale',       content: 'en_US' }],
+
+    // ── Twitter / X Card ─────────────────────────────────────────────
+    ['meta', { name: 'twitter:card',        content: 'summary_large_image' }],
+    ['meta', { name: 'twitter:site',        content: '@jhonesgoncalves' }],
+    ['meta', { name: 'twitter:creator',     content: '@jhonesgoncalves' }],
+    ['meta', { name: 'twitter:title',       content: 'super-http — Production-grade HTTP & gRPC client for Node.js' }],
+    ['meta', { name: 'twitter:description', content: 'TypeScript-first HTTP and gRPC client with circuit breaker, retry, bulkhead, rate limiter, NestJS integration and zero-config presets.' }],
+    ['meta', { name: 'twitter:image',       content: 'https://jhonesgoncalves.github.io/super-http-ts/og-image.svg' }],
+    ['meta', { name: 'twitter:image:alt',   content: 'super-http — Production-grade HTTP & gRPC client for Node.js' }],
+
+    // ── SEO / canonical ──────────────────────────────────────────────
+    ['meta', { name: 'author',    content: 'Jhones Gonçalves' }],
+    ['meta', { name: 'keywords',  content: 'http client, typescript, nodejs, grpc, circuit breaker, retry, bulkhead, rate limiter, nestjs, resilience, axios, super-http' }],
+    ['link', { rel: 'canonical',  href: 'https://jhonesgoncalves.github.io/super-http-ts/' }],
   ],
 
   mermaid: {
