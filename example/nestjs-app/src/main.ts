@@ -23,12 +23,28 @@ async function bootstrap() {
   await app.listen(port);
 
   logger.log(`🚀 Application running on http://localhost:${port}/api`);
-  logger.log(`📡 gRPC catalog endpoints:`);
-  logger.log(`     GET  http://localhost:${port}/api/catalog`);
-  logger.log(`     GET  http://localhost:${port}/api/catalog/search?q=keyboard`);
-  logger.log(`     GET  http://localhost:${port}/api/catalog/metrics`);
-  logger.log(`     GET  http://localhost:${port}/api/catalog/:id`);
-  logger.log(`📊 Health metrics at http://localhost:${port}/api/health/metrics`);
+  logger.log(``);
+  logger.log(`👤 Users`);
+  logger.log(`     GET    http://localhost:${port}/api/users`);
+  logger.log(`     GET    http://localhost:${port}/api/users/:id`);
+  logger.log(`     POST   http://localhost:${port}/api/users`);
+  logger.log(`     PUT    http://localhost:${port}/api/users/:id`);
+  logger.log(`     DELETE http://localhost:${port}/api/users/:id`);
+  logger.log(``);
+  logger.log(`📝 Posts`);
+  logger.log(`     GET    http://localhost:${port}/api/posts`);
+  logger.log(`     GET    http://localhost:${port}/api/posts/:id`);
+  logger.log(`     GET    http://localhost:${port}/api/posts/:id/with-comments`);
+  logger.log(`     POST   http://localhost:${port}/api/posts`);
+  logger.log(``);
+  logger.log(`📦 Catalog (HTTP → gRPC bridge)`);
+  logger.log(`     GET    http://localhost:${port}/api/catalog`);
+  logger.log(`     GET    http://localhost:${port}/api/catalog/search?q=keyboard`);
+  logger.log(`     GET    http://localhost:${port}/api/catalog/metrics`);
+  logger.log(`     GET    http://localhost:${port}/api/catalog/:id`);
+  logger.log(``);
+  logger.log(`❤️  Health`);
+  logger.log(`     GET    http://localhost:${port}/api/health`);
 
   // Graceful shutdown — close gRPC sessions and mock server
   process.on('SIGTERM', async () => {
