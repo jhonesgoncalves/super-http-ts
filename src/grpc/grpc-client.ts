@@ -407,9 +407,29 @@ export function createGrpcClient<TDef extends ServiceDefinition<ServiceMethods>>
 
   // Build a proxy that routes method calls to the correct call-type handler
   const proxy = new Proxy(impl, {
-    get(target, prop: string) {
+    get(target, prop: string | symbol) {
       // Management methods pass through directly
-      if (prop in target) return (target as unknown as Record<string, unknown>)[prop];
+      if (prop in target) return (target as unknown as Record<string | symbol, unknown>)[prop];
+
+      // Return undefined for well-known non-RPC properties so that framework
+      // inspection (NestJS lifecycle hooks, Promise-thenable detection, Node.js
+      // util.inspect, JSON serialisation, etc.) doesn't trigger the "method not
+      // defined" error.
+      const FRAMEWORK_PROPS = new Set<string | symbol>([
+        // Promise / thenable detection (await, Promise.resolve, etc.)
+        'then', 'catch', 'finally',
+        // NestJS lifecycle hooks
+        'onModuleInit', 'onModuleDestroy', 'onApplicationBootstrap',
+        'onApplicationShutdown', 'beforeApplicationShutdown',
+        // Node.js / util.inspect / JSON
+        'toJSON', 'toObject', 'inspect',
+        Symbol.toPrimitive, Symbol.iterator, Symbol.asyncIterator,
+        Symbol.toStringTag,
+      ]);
+      if (FRAMEWORK_PROPS.has(prop)) return undefined;
+
+      // For symbol props not in the set, also return undefined silently
+      if (typeof prop === 'symbol') return undefined;
 
       // Look up the method descriptor in the service definition
       const descriptor = definition.methods[prop];
