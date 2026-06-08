@@ -58,26 +58,26 @@ and bulkhead. Failures in one client never affect the others.
 
 ```mermaid
 graph LR
-    subgraph default["Default client (resilient-api)"]
-        SHS["SuperHttpService"] --> Pool1["Pool<br/>100 sockets"]
-        Pool1 --> CB1["Circuit Breaker<br/>trip @ 10 failures"]
-        CB1 --> Retry1["Retry x3<br/>exponential jitter"]
-        Retry1 --> BH1["Bulkhead<br/>50 concurrent"]
+    subgraph SG1[Default client - resilient-api]
+        SHS[SuperHttpService] --> Pool1[Pool 100 sockets]
+        Pool1 --> CB1[Circuit Breaker]
+        CB1 --> Retry1[Retry x3]
+        Retry1 --> BH1[Bulkhead 50]
     end
 
-    subgraph posts["Named: POSTS (high-throughput)"]
-        PC["HttpClient POSTS"] --> Pool2["Pool<br/>200 sockets"]
-        Pool2 --> Retry2["Retry x1<br/>quick jitter"]
+    subgraph SG2[POSTS client - high-throughput]
+        PC[HttpClient POSTS] --> Pool2[Pool 200 sockets]
+        Pool2 --> Retry2[Retry x1]
     end
 
-    subgraph comments["Named: COMMENTS (resilient-api)"]
-        CC["HttpClient COMMENTS"] --> Pool3["Pool<br/>100 sockets"]
-        Pool3 --> CB3["Circuit Breaker<br/>trip @ 10 failures"]
-        CB3 --> Retry3["Retry x3<br/>exponential jitter"]
-        Retry3 --> BH3["Bulkhead<br/>50 concurrent"]
+    subgraph SG3[COMMENTS client - resilient-api]
+        CC[HttpClient COMMENTS] --> Pool3[Pool 100 sockets]
+        Pool3 --> CB3[Circuit Breaker]
+        CB3 --> Retry3[Retry x3]
+        Retry3 --> BH3[Bulkhead 50]
     end
 
-    BH1 --> API["JSONPlaceholder"]
+    BH1 --> API[JSONPlaceholder]
     Retry2 --> API
     BH3 --> API
 ```
