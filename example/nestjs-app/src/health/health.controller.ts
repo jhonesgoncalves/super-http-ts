@@ -6,10 +6,10 @@ export interface HealthStatus {
   uptime: number;
   timestamp: string;
   http: {
-    requests:    number;
-    errors:      number;
+    requests: number;
+    errors: number;
     successRate: string;
-    p99:         string;
+    p99: string;
   };
 }
 
@@ -19,27 +19,27 @@ export interface HealthStatus {
  */
 @Controller('health')
 export class HealthController {
-  constructor(private readonly http: SuperHttpService) {}
+  constructor(private readonly http: SuperHttpService) { }
 
   @Get()
   check(): HealthStatus {
     const m = this.http.metrics();
 
-    const total     = m.requests;
-    const errors    = m.failed;
-    const rate      = total > 0 ? (((total - errors) / total) * 100).toFixed(1) : '100.0';
-    const p99Ms     = m.p99Latency > 0 ? `${m.p99Latency.toFixed(1)}ms` : 'N/A';
+    const total = m.requests;
+    const errors = m.failed;
+    const rate = total > 0 ? (((total - errors) / total) * 100).toFixed(1) : '100.0';
+    const p99Ms = m.p99Latency > 0 ? `${m.p99Latency.toFixed(1)}ms` : 'N/A';
     const isDegraded = total > 10 && parseFloat(rate) < 95;
 
     return {
-      status:    isDegraded ? 'degraded' : 'ok',
-      uptime:    process.uptime(),
+      status: isDegraded ? 'degraded' : 'ok',
+      uptime: process.uptime(),
       timestamp: new Date().toISOString(),
       http: {
-        requests:    total,
+        requests: total,
         errors,
         successRate: `${rate}%`,
-        p99:         p99Ms,
+        p99: p99Ms,
       },
     };
   }

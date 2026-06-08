@@ -471,3 +471,11 @@ Parameter decorator. Without `name` → injects default client. With `name` → 
 ### `getSuperHttpClientToken(name)`
 
 Returns the DI token string for a named client. Useful for manual provider setup.
+
+---
+
+## Example application
+
+Looking for a complete, runnable reference? The repository ships a full NestJS application in [`example/nestjs-app/`](https://github.com/jhonesgoncalves/super-http-ts/tree/main/example/nestjs-app) with architecture diagrams, all patterns above, and 42 tests.
+
+→ [NestJS Example App](/guide/nestjs-example)
