@@ -161,6 +161,131 @@ Complete working example with:
 
 ---
 
+## [1.3.0] — 2026-06-08
+
+### Added
+
+#### NestJS integration — `super-http/nestjs` entry point
+
+First-class NestJS dynamic module. HTTP clients are registered in the DI container and injected with a single decorator — same resilience pipeline, zero boilerplate.
+
+```ts
+import { SuperHttpModule, InjectSuperHttp } from 'super-http/nestjs'
+import type { HttpClient } from 'super-http'
+```
+
+##### `SuperHttpModule.forRoot(options)`
+
+Registers a global default client available across all modules:
+
+```ts
+SuperHttpModule.forRoot({
+  baseURL: 'https://api.example.com',
+  preset:  'resilient-api',
+})
+```
+
+##### `SuperHttpModule.forRootAsync(asyncOptions)`
+
+Async configuration — integrates with `ConfigService`, environment variables, or any async factory:
+
+```ts
+SuperHttpModule.forRootAsync({
+  imports:    [ConfigModule],
+  inject:     [ConfigService],
+  useFactory: (cfg: ConfigService) => ({
+    baseURL: cfg.get('API_URL'),
+    preset:  'resilient-api',
+  }),
+})
+```
+
+##### `SuperHttpModule.forFeature(clients[])`
+
+Registers named clients scoped to a feature module:
+
+```ts
+SuperHttpModule.forFeature([
+  { name: 'PAYMENTS', baseURL: 'https://pay.internal', preset: 'resilient-api' },
+  { name: 'CATALOG',  baseURL: 'https://cat.internal', preset: 'high-throughput' },
+])
+```
+
+##### `@InjectSuperHttp(name?)`
+
+Injects the default client (no argument) or a named client:
+
+```ts
+@Injectable()
+export class OrdersService {
+  constructor(
+    @InjectSuperHttp('PAYMENTS') private readonly payments: HttpClient,
+    @InjectSuperHttp('CATALOG')  private readonly catalog:  HttpClient,
+  ) {}
+}
+```
+
+##### `SuperHttpService`
+
+Injectable wrapper service exposing the default client:
+
+```ts
+@Injectable()
+export class AppService {
+  constructor(private readonly http: SuperHttpService) {}
+  async health() { return this.http.client.get('/health') }
+}
+```
+
+##### `getSuperHttpClientToken(name)`
+
+Returns the DI token string for a named client — useful for mocking in unit tests:
+
+```ts
+{
+  provide:  getSuperHttpClientToken('PAYMENTS'),
+  useValue: mockPaymentsClient,
+}
+```
+
+##### `SuperHttpFeatureOptions`
+
+Configuration interface for `forFeature` entries — extends all `HttpClientConfig` fields:
+
+```ts
+export interface SuperHttpFeatureOptions extends HttpClientConfig {
+  name: string
+}
+```
+
+#### Documentation
+
+- New: `website/guide/nestjs.md` — complete NestJS guide: `forRoot`, `forRootAsync`, `forFeature`, multiple clients, `ConfigService` integration, per-request policy, observability hooks, Prometheus integration, unit and e2e testing patterns
+- Updated: VitePress sidebar — new **Integrations** group with NestJS link
+- Updated: VitePress nav — NestJS quick-access link
+
+#### Example app — `example/nestjs-app/`
+
+Full NestJS reference application demonstrating:
+- `forRoot` global client + `forFeature` named clients
+- `@InjectSuperHttp` in feature services
+- Per-request policy overrides
+- Observability hooks and metrics endpoint
+- Unit tests with mocked clients
+
+### Changed
+
+- `package.json` — added `exports['./nestjs']` and `typesVersions['*']['nestjs']` sub-path exports; `@nestjs/common` and `@nestjs/core` added as optional `peerDependencies`
+- `tsconfig.json` — enabled `experimentalDecorators` and `emitDecoratorMetadata` for NestJS decorator support
+- `engines.node` bumped to `>=20.0.0`
+
+### Fixed
+
+- CI: upgraded `codecov-action` to v5, pinned Node 20 runner, removed legacy `coverage.yml` duplicate workflow
+- Docs: added `.nojekyll` to GitHub Pages build — fixes search index on Pages deployment
+
+---
+
 ## [1.2.0] — 2024-06-04
 
 ### Added
