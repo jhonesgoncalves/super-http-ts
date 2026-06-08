@@ -13,6 +13,9 @@ module.exports = {
     '!src/nestjs/index.ts',        // re-exports only
     '!src/nestjs/super-http.module.ts',   // requires full NestJS DI context — tested via e2e
     '!src/nestjs/super-http.service.ts',  // NestJS injectable — tested via e2e
+    '!src/grpc/index.ts',                 // re-exports only
+    '!src/transport/grpc-transport.ts',   // requires live HTTP/2 — tested via integration
+    '!src/grpc/grpc-channel-registry.ts', // requires live HTTP/2 — tested via integration
   ],
   coverageReporters: ['text', 'lcov', 'html'],
   coverageThreshold: {
