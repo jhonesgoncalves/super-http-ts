@@ -488,3 +488,205 @@ SuperHttpModule.forRootAsync({
   }
 }
 ```
+
+---
+
+## CatalogModule — HTTP REST backed by gRPC
+
+`CatalogModule` is the gRPC integration showcase in the example app.
+It exposes **standard REST endpoints** while calling a `CatalogService` gRPC
+backend internally via `super-http`'s `GrpcClient`.
+
+### Architecture
+
+```
+Browser / curl
+     │  GET /api/catalog           (HTTP REST)
+     │  GET /api/catalog/:id
+     │  GET /api/catalog/search?q=
+     │  GET /api/catalog/metrics
+     ▼
+CatalogController  (NestJS @Controller)
+     │
+     ▼
+CatalogService  (NestJS @Injectable)
+     │  GrpcClient<CatalogServiceDef>  — injected via @InjectSuperHttp('CATALOG_GRPC')
+     │  Resilience: circuit breaker + 2 retries + 5s timeout
+     │
+     │  HTTP/2 POST /CatalogService/getProduct      (unary)
+     │  HTTP/2 POST /CatalogService/listProducts    (server stream)
+     │  HTTP/2 POST /CatalogService/searchProducts  (server stream)
+     ▼
+CatalogService gRPC mock  (HTTP/2, :50053, started in main.ts)
+```
+
+### Service definition
+
+```ts
+// src/catalog/catalog-service.def.ts
+import { defineService, unary, serverStream } from 'super-http/grpc'
+
+export const CATALOG_GRPC_PORT = 50053
+
+export interface Product {
+  id: string; name: string; description: string
+  price: number; stock: number; category: string; active: boolean
+}
+
+export const CatalogServiceDef = defineService('CatalogService', {
+  getProduct:     unary<GetProductRequest, Product>(),
+  listProducts:   serverStream<ListProductsRequest, Product>(),
+  searchProducts: serverStream<SearchProductsRequest, Product>(),
+})
+```
+
+### Module registration
+
+```ts
+// src/catalog/catalog.module.ts
+import { SuperHttpModule } from 'super-http/nestjs'
+import { CatalogServiceDef, CATALOG_GRPC_PORT } from './catalog-service.def'
+
+@Module({
+  imports: [
+    SuperHttpModule.forFeature([{
+      name:      'CATALOG_GRPC',
+      grpc:      true,
+      address:   `http://localhost:${CATALOG_GRPC_PORT}`,
+      service:   CatalogServiceDef,
+      preset:    'resilient-api',
+      timeoutMs: 5_000,
+      retries:   2,
+    }]),
+  ],
+  controllers: [CatalogController],
+  providers:   [CatalogService],
+})
+export class CatalogModule {}
+```
+
+### Service — gRPC calls + error mapping
+
+```ts
+// src/catalog/catalog.service.ts
+@Injectable()
+export class CatalogService {
+  constructor(
+    @InjectSuperHttp('CATALOG_GRPC')
+    private readonly catalog: GrpcClient<typeof CatalogServiceDef>,
+  ) {}
+
+  async findOne(id: string): Promise<Product> {
+    try {
+      return await this.catalog.getProduct({ id })          // unary
+    } catch (err) {
+      if (err instanceof GrpcError && err.code === 'not_found')
+        throw new NotFoundException(`Product "${id}" not found`)  // gRPC → HTTP 404
+      throw err
+    }
+  }
+
+  async findAll(options = {}): Promise<Product[]> {
+    const products: Product[] = []
+    for await (const p of this.catalog.listProducts(options))  // server stream
+      products.push(p)
+    return products
+  }
+
+  async search(query: string, limit = 10): Promise<Product[]> {
+    const results: Product[] = []
+    for await (const p of this.catalog.searchProducts({ query, limit }))
+      results.push(p)
+    return results
+  }
+
+  grpcMetrics() { return this.catalog.metrics() }
+}
+```
+
+### Controller — REST endpoints
+
+| Method | Path | gRPC call |
+|---|---|---|
+| `GET` | `/api/catalog` | `listProducts` (server stream → JSON array) |
+| `GET` | `/api/catalog/search?q=` | `searchProducts` (server stream → JSON array) |
+| `GET` | `/api/catalog/metrics` | `metrics()` (local, no RPC) |
+| `GET` | `/api/catalog/:id` | `getProduct` (unary) |
+
+```ts
+@Controller('catalog')
+export class CatalogController {
+  constructor(private readonly catalogService: CatalogService) {}
+
+  @Get()
+  findAll(@Query('category') category?: string,
+          @Query('inStock')  inStock?: string,
+          @Query('limit')    limit?: string) {
+    return this.catalogService.findAll({
+      category,
+      inStock: inStock !== undefined ? inStock === 'true' : undefined,
+      limit:   limit   !== undefined ? Number(limit)     : undefined,
+    })
+  }
+
+  @Get('search')
+  search(@Query('q') query = '', @Query('limit') limit?: string) {
+    return this.catalogService.search(query, limit ? Number(limit) : 10)
+  }
+
+  @Get('metrics')
+  grpcMetrics() { return this.catalogService.grpcMetrics() }
+
+  @Get(':id')
+  findOne(@Param('id') id: string) { return this.catalogService.findOne(id) }
+}
+```
+
+### Mock gRPC server (development only)
+
+The example ships an HTTP/2 mock server in
+`src/catalog/mock/catalog-grpc-server.ts`. It starts automatically in `main.ts`
+before `NestFactory.create()` so you can run `npm run start` without any external
+service:
+
+```ts
+// src/main.ts (excerpt)
+import { startCatalogGrpcServer } from './catalog/mock/catalog-grpc-server'
+
+async function bootstrap() {
+  const grpcServer = await startCatalogGrpcServer() // :50053
+
+  const app = await NestFactory.create(AppModule)
+  // …
+  process.on('SIGTERM', async () => {
+    const { GrpcChannelRegistry } = await import('super-http/grpc')
+    await GrpcChannelRegistry.closeAll()
+    grpcServer.close(() => process.exit(0))
+  })
+}
+```
+
+In production replace `startCatalogGrpcServer()` with your real gRPC backend
+and update the `address` in `CatalogModule.forFeature`.
+
+### Try it
+
+```bash
+cd example/nestjs-app
+npm install && npm run start
+
+# List all products
+curl http://localhost:3000/api/catalog
+
+# Filter by category
+curl http://localhost:3000/api/catalog?category=electronics
+
+# Full-text search
+curl "http://localhost:3000/api/catalog/search?q=keyboard"
+
+# Single product
+curl http://localhost:3000/api/catalog/prod-1
+
+# gRPC client metrics (circuit breaker state, p99 latency, …)
+curl http://localhost:3000/api/catalog/metrics
+```

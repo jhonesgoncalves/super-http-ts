@@ -474,6 +474,206 @@ Returns the DI token string for a named client. Useful for manual provider setup
 
 ---
 
+## gRPC integration
+
+`SuperHttpModule` supports **gRPC clients** alongside regular HTTP clients — same
+`forFeature` call, same `@InjectSuperHttp` decorator, same resilience pipeline.
+
+### Registering a gRPC client
+
+Add `grpc: true` to any entry in `forFeature`. This activates `createGrpcClient`
+instead of `createClient` under the hood.
+
+```ts
+import { Module } from '@nestjs/common'
+import { SuperHttpModule } from 'super-http/nestjs'
+import { CatalogServiceDef, CATALOG_GRPC_PORT } from './catalog-service.def'
+
+@Module({
+  imports: [
+    SuperHttpModule.forFeature([
+      // Regular HTTP client — no change
+      { name: 'PAYMENTS', baseURL: 'https://payments.internal', preset: 'resilient-api' },
+
+      // gRPC client — same pattern, just add grpc: true + service + address
+      {
+        name:    'CATALOG_GRPC',
+        grpc:    true,                              // ← discriminant
+        address: `http://localhost:${CATALOG_GRPC_PORT}`,
+        service: CatalogServiceDef,                 // TypeScript-first service definition
+        preset:  'resilient-api',
+        timeoutMs: 5_000,
+        retries:   2,
+      },
+    ]),
+  ],
+})
+export class CatalogModule {}
+```
+
+`SuperHttpGrpcFeatureOptions` (the full type):
+
+```ts
+interface SuperHttpGrpcFeatureOptions {
+  name:       string                    // DI token
+  grpc:       true                      // required discriminant
+  address:    string                    // grpc:// | grpcs:// | https:// | host:port
+  service:    ServiceDefinition<any>    // built with defineService()
+  preset?:    GrpcPreset
+  timeoutMs?: number
+  retries?:   number
+  headers?:   Record<string, string>
+  circuitBreaker?: CircuitBreakerConfig
+  bulkhead?:       BulkheadConfig
+  rateLimit?:      RateLimitConfig
+}
+```
+
+### Service definition (TypeScript-first, no .proto)
+
+Define the gRPC contract once with `defineService` from `super-http/grpc`.
+No code generation, no `.proto` files needed:
+
+```ts
+// catalog-service.def.ts
+import { defineService, unary, serverStream } from 'super-http/grpc'
+
+export const CatalogServiceDef = defineService('CatalogService', {
+  getProduct:     unary<GetProductRequest, Product>(),
+  listProducts:   serverStream<ListProductsRequest, Product>(),
+  searchProducts: serverStream<SearchProductsRequest, Product>(),
+})
+```
+
+See the [gRPC guide](/guide/grpc) for the full DSL (`clientStream`, `bidi`, presets, error codes).
+
+### Injecting and using the gRPC client
+
+```ts
+import { Injectable, NotFoundException } from '@nestjs/common'
+import { InjectSuperHttp } from 'super-http/nestjs'
+import type { GrpcClient } from 'super-http/grpc'
+import { GrpcError } from 'super-http/grpc'
+import type { CatalogServiceDef, Product } from './catalog-service.def'
+
+@Injectable()
+export class CatalogService {
+  constructor(
+    @InjectSuperHttp('CATALOG_GRPC')
+    private readonly catalog: GrpcClient<typeof CatalogServiceDef>,
+  ) {}
+
+  // Unary RPC — returns a single value
+  async findOne(id: string): Promise<Product> {
+    try {
+      return await this.catalog.getProduct({ id })
+    } catch (err) {
+      if (err instanceof GrpcError && err.code === 'not_found')
+        throw new NotFoundException(`Product "${id}" not found`)
+      throw err
+    }
+  }
+
+  // Server streaming — collect into array for a standard JSON HTTP response
+  async findAll(filter?: { category?: string; inStock?: boolean }): Promise<Product[]> {
+    const products: Product[] = []
+    for await (const p of this.catalog.listProducts(filter ?? {})) {
+      products.push(p)
+    }
+    return products
+  }
+}
+```
+
+### HTTP → gRPC bridge pattern
+
+The typical pattern is a normal NestJS REST controller that delegates to gRPC
+internally — clients see JSON over HTTP, gRPC stays as an implementation detail:
+
+```
+Browser / API client
+        │  GET /catalog/products  (HTTP/1.1 REST)
+        ▼
+NestJS CatalogController
+        │  listProducts({ category })  (gRPC server stream)
+        ▼
+GrpcClient<CatalogServiceDef>  ←  resilience pipeline (CB + retry + bulkhead)
+        │  HTTP/2 POST /CatalogService/listProducts
+        ▼
+CatalogService gRPC backend
+```
+
+```ts
+@Controller('catalog')
+export class CatalogController {
+  constructor(private readonly catalogService: CatalogService) {}
+
+  @Get()
+  async findAll(@Query('category') category?: string): Promise<Product[]> {
+    return this.catalogService.findAll({ category })
+  }
+
+  @Get(':id')
+  async findOne(@Param('id') id: string): Promise<Product> {
+    return this.catalogService.findOne(id)  // 404 on not_found
+  }
+}
+```
+
+### gRPC client management
+
+The injected `GrpcClient` exposes the same management surface as HTTP clients:
+
+| Method | Description |
+|---|---|
+| `metrics()` | Returns `MetricsSnapshot` (requests, p50/p99, CB trips, …) |
+| `resetMetrics()` | Clears accumulated counters |
+| `on(events)` | Register resilience event hooks |
+| `close()` | Gracefully closes all underlying HTTP/2 sessions |
+
+### NestJS compatibility notes
+
+The `GrpcClient` returned by `createGrpcClient` is a JavaScript `Proxy`. NestJS
+inspects every provider at bootstrap (lifecycle hooks, thenable detection, util.inspect).
+Starting with **v1.4.2** the proxy correctly returns `undefined` for all framework
+inspection properties — `then`, `onModuleInit`, `Symbol.iterator`, etc. — so DI
+works without configuration.
+
+---
+
+## API reference
+
+### `SuperHttpModule`
+
+| Method | Description |
+|---|---|
+| `forRoot(options)` | Registers a global default client. Provides `SuperHttpService`. |
+| `forRootAsync(asyncOptions)` | Same as `forRoot` but with async factory / ConfigService. |
+| `forFeature(clients[])` | Registers named clients for a specific feature module. Accepts both HTTP and gRPC (`grpc: true`) entries. |
+
+### `SuperHttpService`
+
+Wraps the default `HttpClient`. Available when using `forRoot` / `forRootAsync`.
+
+| Member | Description |
+|---|---|
+| `get / post / put / patch / delete` | Standard HTTP methods |
+| `metrics()` | Returns `MetricsSnapshot` |
+| `resetMetrics()` | Clears counters |
+| `on(events)` | Register observability hooks |
+| `use(plugin)` | Install a plugin |
+| `instance` | Access the raw `HttpClient` |
+
+### `@InjectSuperHttp(name?)`
+
+Parameter decorator. Without `name` → injects default client. With `name` → injects named client registered by `forFeature`. Works for both HTTP (`SuperHttpService`) and gRPC (`GrpcClient<T>`) clients.
+
+### `getSuperHttpClientToken(name)`
+
+Returns the DI token string for a named client. Useful for manual provider setup.
+
+---
+
 ## Example application
 
 Looking for a complete, runnable reference? The repository ships a full NestJS application in [`example/nestjs-app/`](https://github.com/jhonesgoncalves/super-http-ts/tree/main/example/nestjs-app) with architecture diagrams, all patterns above, and 42 tests.

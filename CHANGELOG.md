@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.4.2] — 2026-06-08
+
+### Fixed
+
+- **`GrpcClient` Proxy — framework inspection properties** — NestJS probes every
+  provider at bootstrap for lifecycle hooks (`onModuleInit`, `onModuleDestroy`,
+  `onApplicationBootstrap`, `onApplicationShutdown`, `beforeApplicationShutdown`),
+  Promise-thenable detection (`then`, `catch`, `finally`), and Node.js serialisation
+  helpers (`toJSON`, `toObject`, `inspect`). The `Proxy` get-trap now returns
+  `undefined` for all of these — and for every `Symbol` key — instead of throwing
+  `[GrpcClient] Method '…' is not defined`. `GrpcClient` instances can now be
+  injected with `@InjectSuperHttp` in any NestJS context without additional setup.
+
+### Added
+
+- **`CatalogModule` example in `example/nestjs-app/`** — end-to-end showcase of
+  the HTTP → gRPC bridge pattern:
+  - `catalog-service.def.ts` — TypeScript-first service definition (no `.proto`)
+  - `catalog.module.ts` — `forFeature` with `grpc: true`, `resilient-api` preset
+  - `catalog.service.ts` — gRPC unary + server-stream calls with gRPC→HTTP error mapping
+  - `catalog.controller.ts` — four REST endpoints backed by gRPC internally
+  - `mock/catalog-grpc-server.ts` — HTTP/2 mock on `:50053`, started in `main.ts`
+
+---
+
 ## [1.4.1] — 2026-06-08
 
 ### Fixed
