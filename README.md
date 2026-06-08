@@ -37,7 +37,7 @@
 
 ## Pick the right tool
 
-| Scenario | Best choice |`
+| Scenario | Best choice |
 |---|---|
 | One-off script, CLI | `fetch` |
 | Standard web app | `axios` |
