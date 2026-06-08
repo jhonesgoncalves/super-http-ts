@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { SuperHttpService } from 'super-http/nestjs';
+import type { HttpClient } from 'super-http';
 import type { CreateUserDto } from './dto/create-user.dto';
 
 export interface User {
@@ -47,7 +48,8 @@ export class UsersService {
     this.logger.debug(`Creating user: ${dto.name}`);
 
     // Non-idempotent — disable retry for this request via per-request policy
-    const { data } = await (this.http.instance as any).post<User>('/users', dto, {
+    const client = this.http.instance as HttpClient;
+    const { data } = await client.post<User>('/users', dto, {
       policy: { retry: false, timeout: 10_000 },
     });
     return data;
@@ -55,13 +57,15 @@ export class UsersService {
 
   async update(id: number, dto: Partial<CreateUserDto>): Promise<User> {
     this.logger.debug(`Updating user #${id}`);
-    const { data } = await (this.http.instance as any).put<User>(`/users/${id}`, dto);
+    const client = this.http.instance as HttpClient;
+    const { data } = await client.put<User>(`/users/${id}`, dto);
     return data;
   }
 
   async remove(id: number): Promise<void> {
     this.logger.debug(`Removing user #${id}`);
-    await (this.http.instance as any).delete(`/users/${id}`, {
+    const client = this.http.instance as HttpClient;
+    await client.delete(`/users/${id}`, {
       policy: { retry: false }, // DELETE is non-idempotent — no retry
     });
   }
