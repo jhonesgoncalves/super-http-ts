@@ -6,15 +6,13 @@ import { SuperHttpService } from 'super-http/nestjs';
 // ─── Mock ─────────────────────────────────────────────────────────────────────
 
 const mockSuperHttpService = {
-  get:      jest.fn(),
-  post:     jest.fn(),
-  put:      jest.fn(),
-  delete:   jest.fn(),
-  metrics:  jest.fn(),
+  get:     jest.fn(),
+  post:    jest.fn(),
+  put:     jest.fn(),
+  delete:  jest.fn(),
+  metrics: jest.fn(),
   instance: {
-    post:   jest.fn(),
-    put:    jest.fn(),
-    delete: jest.fn(),
+    request: jest.fn(),
   },
 };
 
@@ -87,15 +85,18 @@ describe('UsersService', () => {
     it('creates a user and returns the new record', async () => {
       const dto = { name: 'Carol', email: 'carol@example.com' };
       const created = { id: 11, username: 'carol', ...dto };
-      mockSuperHttpService.instance.post.mockResolvedValue({ data: created });
+      mockSuperHttpService.instance.request.mockResolvedValue({ data: created });
 
       const result = await service.create(dto);
 
       expect(result).toEqual(created);
-      expect(mockSuperHttpService.instance.post).toHaveBeenCalledWith(
-        '/users',
-        dto,
-        expect.objectContaining({ policy: { retry: false, timeout: 10_000 } }),
+      expect(mockSuperHttpService.instance.request).toHaveBeenCalledWith(
+        expect.objectContaining({
+          method: 'POST',
+          url: '/users',
+          data: dto,
+          policy: { retry: false, timeout: 10_000 },
+        }),
       );
     });
   });
@@ -106,12 +107,12 @@ describe('UsersService', () => {
     it('updates a user and returns the updated record', async () => {
       const dto = { name: 'Alice Updated' };
       const updated = { id: 1, name: 'Alice Updated', email: 'alice@example.com', username: 'alice' };
-      mockSuperHttpService.instance.put.mockResolvedValue({ data: updated });
+      mockSuperHttpService.put.mockResolvedValue({ data: updated });
 
       const result = await service.update(1, dto);
 
       expect(result).toEqual(updated);
-      expect(mockSuperHttpService.instance.put).toHaveBeenCalledWith('/users/1', dto);
+      expect(mockSuperHttpService.put).toHaveBeenCalledWith('/users/1', dto);
     });
   });
 
@@ -119,12 +120,15 @@ describe('UsersService', () => {
 
   describe('remove', () => {
     it('deletes a user without returning data', async () => {
-      mockSuperHttpService.instance.delete.mockResolvedValue({ data: {} });
+      mockSuperHttpService.instance.request.mockResolvedValue({ data: {} });
 
       await expect(service.remove(1)).resolves.toBeUndefined();
-      expect(mockSuperHttpService.instance.delete).toHaveBeenCalledWith(
-        '/users/1',
-        expect.objectContaining({ policy: { retry: false } }),
+      expect(mockSuperHttpService.instance.request).toHaveBeenCalledWith(
+        expect.objectContaining({
+          method: 'DELETE',
+          url: '/users/1',
+          policy: { retry: false },
+        }),
       );
     });
   });

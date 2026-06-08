@@ -10,29 +10,29 @@ import { PostsService } from './posts.service';
      *  - POSTS    → JSONPlaceholder posts endpoint (high-concurrency preset)
      *  - COMMENTS → JSONPlaceholder comments endpoint (with circuit-breaker fallback)
      */
+    /**
+     * Register two named HTTP clients for PostsService.
+     *
+     * Retry, bulkhead and circuit-breaker are configured via presets —
+     * these behaviours are set up through the fluent HttpClient API under
+     * the hood (not as constructor options, which only accept baseURL /
+     * timeout / pool / preset).
+     *
+     *  POSTS    → 'high-throughput' preset (large pool, fast fail, 1 retry)
+     *  COMMENTS → 'resilient-api'  preset (3 retries + circuit breaker)
+     */
     SuperHttpModule.forFeature([
       {
         name: 'POSTS',
         baseURL: 'https://jsonplaceholder.typicode.com',
         timeout: 8_000,
-        retry: {
-          attempts: 3,
-          delay: 300,
-          backoff: 'exponential',
-          retryOn: [500, 502, 503, 504],
-        },
-        bulkhead: { maxConcurrent: 15, maxQueue: 30 },
+        preset: 'high-throughput',
       },
       {
         name: 'COMMENTS',
         baseURL: 'https://jsonplaceholder.typicode.com',
         timeout: 5_000,
-        retry: { attempts: 2, delay: 200, backoff: 'exponential' },
-        circuitBreaker: {
-          failureThreshold: 5,
-          successThreshold: 2,
-          timeoutMs: 10_000,
-        },
+        preset: 'resilient-api',
       },
     ]),
   ],

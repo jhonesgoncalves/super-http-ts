@@ -25,10 +25,10 @@ export class HealthController {
   check(): HealthStatus {
     const m = this.http.metrics();
 
-    const total     = m.totalRequests;
-    const errors    = m.totalErrors;
+    const total     = m.requests;
+    const errors    = m.failed;
     const rate      = total > 0 ? (((total - errors) / total) * 100).toFixed(1) : '100.0';
-    const p99Ms     = m.p99 != null ? `${m.p99.toFixed(1)}ms` : 'N/A';
+    const p99Ms     = m.p99Latency > 0 ? `${m.p99Latency.toFixed(1)}ms` : 'N/A';
     const isDegraded = total > 10 && parseFloat(rate) < 95;
 
     return {

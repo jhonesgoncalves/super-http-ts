@@ -47,9 +47,13 @@ export class UsersService {
   async create(dto: CreateUserDto): Promise<User> {
     this.logger.debug(`Creating user: ${dto.name}`);
 
-    // Non-idempotent — disable retry for this request via per-request policy
+    // Non-idempotent — disable retry for this request via per-request policy.
+    // `policy` is only supported through `.request()`, not the shorthand methods.
     const client = this.http.instance as HttpClient;
-    const { data } = await client.post<User>('/users', dto, {
+    const { data } = await client.request<User>({
+      method: 'POST',
+      url: '/users',
+      data: dto,
       policy: { retry: false, timeout: 10_000 },
     });
     return data;
@@ -57,16 +61,18 @@ export class UsersService {
 
   async update(id: number, dto: Partial<CreateUserDto>): Promise<User> {
     this.logger.debug(`Updating user #${id}`);
-    const client = this.http.instance as HttpClient;
-    const { data } = await client.put<User>(`/users/${id}`, dto);
+    const { data } = await this.http.put<User>(`/users/${id}`, dto);
     return data;
   }
 
   async remove(id: number): Promise<void> {
     this.logger.debug(`Removing user #${id}`);
     const client = this.http.instance as HttpClient;
-    await client.delete(`/users/${id}`, {
-      policy: { retry: false }, // DELETE is non-idempotent — no retry
+    // `policy` only available via `.request()` — use it to disable retry on DELETE
+    await client.request({
+      method: 'DELETE',
+      url: `/users/${id}`,
+      policy: { retry: false },
     });
   }
 }

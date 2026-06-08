@@ -25,9 +25,9 @@ describe('HealthController', () => {
 
   it('returns status ok when success rate is high', () => {
     mockSuperHttpService.metrics.mockReturnValue({
-      totalRequests: 100,
-      totalErrors: 2,
-      p99: 145.2,
+      requests:   100,
+      failed:     2,
+      p99Latency: 145.2,
     });
 
     const result = controller.check();
@@ -43,9 +43,9 @@ describe('HealthController', () => {
 
   it('returns status degraded when error rate is above 5%', () => {
     mockSuperHttpService.metrics.mockReturnValue({
-      totalRequests: 100,
-      totalErrors: 10,
-      p99: 300,
+      requests:   100,
+      failed:     10,
+      p99Latency: 300,
     });
 
     const result = controller.check();
@@ -56,9 +56,9 @@ describe('HealthController', () => {
 
   it('returns 100% success rate when no requests have been made', () => {
     mockSuperHttpService.metrics.mockReturnValue({
-      totalRequests: 0,
-      totalErrors: 0,
-      p99: null,
+      requests:   0,
+      failed:     0,
+      p99Latency: 0,
     });
 
     const result = controller.check();
@@ -70,9 +70,9 @@ describe('HealthController', () => {
 
   it('does not mark degraded when total requests is below threshold (<=10)', () => {
     mockSuperHttpService.metrics.mockReturnValue({
-      totalRequests: 5,
-      totalErrors: 4, // 20% success — but total <= 10, not enough data
-      p99: null,
+      requests:   5,
+      failed:     4, // 20% success — but total <= 10, not enough data
+      p99Latency: 0,
     });
 
     const result = controller.check();
