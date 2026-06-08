@@ -2,7 +2,7 @@
   <img width="160px" src=".github/images/super-http-logo.svg" align="center" alt="super-http" />
   <h2 align="center">super-http</h2>
   <p align="center"><strong>Built for production, not just requests.</strong></p>
-  <p align="center">Production-grade HTTP client for Node.js and TypeScript.<br>Circuit breaker · Bulkhead · Rate limiter · Jitter retry · Fallback · Metrics · Plugins</p>
+  <p align="center">Production-grade HTTP + gRPC client for Node.js and TypeScript.<br>Circuit breaker · Bulkhead · Rate limiter · Jitter retry · Fallback · Metrics · Plugins · gRPC</p>
 </p>
 
 <p align="center">
@@ -28,6 +28,7 @@
 <p align="center">
   <a href="https://jhonesgoncalves.github.io/super-http-ts/"><strong>📖 Documentation</strong></a> ·
   <a href="https://jhonesgoncalves.github.io/super-http-ts/guide/getting-started">Getting Started</a> ·
+  <a href="https://jhonesgoncalves.github.io/super-http-ts/guide/grpc">gRPC Guide</a> ·
   <a href="https://jhonesgoncalves.github.io/super-http-ts/guide/why">Why super-http?</a> ·
   <a href="https://jhonesgoncalves.github.io/super-http-ts/guide/benchmarks">Benchmarks</a> ·
   <a href="CHANGELOG.md">Changelog</a>
@@ -105,6 +106,46 @@ const { p99Latency, circuitBreakerTrips } = api.metrics()
 
 ---
 
+## Quick start — gRPC (new in 1.4)
+
+TypeScript-first gRPC with the same resilience pipeline — no `.proto` files required:
+
+```typescript
+import { defineService, unary, serverStream, createGrpcClient, GrpcError } from 'super-http/grpc'
+
+// Define the service contract in pure TypeScript
+const UserServiceDef = defineService('UserService', {
+  getUser:   unary<{ id: string }, User>(),
+  listUsers: serverStream<{ active?: boolean }, User>(),
+})
+
+// Create a fully resilient client — circuit breaker + retry x3 + bulkhead
+const users = createGrpcClient(UserServiceDef, 'grpcs://user-service:443', {
+  preset: 'resilient-api',
+  headers: { 'x-api-key': process.env.API_KEY! },
+})
+
+// Unary call — fully typed, resilience pipeline active
+const user = await users.getUser({ id: '42' })
+
+// Server streaming — native AsyncIterable, HTTP/2 backpressure
+for await (const u of users.listUsers({ active: true })) {
+  await processUser(u)
+}
+
+// Error handling — typed by gRPC status code
+try {
+  await users.getUser({ id: 'missing' })
+} catch (err) {
+  if (err instanceof GrpcError && err.code === 'not_found') return null
+}
+```
+
+> **NestJS**: use `SuperHttpModule.forFeature([{ grpc: true, name: 'USER_SVC', address: ..., service: UserServiceDef }])` and inject with `@InjectSuperHttp('USER_SVC')`.
+> See the [full gRPC guide →](https://jhonesgoncalves.github.io/super-http-ts/guide/grpc)
+
+---
+
 ## Features
 
 | Feature | Method | Description |
@@ -121,6 +162,7 @@ const { p99Latency, circuitBreakerTrips } = api.metrics()
 | **Lifecycle hooks** | `.on({ onRequest, onResponse, onError })` | Logging, tracing |
 | **Plugins** | `.use(plugin)` | LoggerPlugin, MetricsReporter, custom |
 | **Per-request policy** | `{ policy: { retry, fallback, timeout } }` | Override per endpoint |
+| **gRPC (new in 1.4)** | `createGrpcClient(def, address)` | TypeScript-first, no `.proto` files, same resilience pipeline |
 
 ---
 
@@ -129,6 +171,7 @@ const { p99Latency, circuitBreakerTrips } = api.metrics()
 | | |
 |---|---|
 | 🚀 [Getting started](https://jhonesgoncalves.github.io/super-http-ts/guide/getting-started) | Up and running in 2 minutes |
+| 📡 [gRPC Support](https://jhonesgoncalves.github.io/super-http-ts/guide/grpc) | TypeScript-first gRPC — no .proto files |
 | 🤔 [Why super-http?](https://jhonesgoncalves.github.io/super-http-ts/guide/why) | Comparison with axios, undici, got |
 | 🔀 [Migrating from Axios](https://jhonesgoncalves.github.io/super-http-ts/guide/migration) | Drop-in upgrade guide |
 | 🎛️ [Presets](https://jhonesgoncalves.github.io/super-http-ts/guide/presets) | high-throughput · resilient-api · low-latency |

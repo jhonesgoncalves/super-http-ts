@@ -32,7 +32,7 @@ export default withMermaid(defineConfig({
       { text: 'API', link: '/api/' },
       { text: 'Benchmarks', link: '/guide/benchmarks' },
       {
-        text: '1.3.0',
+        text: '1.4.0',
         items: [
           { text: 'Changelog', link: 'https://github.com/jhonesgoncalves/super-http-ts/blob/main/CHANGELOG.md' },
           { text: 'Contributing', link: 'https://github.com/jhonesgoncalves/super-http-ts/blob/main/CONTRIBUTING.md' },
@@ -76,6 +76,7 @@ export default withMermaid(defineConfig({
           items: [
             { text: 'NestJS', link: '/guide/nestjs' },
             { text: 'NestJS Example App', link: '/guide/nestjs-example' },
+            { text: 'gRPC', link: '/guide/grpc' },
           ],
         },
         {
