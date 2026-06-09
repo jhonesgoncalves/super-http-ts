@@ -13,7 +13,7 @@
     <img alt="npm version" src="https://img.shields.io/npm/v/super-http?style=flat&color=0ea5e9" />
   </a>
   <a href="https://www.npmjs.com/package/super-http">
-    <img alt="npm downloads" src="https://img.shields.io/npm/dw/super-http?style=flat&color=0ea5e9" />
+    <img alt="npm downloads" src="https://img.shields.io/npm/dt/super-http?style=flat&color=0ea5e9&label=downloads" />
   </a>
   <a href="https://codecov.io/gh/jhonesgoncalves/super-http-ts">
     <img alt="Coverage" src="https://codecov.io/gh/jhonesgoncalves/super-http-ts/branch/main/graph/badge.svg" />
