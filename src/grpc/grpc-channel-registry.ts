@@ -11,8 +11,8 @@ import * as http2 from 'http2';
  */
 export function resolveOrigin(address: string): string {
   if (address.startsWith('grpcs://')) return 'https://' + address.slice(8);
-  if (address.startsWith('grpc://'))  return 'http://'  + address.slice(7);
-  if (address.startsWith('http'))     return address;
+  if (address.startsWith('grpc://')) return 'http://' + address.slice(7);
+  if (address.startsWith('http')) return address;
   return 'http://' + address;
 }
 

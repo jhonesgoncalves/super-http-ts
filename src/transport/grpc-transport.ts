@@ -86,9 +86,9 @@ function httpStatusToGrpcCode(status: number): GrpcCode {
 // ─── Content-Type resolution ──────────────────────────────────────────────────
 
 function resolveContentType(encoding: GrpcEncoding, protocol: GrpcProtocol): string {
-  if (protocol === 'grpc')     return encoding === 'proto' ? 'application/grpc'        : 'application/grpc+json';
-  if (protocol === 'grpc-web') return encoding === 'proto' ? 'application/grpc-web'     : 'application/grpc-web+json';
-  /* connect (default) */      return encoding === 'proto' ? 'application/connect+proto': 'application/connect+json';
+  if (protocol === 'grpc') return encoding === 'proto' ? 'application/grpc' : 'application/grpc+json';
+  if (protocol === 'grpc-web') return encoding === 'proto' ? 'application/grpc-web' : 'application/grpc-web+json';
+  /* connect (default) */ return encoding === 'proto' ? 'application/connect+proto' : 'application/connect+json';
 }
 
 // ─── GrpcTransport ────────────────────────────────────────────────────────────
@@ -119,12 +119,12 @@ export class GrpcTransport implements Transport {
   private readonly maxSessions: number;
 
   constructor(opts: GrpcTransportOptions) {
-    this.origin         = resolveOrigin(opts.address);
-    this.encoding       = opts.encoding       ?? 'json';
-    this.protocol       = opts.protocol       ?? 'connect';
+    this.origin = resolveOrigin(opts.address);
+    this.encoding = opts.encoding ?? 'json';
+    this.protocol = opts.protocol ?? 'connect';
     this.defaultHeaders = opts.defaultHeaders ?? {};
     this.defaultTimeoutMs = opts.defaultTimeoutMs ?? 15_000;
-    this.maxSessions    = opts.maxSessions    ?? 2;
+    this.maxSessions = opts.maxSessions ?? 2;
   }
 
   // ─── Unary ─────────────────────────────────────────────────────────────────
@@ -138,7 +138,7 @@ export class GrpcTransport implements Transport {
       const session = GrpcChannelRegistry.getSession(this.origin, this.maxSessions);
       const req = session.request({
         ':method': 'POST',
-        ':path':   path,
+        ':path': path,
         ...headers,
         'content-length': String(body.length),
       });
@@ -226,7 +226,7 @@ export class GrpcTransport implements Transport {
 
     const req = session.request({
       ':method': 'POST',
-      ':path':   path,
+      ':path': path,
       ...headers,
       'content-length': String(body.length),
     });
@@ -242,9 +242,15 @@ export class GrpcTransport implements Transport {
       push({ type: 'error', error: new GrpcError('canceled', 'gRPC stream was canceled') });
     });
 
-    req.on('data',  (chunk: Buffer) => push({ type: 'data', chunk }));
-    req.on('end',   () => { clearTimeout(timer); push({ type: 'end' }); });
-    req.on('error', (err) => { clearTimeout(timer); push({ type: 'error', error: err }); });
+    req.on('data', (chunk: Buffer) => push({ type: 'data', chunk }));
+    req.on('end', () => {
+      clearTimeout(timer);
+      push({ type: 'end' });
+    });
+    req.on('error', (err) => {
+      clearTimeout(timer);
+      push({ type: 'error', error: err });
+    });
 
     req.write(body);
     req.end();
@@ -289,7 +295,9 @@ export class GrpcTransport implements Transport {
 
       // Wait for more data if not done
       if (!done && queue.length === 0) {
-        await new Promise<void>((r) => { resolve = r; });
+        await new Promise<void>((r) => {
+          resolve = r;
+        });
         resolve = null;
       }
     }
@@ -297,23 +305,22 @@ export class GrpcTransport implements Transport {
 
   // ─── Client streaming ──────────────────────────────────────────────────────
 
-  async clientStream<TReq, TRes>(
-    stream: AsyncIterable<TReq>,
-    meta: TransportMeta,
-  ): Promise<TransportResponse<TRes>> {
+  async clientStream<TReq, TRes>(stream: AsyncIterable<TReq>, meta: TransportMeta): Promise<TransportResponse<TRes>> {
     const { path, headers } = this.buildRequestMeta(meta);
 
     const session = GrpcChannelRegistry.getSession(this.origin, this.maxSessions);
     const req = session.request({
       ':method': 'POST',
-      ':path':   path,
+      ':path': path,
       ...headers,
     });
 
     const chunks: Buffer[] = [];
     let statusCode = 200;
 
-    req.on(':response', (h) => { statusCode = Number(h[':status'] ?? 200); });
+    req.on(':response', (h) => {
+      statusCode = Number(h[':status'] ?? 200);
+    });
     req.on('data', (c: Buffer) => chunks.push(c));
 
     const responsePromise = new Promise<TransportResponse<TRes>>((resolve, reject) => {
@@ -343,17 +350,14 @@ export class GrpcTransport implements Transport {
 
   // ─── Bidi streaming ────────────────────────────────────────────────────────
 
-  async *bidiStream<TReq, TRes>(
-    stream: AsyncIterable<TReq>,
-    meta: TransportMeta,
-  ): AsyncIterable<TRes> {
+  async *bidiStream<TReq, TRes>(stream: AsyncIterable<TReq>, meta: TransportMeta): AsyncIterable<TRes> {
     const { path, headers } = this.buildRequestMeta(meta);
     const session = GrpcChannelRegistry.getSession(this.origin, this.maxSessions);
 
     // Use ONE HTTP/2 stream for both sending and receiving.
     const req = session.request({
       ':method': 'POST',
-      ':path':   path,
+      ':path': path,
       ...headers,
     });
 
@@ -375,8 +379,8 @@ export class GrpcTransport implements Transport {
       notify?.();
     }
 
-    req.on('data',  (chunk: Buffer) => push({ type: 'data', chunk }));
-    req.on('end',   () => push({ type: 'end' }));
+    req.on('data', (chunk: Buffer) => push({ type: 'data', chunk }));
+    req.on('end', () => push({ type: 'end' }));
     req.on('error', (err) => push({ type: 'error', error: err }));
 
     let remaining = Buffer.alloc(0);
@@ -387,7 +391,10 @@ export class GrpcTransport implements Transport {
         while (queue.length > 0) {
           const event = queue.shift()!;
           if (event.type === 'error') throw event.error;
-          if (event.type === 'end') { done = true; break; }
+          if (event.type === 'end') {
+            done = true;
+            break;
+          }
 
           remaining = Buffer.concat([remaining, event.chunk]);
           const { envelopes, remaining: leftover } = parseEnvelopes(remaining);
@@ -408,7 +415,9 @@ export class GrpcTransport implements Transport {
         }
 
         if (!done && queue.length === 0) {
-          await new Promise<void>((r) => { notify = r; });
+          await new Promise<void>((r) => {
+            notify = r;
+          });
           notify = null;
         }
       }

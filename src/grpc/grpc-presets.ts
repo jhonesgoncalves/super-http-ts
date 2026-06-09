@@ -24,12 +24,12 @@ const GRPC_PRESETS: Record<string, GrpcPreset> = {
    * - No bulkhead (let HTTP/2 flow control handle backpressure)
    */
   'high-throughput': {
-    maxSessions:  4,
-    timeoutMs:    8_000,
-    retries:      1,
+    maxSessions: 4,
+    timeoutMs: 8_000,
+    retries: 1,
     retryStrategy: new ExponentialJitterRetryStrategy(50, 500),
-    encoding:     'json',
-    protocol:     'connect',
+    encoding: 'json',
+    protocol: 'connect',
   },
 
   /**
@@ -42,18 +42,18 @@ const GRPC_PRESETS: Record<string, GrpcPreset> = {
    * - Bulkhead (50 concurrent RPCs, 200 queued)
    */
   'resilient-api': {
-    maxSessions:  2,
-    timeoutMs:    15_000,
-    retries:      3,
+    maxSessions: 2,
+    timeoutMs: 15_000,
+    retries: 3,
     retryStrategy: new ExponentialJitterRetryStrategy(100, 10_000),
     circuitBreaker: {
       failureThreshold: 10,
-      successThreshold:  3,
-      timeoutMs:        10_000,
+      successThreshold: 3,
+      timeoutMs: 10_000,
     },
     bulkhead: {
       maxConcurrent: 50,
-      maxQueue:      200,
+      maxQueue: 200,
     },
     encoding: 'json',
     protocol: 'connect',
@@ -70,9 +70,9 @@ const GRPC_PRESETS: Record<string, GrpcPreset> = {
    */
   'low-latency': {
     maxSessions: 4,
-    timeoutMs:   2_000,
-    encoding:    'json',
-    protocol:    'connect',
+    timeoutMs: 2_000,
+    encoding: 'json',
+    protocol: 'connect',
   },
 };
 

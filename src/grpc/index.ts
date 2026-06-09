@@ -24,13 +24,7 @@
  */
 
 // ─── Service definition DSL ───────────────────────────────────────────────────
-export {
-  defineService,
-  unary,
-  serverStream,
-  clientStream,
-  bidi,
-} from './service-definition';
+export { defineService, unary, serverStream, clientStream, bidi } from './service-definition';
 
 export type {
   ServiceDefinition,
@@ -50,12 +44,7 @@ export { createGrpcClient } from './grpc-client';
 export type { GrpcClient, GrpcClientManagement } from './grpc-client';
 
 // ─── Configuration types ──────────────────────────────────────────────────────
-export type {
-  GrpcClientConfig,
-  GrpcCallOptions,
-  GrpcEncoding,
-  GrpcProtocol,
-} from '../models/grpc.client.config';
+export type { GrpcClientConfig, GrpcCallOptions, GrpcEncoding, GrpcProtocol } from '../models/grpc.client.config';
 
 // ─── Error types ──────────────────────────────────────────────────────────────
 export { GrpcError, getDecision, isGrpcRetryable, shouldTripCircuit } from './grpc-error-mapper';

@@ -1,6 +1,6 @@
 {
   "name": "super-http",
-  "version": "1.4.2",
+  "version": "1.4.3",
   "description": "A resilient HTTP client built on top of Axios — circuit breaker, connection pooling, keep-alive and smart retry",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

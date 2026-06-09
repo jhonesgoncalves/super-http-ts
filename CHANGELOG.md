@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.4.3] — 2026-06-09
+
+### Changed
+
+- **README badges** — replaced `npm/dw` (weekly downloads) with `npm/dt` (total downloads) to avoid the badge showing `0/week` when all downloads fall within the current incomplete calendar week.
+
+---
+
 ## [1.4.2] — 2026-06-08
 
 ### Fixed

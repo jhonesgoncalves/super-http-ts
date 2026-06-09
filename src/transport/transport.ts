@@ -59,18 +59,12 @@ export interface Transport {
   /**
    * Client-streaming RPC — stream of requests, single response.
    */
-  clientStream<TReq, TRes>(
-    stream: AsyncIterable<TReq>,
-    meta: TransportMeta,
-  ): Promise<TransportResponse<TRes>>;
+  clientStream<TReq, TRes>(stream: AsyncIterable<TReq>, meta: TransportMeta): Promise<TransportResponse<TRes>>;
 
   /**
    * Bidirectional-streaming RPC — stream of requests, stream of responses.
    */
-  bidiStream<TReq, TRes>(
-    stream: AsyncIterable<TReq>,
-    meta: TransportMeta,
-  ): AsyncIterable<TRes>;
+  bidiStream<TReq, TRes>(stream: AsyncIterable<TReq>, meta: TransportMeta): AsyncIterable<TRes>;
 
   /**
    * Gracefully closes the underlying connection(s).

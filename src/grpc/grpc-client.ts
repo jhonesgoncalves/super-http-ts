@@ -51,8 +51,8 @@ import { isGrpcRetryable } from './grpc-error-mapper';
  * Management methods (`.metrics()`, `.close()`, `.on()`) are available
  * alongside the generated RPC methods.
  */
-export type GrpcClient<TDef extends ServiceDefinition<ServiceMethods>> =
-  GrpcClientAPI<TDef['methods']> & GrpcClientManagement;
+export type GrpcClient<TDef extends ServiceDefinition<ServiceMethods>> = GrpcClientAPI<TDef['methods']> &
+  GrpcClientManagement;
 
 /** Management methods available on every GrpcClient instance. */
 export interface GrpcClientManagement {
@@ -90,11 +90,11 @@ class GrpcClientImpl {
 
     this.transport = new GrpcTransport({
       address,
-      encoding:        this.config.encoding,
-      protocol:        this.config.protocol,
-      defaultHeaders:  this.config.headers,
+      encoding: this.config.encoding,
+      protocol: this.config.protocol,
+      defaultHeaders: this.config.headers,
       defaultTimeoutMs: this.config.timeoutMs,
-      maxSessions:     this.config.maxSessions,
+      maxSessions: this.config.maxSessions,
     });
 
     // Wire resilience components
@@ -140,11 +140,7 @@ class GrpcClientImpl {
 
   // ─── Unary call ──────────────────────────────────────────────────────────────
 
-  async callUnary<TReq, TRes>(
-    methodName: string,
-    request: TReq,
-    opts: GrpcCallOptions = {},
-  ): Promise<TRes> {
+  async callUnary<TReq, TRes>(methodName: string, request: TReq, opts: GrpcCallOptions = {}): Promise<TRes> {
     const dedupKey = this.dedupInstance
       ? `${this.definition.serviceName}:${methodName}:${JSON.stringify(request)}`
       : undefined;
@@ -154,14 +150,16 @@ class GrpcClientImpl {
 
     const core = (): Promise<TRes> => {
       let fn = (): Promise<TRes> =>
-        this.transport.call<TReq, TRes>({
-          service:   this.definition.serviceName,
-          method:    methodName,
-          input:     request,
-          metadata:  opts.metadata,
-          timeoutMs: opts.timeoutMs,
-          signal:    opts.signal,
-        }).then((r) => r.data);
+        this.transport
+          .call<TReq, TRes>({
+            service: this.definition.serviceName,
+            method: methodName,
+            input: request,
+            metadata: opts.metadata,
+            timeoutMs: opts.timeoutMs,
+            signal: opts.signal,
+          })
+          .then((r) => r.data);
 
       if (this.circuitBreaker) {
         const cb = this.circuitBreaker;
@@ -229,18 +227,22 @@ class GrpcClientImpl {
   ): AsyncIterable<TRes> {
     // Rate limit + bulkhead on stream open
     if (this.rateLimiterInstance) {
-      try { await this.rateLimiterInstance.acquire(); }
-      catch (err) { this._metrics.recordRLReject(); throw err; }
+      try {
+        await this.rateLimiterInstance.acquire();
+      } catch (err) {
+        this._metrics.recordRLReject();
+        throw err;
+      }
     }
 
     const openStream = (): AsyncIterable<TRes> => {
       return this.transport.serverStream<TReq, TRes>({
-        service:   this.definition.serviceName,
-        method:    methodName,
-        input:     request,
-        metadata:  opts.metadata,
+        service: this.definition.serviceName,
+        method: methodName,
+        input: request,
+        metadata: opts.metadata,
         timeoutMs: opts.timeoutMs,
-        signal:    opts.signal,
+        signal: opts.signal,
       });
     };
 
@@ -263,11 +265,12 @@ class GrpcClientImpl {
       // Try to acquire a slot — throws if queue is full
       let acquired = false;
       try {
-        await bh.execute(async () => { acquired = true; });
+        await bh.execute(async () => {
+          acquired = true;
+        });
       } catch (err) {
         const isBHReject =
-          err instanceof Error &&
-          (err.message === 'Bulkhead queue full' || err.message === 'Bulkhead queue timeout');
+          err instanceof Error && (err.message === 'Bulkhead queue full' || err.message === 'Bulkhead queue timeout');
         if (isBHReject) this._metrics.recordBHReject();
         throw err;
       }
@@ -300,11 +303,11 @@ class GrpcClientImpl {
 
     try {
       const result = await this.transport.clientStream<TReq, TRes>(requestStream, {
-        service:   this.definition.serviceName,
-        method:    methodName,
-        metadata:  opts.metadata,
+        service: this.definition.serviceName,
+        method: methodName,
+        metadata: opts.metadata,
         timeoutMs: opts.timeoutMs,
-        signal:    opts.signal,
+        signal: opts.signal,
       });
       this._metrics.recordSuccess(Date.now() - t0);
       return result.data;
@@ -326,11 +329,11 @@ class GrpcClientImpl {
 
     try {
       yield* this.transport.bidiStream<TReq, TRes>(requestStream, {
-        service:   this.definition.serviceName,
-        method:    methodName,
-        metadata:  opts.metadata,
+        service: this.definition.serviceName,
+        method: methodName,
+        metadata: opts.metadata,
         timeoutMs: opts.timeoutMs,
-        signal:    opts.signal,
+        signal: opts.signal,
       });
       this._metrics.recordSuccess(Date.now() - t0);
     } catch (err) {
@@ -369,7 +372,11 @@ class GrpcClientImpl {
   }
 
   private safeCall(fn: () => void): void {
-    try { fn(); } catch { /* never affect call path */ }
+    try {
+      fn();
+    } catch {
+      /* never affect call path */
+    }
   }
 }
 
@@ -417,13 +424,22 @@ export function createGrpcClient<TDef extends ServiceDefinition<ServiceMethods>>
       // defined" error.
       const FRAMEWORK_PROPS = new Set<string | symbol>([
         // Promise / thenable detection (await, Promise.resolve, etc.)
-        'then', 'catch', 'finally',
+        'then',
+        'catch',
+        'finally',
         // NestJS lifecycle hooks
-        'onModuleInit', 'onModuleDestroy', 'onApplicationBootstrap',
-        'onApplicationShutdown', 'beforeApplicationShutdown',
+        'onModuleInit',
+        'onModuleDestroy',
+        'onApplicationBootstrap',
+        'onApplicationShutdown',
+        'beforeApplicationShutdown',
         // Node.js / util.inspect / JSON
-        'toJSON', 'toObject', 'inspect',
-        Symbol.toPrimitive, Symbol.iterator, Symbol.asyncIterator,
+        'toJSON',
+        'toObject',
+        'inspect',
+        Symbol.toPrimitive,
+        Symbol.iterator,
+        Symbol.asyncIterator,
         Symbol.toStringTag,
       ]);
       if (FRAMEWORK_PROPS.has(prop)) return undefined;
@@ -439,20 +455,17 @@ export function createGrpcClient<TDef extends ServiceDefinition<ServiceMethods>>
 
       switch (descriptor.callType) {
         case 'unary':
-          return (request: unknown, opts?: GrpcCallOptions) =>
-            target.callUnary(prop, request, opts);
+          return (request: unknown, opts?: GrpcCallOptions) => target.callUnary(prop, request, opts);
 
         case 'server-stream':
-          return (request: unknown, opts?: GrpcCallOptions) =>
-            target.callServerStream(prop, request, opts);
+          return (request: unknown, opts?: GrpcCallOptions) => target.callServerStream(prop, request, opts);
 
         case 'client-stream':
           return (stream: AsyncIterable<unknown>, opts?: GrpcCallOptions) =>
             target.callClientStream(prop, stream, opts);
 
         case 'bidi-stream':
-          return (stream: AsyncIterable<unknown>, opts?: GrpcCallOptions) =>
-            target.callBidiStream(prop, stream, opts);
+          return (stream: AsyncIterable<unknown>, opts?: GrpcCallOptions) => target.callBidiStream(prop, stream, opts);
 
         default:
           throw new Error(`[GrpcClient] Unknown call type for method '${String(prop)}'`);

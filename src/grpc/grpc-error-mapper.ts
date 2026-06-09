@@ -44,22 +44,22 @@ export interface GrpcErrorDecision {
 }
 
 const DECISIONS: Record<GrpcCode, GrpcErrorDecision> = {
-  canceled:           { retryable: false, tripCircuit: false },
-  unknown:            { retryable: true,  tripCircuit: true  },
-  invalid_argument:   { retryable: false, tripCircuit: false },
-  deadline_exceeded:  { retryable: true,  tripCircuit: true  },
-  not_found:          { retryable: false, tripCircuit: false },
-  already_exists:     { retryable: false, tripCircuit: false },
-  permission_denied:  { retryable: false, tripCircuit: false },
-  resource_exhausted: { retryable: true,  tripCircuit: false }, // backpressure — retry after delay
-  failed_precondition:{ retryable: false, tripCircuit: false },
-  aborted:            { retryable: true,  tripCircuit: false }, // optimistic-lock conflict — retry ok
-  out_of_range:       { retryable: false, tripCircuit: false },
-  unimplemented:      { retryable: false, tripCircuit: false },
-  internal:           { retryable: false, tripCircuit: true  }, // server bug — trip, don't retry
-  unavailable:        { retryable: true,  tripCircuit: true  }, // service down — retry AND trip
-  data_loss:          { retryable: false, tripCircuit: true  },
-  unauthenticated:    { retryable: false, tripCircuit: false },
+  canceled: { retryable: false, tripCircuit: false },
+  unknown: { retryable: true, tripCircuit: true },
+  invalid_argument: { retryable: false, tripCircuit: false },
+  deadline_exceeded: { retryable: true, tripCircuit: true },
+  not_found: { retryable: false, tripCircuit: false },
+  already_exists: { retryable: false, tripCircuit: false },
+  permission_denied: { retryable: false, tripCircuit: false },
+  resource_exhausted: { retryable: true, tripCircuit: false }, // backpressure — retry after delay
+  failed_precondition: { retryable: false, tripCircuit: false },
+  aborted: { retryable: true, tripCircuit: false }, // optimistic-lock conflict — retry ok
+  out_of_range: { retryable: false, tripCircuit: false },
+  unimplemented: { retryable: false, tripCircuit: false },
+  internal: { retryable: false, tripCircuit: true }, // server bug — trip, don't retry
+  unavailable: { retryable: true, tripCircuit: true }, // service down — retry AND trip
+  data_loss: { retryable: false, tripCircuit: true },
+  unauthenticated: { retryable: false, tripCircuit: false },
 };
 
 /**

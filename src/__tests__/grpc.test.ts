@@ -8,12 +8,7 @@
 
 import { defineService, unary, serverStream, clientStream, bidi } from '../grpc/service-definition';
 import { createGrpcClient } from '../grpc/grpc-client';
-import {
-  GrpcError,
-  getDecision,
-  isGrpcRetryable,
-  shouldTripCircuit,
-} from '../grpc/grpc-error-mapper';
+import { GrpcError, getDecision, isGrpcRetryable, shouldTripCircuit } from '../grpc/grpc-error-mapper';
 import { applyGrpcPreset } from '../grpc/grpc-presets';
 import { GrpcTransport } from '../transport/grpc-transport';
 
@@ -42,18 +37,31 @@ jest.mock('../grpc/grpc-channel-registry', () => {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-interface User { id: string; name: string }
-interface GetUserRequest { id: string }
-interface ListFilter { active?: boolean }
-interface LogEntry { message: string }
-interface UploadSummary { count: number }
-interface ChatMessage { text: string }
+interface User {
+  id: string;
+  name: string;
+}
+interface GetUserRequest {
+  id: string;
+}
+interface ListFilter {
+  active?: boolean;
+}
+interface LogEntry {
+  message: string;
+}
+interface UploadSummary {
+  count: number;
+}
+interface ChatMessage {
+  text: string;
+}
 
 const UserServiceDef = defineService('UserService', {
-  getUser:    unary<GetUserRequest, User>(),
-  listUsers:  serverStream<ListFilter, User>(),
+  getUser: unary<GetUserRequest, User>(),
+  listUsers: serverStream<ListFilter, User>(),
   uploadLogs: clientStream<LogEntry, UploadSummary>(),
-  chat:       bidi<ChatMessage, ChatMessage>(),
+  chat: bidi<ChatMessage, ChatMessage>(),
 });
 
 // ─── Service Definition DSL ───────────────────────────────────────────────────
@@ -204,8 +212,8 @@ describe('applyGrpcPreset', () => {
 
   it('explicit fields override preset', () => {
     const cfg = applyGrpcPreset({ preset: 'resilient-api', timeoutMs: 1000 });
-    expect(cfg.timeoutMs).toBe(1000);      // explicit wins
-    expect(cfg.retries).toBe(3);           // preset default kept
+    expect(cfg.timeoutMs).toBe(1000); // explicit wins
+    expect(cfg.retries).toBe(3); // preset default kept
   });
 
   it('unknown preset returns config unchanged', () => {
@@ -218,8 +226,9 @@ describe('applyGrpcPreset', () => {
 
 describe('resolveOrigin', () => {
   // Import the real function (not mocked)
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const { resolveOrigin: resolve } = require('../grpc/grpc-channel-registry') as typeof import('../grpc/grpc-channel-registry');
+  const { resolveOrigin: resolve } =
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    require('../grpc/grpc-channel-registry') as typeof import('../grpc/grpc-channel-registry');
 
   it('converts grpc:// to http://', () => {
     expect(resolve('grpc://host:50051')).toBe('http://host:50051');
@@ -251,10 +260,10 @@ describe('createGrpcClient — proxy dispatch', () => {
   let mockTransportBidiStream: jest.Mock;
 
   beforeEach(() => {
-    mockTransportCall         = jest.fn();
+    mockTransportCall = jest.fn();
     mockTransportServerStream = jest.fn();
     mockTransportClientStream = jest.fn();
-    mockTransportBidiStream   = jest.fn();
+    mockTransportBidiStream = jest.fn();
 
     jest.spyOn(GrpcTransport.prototype, 'call').mockImplementation(mockTransportCall);
     jest.spyOn(GrpcTransport.prototype, 'serverStream').mockImplementation(mockTransportServerStream);
@@ -278,7 +287,9 @@ describe('createGrpcClient — proxy dispatch', () => {
   });
 
   it('routes server-stream call to transport.serverStream()', async () => {
-    async function* gen() { yield { id: '1', name: 'Ana' }; }
+    async function* gen() {
+      yield { id: '1', name: 'Ana' };
+    }
     mockTransportServerStream.mockReturnValue(gen());
 
     const client = createGrpcClient(UserServiceDef, 'grpc://localhost:50051');
@@ -286,16 +297,18 @@ describe('createGrpcClient — proxy dispatch', () => {
     for await (const u of client.listUsers({ active: true })) results.push(u);
 
     expect(results).toEqual([{ id: '1', name: 'Ana' }]);
-    expect(mockTransportServerStream).toHaveBeenCalledWith(
-      expect.objectContaining({ method: 'listUsers' }),
-    );
+    expect(mockTransportServerStream).toHaveBeenCalledWith(expect.objectContaining({ method: 'listUsers' }));
   });
 
   it('routes client-stream call to transport.clientStream()', async () => {
     mockTransportClientStream.mockResolvedValue({ data: { count: 3 }, transportType: 'grpc' });
 
     const client = createGrpcClient(UserServiceDef, 'grpc://localhost:50051');
-    async function* logs() { yield { message: 'a' }; yield { message: 'b' }; yield { message: 'c' }; }
+    async function* logs() {
+      yield { message: 'a' };
+      yield { message: 'b' };
+      yield { message: 'c' };
+    }
     const summary = await client.uploadLogs(logs());
 
     expect(summary).toEqual({ count: 3 });
@@ -306,11 +319,15 @@ describe('createGrpcClient — proxy dispatch', () => {
   });
 
   it('routes bidi-stream call to transport.bidiStream()', async () => {
-    async function* replies() { yield { text: 'hello' }; }
+    async function* replies() {
+      yield { text: 'hello' };
+    }
     mockTransportBidiStream.mockReturnValue(replies());
 
     const client = createGrpcClient(UserServiceDef, 'grpc://localhost:50051');
-    async function* msgs() { yield { text: 'hi' }; }
+    async function* msgs() {
+      yield { text: 'hi' };
+    }
     const results: ChatMessage[] = [];
     for await (const m of client.chat(msgs())) results.push(m);
 
@@ -356,9 +373,7 @@ describe('createGrpcClient — metrics', () => {
   });
 
   it('records failure on transport error', async () => {
-    jest.spyOn(GrpcTransport.prototype, 'call').mockRejectedValue(
-      new GrpcError('unavailable', 'service down'),
-    );
+    jest.spyOn(GrpcTransport.prototype, 'call').mockRejectedValue(new GrpcError('unavailable', 'service down'));
 
     const client = createGrpcClient(UserServiceDef, 'grpc://localhost:50051');
     await expect(client.getUser({ id: '1' })).rejects.toThrow('service down');
@@ -388,7 +403,8 @@ describe('createGrpcClient — retry', () => {
   afterEach(() => jest.restoreAllMocks());
 
   it('retries on retryable error and succeeds on 2nd attempt', async () => {
-    const callMock = jest.fn()
+    const callMock = jest
+      .fn()
       .mockRejectedValueOnce(new GrpcError('unavailable', 'down'))
       .mockResolvedValueOnce({ data: { id: '1', name: 'Ana' }, transportType: 'grpc' });
 
@@ -422,8 +438,10 @@ describe('createGrpcClient — retry', () => {
 
     const client = createGrpcClient(UserServiceDef, 'grpc://localhost:50051', { retries: 3 });
     await expect(
-      (client as unknown as { getUser: (r: unknown, o: unknown) => Promise<unknown> })
-        .getUser({ id: '1' }, { retry: false }),
+      (client as unknown as { getUser: (r: unknown, o: unknown) => Promise<unknown> }).getUser(
+        { id: '1' },
+        { retry: false },
+      ),
     ).rejects.toThrow('down');
     expect(callMock).toHaveBeenCalledTimes(1); // no retry because retry:false
   });
@@ -433,9 +451,7 @@ describe('createGrpcClient — circuit breaker', () => {
   afterEach(() => jest.restoreAllMocks());
 
   it('opens circuit after failureThreshold failures', async () => {
-    jest.spyOn(GrpcTransport.prototype, 'call').mockRejectedValue(
-      new GrpcError('internal', 'server error'),
-    );
+    jest.spyOn(GrpcTransport.prototype, 'call').mockRejectedValue(new GrpcError('internal', 'server error'));
 
     const client = createGrpcClient(UserServiceDef, 'grpc://localhost:50051', {
       circuitBreaker: { failureThreshold: 3, successThreshold: 1, timeoutMs: 60_000 },
@@ -457,7 +473,8 @@ describe('createGrpcClient — on() hooks', () => {
 
   it('fires onRetry hook on retry', async () => {
     const onRetry = jest.fn();
-    jest.spyOn(GrpcTransport.prototype, 'call')
+    jest
+      .spyOn(GrpcTransport.prototype, 'call')
       .mockRejectedValueOnce(new GrpcError('unavailable', 'down'))
       .mockResolvedValueOnce({ data: { id: '1', name: 'X' }, transportType: 'grpc' });
 
@@ -493,9 +510,11 @@ describe('createGrpcClient — bulkhead', () => {
 
   it('records BH reject when bulkhead is full', async () => {
     // Saturate bulkhead with concurrent calls and then reject one
-    jest.spyOn(GrpcTransport.prototype, 'call').mockImplementation(
-      () => new Promise((_, reject) => setTimeout(() => reject(new Error('Bulkhead queue full')), 10)),
-    );
+    jest
+      .spyOn(GrpcTransport.prototype, 'call')
+      .mockImplementation(
+        () => new Promise((_, reject) => setTimeout(() => reject(new Error('Bulkhead queue full')), 10)),
+      );
 
     const client = createGrpcClient(UserServiceDef, 'grpc://localhost:50051', {
       bulkhead: { maxConcurrent: 1, maxQueue: 0 },
@@ -535,7 +554,9 @@ describe('createGrpcClient — server streaming resilience', () => {
   afterEach(() => jest.restoreAllMocks());
 
   it('passes through rate limiter before opening stream', async () => {
-    async function* gen() { yield { id: '1', name: 'X' }; }
+    async function* gen() {
+      yield { id: '1', name: 'X' };
+    }
     jest.spyOn(GrpcTransport.prototype, 'serverStream').mockReturnValue(gen());
 
     const client = createGrpcClient(UserServiceDef, 'grpc://localhost:50051', {
@@ -548,7 +569,9 @@ describe('createGrpcClient — server streaming resilience', () => {
   });
 
   it('applies circuit breaker to stream open', async () => {
-    async function* gen() { yield { id: '1', name: 'X' }; }
+    async function* gen() {
+      yield { id: '1', name: 'X' };
+    }
     jest.spyOn(GrpcTransport.prototype, 'serverStream').mockReturnValue(gen());
 
     const client = createGrpcClient(UserServiceDef, 'grpc://localhost:50051', {
@@ -562,14 +585,18 @@ describe('createGrpcClient — server streaming resilience', () => {
 
   it('records failure when stream throws', async () => {
     // eslint-disable-next-line require-yield
-    async function* failing(): AsyncGenerator<User> { throw new GrpcError('internal', 'stream error'); }
+    async function* failing(): AsyncGenerator<User> {
+      throw new GrpcError('internal', 'stream error');
+    }
     jest.spyOn(GrpcTransport.prototype, 'serverStream').mockReturnValue(failing());
 
     const client = createGrpcClient(UserServiceDef, 'grpc://localhost:50051');
 
     await expect(async () => {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      for await (const _msg of client.listUsers({})) { /* consume */ }
+      for await (const _msg of client.listUsers({})) {
+        /* consume */
+      }
     }).rejects.toThrow('stream error');
 
     expect(client.metrics().failed).toBe(1);
@@ -582,12 +609,12 @@ describe('createGrpcClient — client streaming failure', () => {
   afterEach(() => jest.restoreAllMocks());
 
   it('records failure on clientStream error', async () => {
-    jest.spyOn(GrpcTransport.prototype, 'clientStream').mockRejectedValue(
-      new GrpcError('unavailable', 'down'),
-    );
+    jest.spyOn(GrpcTransport.prototype, 'clientStream').mockRejectedValue(new GrpcError('unavailable', 'down'));
 
     const client = createGrpcClient(UserServiceDef, 'grpc://localhost:50051');
-    async function* logs() { yield { message: 'x' }; }
+    async function* logs() {
+      yield { message: 'x' };
+    }
 
     await expect(client.uploadLogs(logs())).rejects.toThrow('down');
     expect(client.metrics().failed).toBe(1);
@@ -599,15 +626,21 @@ describe('createGrpcClient — bidi streaming failure', () => {
 
   it('records failure on bidiStream error', async () => {
     // eslint-disable-next-line require-yield
-    async function* failing(): AsyncGenerator<ChatMessage> { throw new GrpcError('internal', 'bidi error'); }
+    async function* failing(): AsyncGenerator<ChatMessage> {
+      throw new GrpcError('internal', 'bidi error');
+    }
     jest.spyOn(GrpcTransport.prototype, 'bidiStream').mockReturnValue(failing());
 
     const client = createGrpcClient(UserServiceDef, 'grpc://localhost:50051');
-    async function* msgs() { yield { text: 'hi' }; }
+    async function* msgs() {
+      yield { text: 'hi' };
+    }
 
     await expect(async () => {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      for await (const _msg of client.chat(msgs())) { /* consume */ }
+      for await (const _msg of client.chat(msgs())) {
+        /* consume */
+      }
     }).rejects.toThrow('bidi error');
 
     expect(client.metrics().failed).toBe(1);
