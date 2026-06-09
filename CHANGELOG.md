@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.4.5] — 2026-06-09
+
+### Fixed
+
+- **`tsconfig.json` — Node.js type definitions** — added `"types": ["node", "jest"]` to resolve `Cannot find name 'https'` and related Node.js built-in errors in the IDE. Specifying `types` explicitly prevents TypeScript from auto-loading unrelated `@types/*` packages while keeping Node.js and Jest globals available.
+
+---
+
 ## [1.4.4] — 2026-06-09
 
 ### Fixed
