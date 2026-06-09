@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.4.7] — 2026-06-09
+
+### Fixed
+
+- **TypeScript project structure — editor vs build tsconfigs** — VSCode uses `tsconfig.json` as the root project reference. Because `__tests__` was in the `exclude` list, test files had no project context and Jest globals (`describe`, `it`, `expect`, `jest`) were unknown. Fixed by splitting into two configs:
+  - `tsconfig.json` — editor config: includes all `src/` (tests included), `noEmit: true`, `types: ["node","jest"]`. Used by VSCode and `ts-jest`.
+  - `tsconfig.build.json` — build config: extends the above, overrides `noEmit: false`, excludes `__tests__/`. Used by `tsc` (`npm run build`).
+
+---
+
 ## [1.4.6] — 2026-06-09
 
 ### Fixed

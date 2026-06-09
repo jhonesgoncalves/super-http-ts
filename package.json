@@ -1,6 +1,6 @@
 {
   "name": "super-http",
-  "version": "1.4.6",
+  "version": "1.4.7",
   "description": "A resilient HTTP client built on top of Axios — circuit breaker, connection pooling, keep-alive and smart retry",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -25,7 +25,7 @@
     "node": ">=20.0.0"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc -p tsconfig.build.json",
     "example": "tsx example/index.ts",
     "example:bench": "tsx example/index.ts --bench",
     "example:scenario": "tsx example/index.ts --scenario",

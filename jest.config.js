@@ -1,6 +1,6 @@
 module.exports = {
   transform: {
-    '^.+\\.(t|j)s$': ['ts-jest', { tsconfig: 'tsconfig.test.json' }],
+    '^.+\\.(t|j)s$': ['ts-jest', { tsconfig: 'tsconfig.json' }],
   },
   testRegex: '(/__tests__/.*|(\\.|/)(test|spec))\\.(t|j)s$',
   testPathIgnorePatterns: ['/node_modules/', '/example/'],
