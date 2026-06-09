@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.4.6] — 2026-06-09
+
+### Fixed
+
+- **`tsconfig.test.json`** — added a dedicated tsconfig for test files that extends the main config, includes `src/__tests__/`, and sets `"noEmit": true`. Pointed `ts-jest` at it so the Jest globals (`describe`, `it`, `expect`) are properly recognised by both the compiler and the VSCode language service. The main `tsconfig.json` continues to exclude test files so they are never emitted to `lib/`.
+
+---
+
 ## [1.4.5] — 2026-06-09
 
 ### Fixed
