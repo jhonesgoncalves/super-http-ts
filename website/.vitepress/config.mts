@@ -58,7 +58,7 @@ export default withMermaid(defineConfig({
       { text: 'Benchmarks', link: '/guide/benchmarks' },
       { text: 'Author', link: '/about' },
       {
-        text: '1.4.3',
+        text: '1.4.4',
         items: [
           { text: 'Changelog', link: 'https://github.com/jhonesgoncalves/super-http-ts/blob/main/CHANGELOG.md' },
           { text: 'Contributing', link: 'https://github.com/jhonesgoncalves/super-http-ts/blob/main/CONTRIBUTING.md' },

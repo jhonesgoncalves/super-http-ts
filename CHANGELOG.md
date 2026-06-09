@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.4.4] — 2026-06-09
+
+### Fixed
+
+- **`tsconfig.json` — lib target** — explicitly set `"lib": ["ES2022", "DOM"]` so the TypeScript language service recognises `Array.prototype.includes` (ES2016+) and `AbortSignal.addEventListener` (DOM). Previously the implicit `lib: ES2015` (derived from `target: es6`) caused a false-positive type error in the IDE even though the project compiled and all tests passed.
+
+---
+
 ## [1.4.3] — 2026-06-09
 
 ### Changed

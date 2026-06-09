@@ -96,7 +96,7 @@
           font-size="13" font-weight="700" fill="white" text-anchor="middle" letter-spacing="1">npm</text>
     <rect x="96" width="76" height="28" rx="6" fill="#1e3a5f"/>
     <text x="134" y="19" font-family="'SF Pro Display',Arial,sans-serif"
-          font-size="13" font-weight="700" fill="#38bdf8" text-anchor="middle">v1.4.2</text>
+          font-size="13" font-weight="700" fill="#38bdf8" text-anchor="middle">v1.4.4</text>
     <!-- TS badge -->
     <rect x="182" width="54" height="28" rx="6" fill="#1e3a8a"/>
     <text x="209" y="19" font-family="'SF Pro Display',Arial,sans-serif"
