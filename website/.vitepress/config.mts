@@ -146,7 +146,7 @@ export default withMermaid(defineConfig({
 
     footer: {
       message: 'Released under the MIT License.',
-      copyright: 'Copyright © 2024 Jhones Gonçalves',
+      copyright: 'Copyright © 2024–2026 Jhones Gonçalves',
     },
 
     editLink: {

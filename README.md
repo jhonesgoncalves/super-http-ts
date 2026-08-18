@@ -2,7 +2,7 @@
   <img width="160px" src=".github/images/super-http-logo.svg" align="center" alt="super-http" />
   <h2 align="center">super-http</h2>
   <p align="center"><strong>Built for production, not just requests.</strong></p>
-  <p align="center">Production-grade HTTP + gRPC client for Node.js and TypeScript.<br>Circuit breaker · Bulkhead · Rate limiter · Jitter retry · Fallback · Metrics · Plugins · gRPC</p>
+  <p align="center">Production-grade HTTP + gRPC client for Node.js and TypeScript.<br>Circuit breaker · Bulkhead · Rate limiter · Jitter retry · Total deadlines · Fallback · Metrics · Plugins · gRPC</p>
 </p>
 
 <p align="center">
@@ -33,6 +33,15 @@
   <a href="https://jhonesgoncalves.github.io/super-http-ts/guide/benchmarks">Benchmarks</a> ·
   <a href="CHANGELOG.md">Changelog</a>
 </p>
+
+---
+
+> ### ⬆️ Upgrading from 1.x?
+> **2.0 changes several defaults**, each of which was unsafe: retry now respects
+> method idempotency, a `4xx` no longer trips the circuit breaker, deduplication
+> is narrower, and queues no longer wait forever. Most applications behave the
+> same but safer — the ones that need a decision from you are listed in the
+> **[1.x → 2.0 migration guide](https://jhonesgoncalves.github.io/super-http-ts/guide/migration-2)**.
 
 ---
 
@@ -86,22 +95,25 @@ const api = createClient({
   headers: { Authorization: `Bearer ${token}` },
 })
 
-// Add observability
+// Bound the whole call — queue waits, every attempt and every backoff — then
+// add observability
 api
+  .deadline(3_000)
   .use(LoggerPlugin({ prefix: '[checkout]' }))
   .on({
     onCircuitStateChange: ({ to, failures }) =>
       to === 'open' && alerts.critical(`Circuit opened (${failures} failures)`),
   })
 
-// Per-request policy for sensitive endpoints
+// A POST is never retried on an ambiguous error unless you ask for it — no need
+// to remember `retry: false` on every write
 const charge = await api.post('/charges', payload, {
-  policy: { retry: false, timeout: 10_000 },
   headers: { 'Idempotency-Key': uuid() },
 })
 
-// Built-in metrics — no setup
+// Built-in metrics, plus live state for dashboards and alerts
 const { p99Latency, circuitBreakerTrips } = api.metrics()
+if (api.state().circuit?.open) serveFromCache()
 ```
 
 ---
@@ -167,6 +179,7 @@ try {
 | **Plugins** | `.use(plugin)` | LoggerPlugin, MetricsReporter, custom |
 | **Per-request policy** | `{ policy: { retry, deadlineMs, signal, fallback } }` | Override per endpoint |
 | **Config validation** | — | Bad config throws at wiring time, not in production |
+| **Clean shutdown** | `.close()` | Destroys pooled sockets and plugin timers |
 | **gRPC** | `createGrpcClient(def, address)` | TypeScript-first, no `.proto` files, same resilience pipeline |
 
 ---
@@ -182,10 +195,10 @@ try {
 | ⬆️ [Upgrading 1.x → 2.0](https://jhonesgoncalves.github.io/super-http-ts/guide/migration-2) | Breaking changes and how to keep old behaviour |
 | 🎛️ [Presets](https://jhonesgoncalves.github.io/super-http-ts/guide/presets) | high-throughput · resilient-api · low-latency |
 | ⚡ [Circuit Breaker](https://jhonesgoncalves.github.io/super-http-ts/guide/circuit-breaker) | State machine explained |
-| 🔄 [Retry Strategies](https://jhonesgoncalves.github.io/super-http-ts/guide/retry) | Jitter, exponential, Retry-After |
+| 🔄 [Retry Strategies](https://jhonesgoncalves.github.io/super-http-ts/guide/retry) | Jitter, exponential, Retry-After, idempotency rules |
 | ⏱️ [Deadlines & Cancellation](https://jhonesgoncalves.github.io/super-http-ts/guide/deadlines) | Bound the whole call, not one attempt |
 | 🧱 [Bulkhead](https://jhonesgoncalves.github.io/super-http-ts/guide/bulkhead) | Isolation pattern |
-| 🚦 [Rate Limiter](https://jhonesgoncalves.github.io/super-http-ts/guide/rate-limiter) | Token bucket |
+| 🚦 [Rate Limiter](https://jhonesgoncalves.github.io/super-http-ts/guide/rate-limiter) | Fixed-window limiter, retries included |
 | 🛡️ [Fallback](https://jhonesgoncalves.github.io/super-http-ts/guide/fallback) | Graceful degradation |
 | 👁️ [Observability](https://jhonesgoncalves.github.io/super-http-ts/guide/observability) | Hooks, metrics, plugins |
 | 🔌 [Plugins](https://jhonesgoncalves.github.io/super-http-ts/guide/plugins) | Logger, MetricsReporter, custom |
@@ -200,4 +213,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). Issues and PRs welcome.
 
 ## License
 
-Copyright © 2024 [Jhones Gonçalves](https://github.com/jhonesgoncalves). MIT licensed.
+Copyright © 2024–2026 [Jhones Gonçalves](https://github.com/jhonesgoncalves). MIT licensed.
