@@ -1,4 +1,4 @@
-[**super-http v1.0.0**](../README.md)
+[**super-http v2.0.0**](../README.md)
 
 ***
 
@@ -6,7 +6,7 @@
 
 # Class: HttpClientFactory
 
-Defined in: [src/http-client/http.factory.ts:22](https://github.com/jhonesgoncalves/super-http-ts/blob/343ba080e74d310b0ef878b233587a6c610988e8/src/http-client/http.factory.ts#L22)
+Defined in: [src/http-client/http.factory.ts:22](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/http-client/http.factory.ts#L22)
 
 Factory that creates and caches [HttpClient](HttpClient.md) instances keyed by
 `baseURL`.
@@ -41,12 +41,14 @@ console.log(client === same); // true
 
 > `static` **clear**(): `void`
 
-Defined in: [src/http-client/http.factory.ts:74](https://github.com/jhonesgoncalves/super-http-ts/blob/343ba080e74d310b0ef878b233587a6c610988e8/src/http-client/http.factory.ts#L74)
+Defined in: [src/http-client/http.factory.ts:76](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/http-client/http.factory.ts#L76)
 
-Removes all cached instances.
+Closes and removes all cached instances.
 
 Primarily useful in tests to ensure each test case starts with a fresh
-client and pool.
+client and pool. Each client is closed before being dropped: emptying the
+map alone left every cached client's keep-alive sockets open, so the call
+advertised for test isolation was leaking a pool per invocation.
 
 #### Returns
 
@@ -64,7 +66,7 @@ afterEach(() => HttpClientFactory.clear());
 
 > `static` **create**(`baseURL`, `httpConfig?`, `poolConfig?`): [`HttpClient`](HttpClient.md)
 
-Defined in: [src/http-client/http.factory.ts:52](https://github.com/jhonesgoncalves/super-http-ts/blob/343ba080e74d310b0ef878b233587a6c610988e8/src/http-client/http.factory.ts#L52)
+Defined in: [src/http-client/http.factory.ts:52](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/http-client/http.factory.ts#L52)
 
 Returns the cached `HttpClient` for `baseURL`, or creates a new one.
 

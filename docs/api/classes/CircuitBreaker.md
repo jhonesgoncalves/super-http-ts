@@ -1,4 +1,4 @@
-[**super-http v1.0.0**](../README.md)
+[**super-http v2.0.0**](../README.md)
 
 ***
 
@@ -6,9 +6,11 @@
 
 # Class: CircuitBreaker
 
-Defined in: [src/circuit-breaker/circuit-break.ts:54](https://github.com/jhonesgoncalves/super-http-ts/blob/343ba080e74d310b0ef878b233587a6c610988e8/src/circuit-breaker/circuit-break.ts#L54)
+Defined in: [src/circuit-breaker/circuit-break.ts:70](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/circuit-breaker/circuit-break.ts#L70)
 
-A simple three-state circuit breaker (closed → open → half-open).
+A three-state circuit breaker (closed → open → half-open).
+
+Inspired by Polly's `CircuitBreakerPolicy` and Resilience4j's `CircuitBreaker`.
 
 **States:**
 - **Closed** — requests flow normally. Failures are counted.
@@ -21,8 +23,10 @@ A simple three-state circuit breaker (closed → open → half-open).
 
 ```ts
 const cb = new CircuitBreaker();
-cb.setConfig({ failureThreshold: 3, successThreshold: 1, timeoutMs: 5000 });
-
+cb.setConfig(
+  { failureThreshold: 3, successThreshold: 1, timeoutMs: 5000 },
+  { onCircuitStateChange: ({ from, to }) => console.log(`${from} → ${to}`) },
+);
 const response = await cb.execute(() => axios.get('/api/data'));
 ```
 
@@ -36,23 +40,61 @@ const response = await cb.execute(() => axios.get('/api/data'));
 
 `CircuitBreaker`
 
-## Properties
+## Accessors
+
+### isConfigured
+
+#### Get Signature
+
+> **get** **isConfigured**(): `boolean`
+
+Defined in: [src/circuit-breaker/circuit-break.ts:111](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/circuit-breaker/circuit-break.ts#L111)
+
+`true` when this breaker has never been configured.
+
+##### Returns
+
+`boolean`
+
+***
 
 ### isOpen
 
-> **isOpen**: `boolean` = `false`
+#### Get Signature
 
-Defined in: [src/circuit-breaker/circuit-break.ts:60](https://github.com/jhonesgoncalves/super-http-ts/blob/343ba080e74d310b0ef878b233587a6c610988e8/src/circuit-breaker/circuit-break.ts#L60)
+> **get** **isOpen**(): `boolean`
 
-Whether the circuit is currently open (tripped).
+Defined in: [src/circuit-breaker/circuit-break.ts:85](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/circuit-breaker/circuit-break.ts#L85)
+
+`true` when the circuit is open (tripped).
+
+##### Returns
+
+`boolean`
+
+***
+
+### state
+
+#### Get Signature
+
+> **get** **state**(): [`CircuitState`](../type-aliases/CircuitState.md)
+
+Defined in: [src/circuit-breaker/circuit-break.ts:80](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/circuit-breaker/circuit-break.ts#L80)
+
+Current circuit state.
+
+##### Returns
+
+[`CircuitState`](../type-aliases/CircuitState.md)
 
 ## Methods
 
 ### execute()
 
-> **execute**\<`T`\>(`fn`): `Promise`\<`AxiosResponse`\<`T`, `any`\>\>
+> **execute**\<`T`\>(`fn`): `Promise`\<`T`\>
 
-Defined in: [src/circuit-breaker/circuit-break.ts:81](https://github.com/jhonesgoncalves/super-http-ts/blob/343ba080e74d310b0ef878b233587a6c610988e8/src/circuit-breaker/circuit-break.ts#L81)
+Defined in: [src/circuit-breaker/circuit-break.ts:122](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/circuit-breaker/circuit-break.ts#L122)
 
 Wraps an async function with circuit-breaker protection.
 
@@ -62,26 +104,21 @@ Wraps an async function with circuit-breaker protection.
 
 `T`
 
-The type of the resolved value.
-
 #### Parameters
 
 ##### fn
 
-() => `Promise`\<`AxiosResponse`\<`T`, `any`\>\>
-
-The async function to protect.
+() => `Promise`\<`T`\>
 
 #### Returns
 
-`Promise`\<`AxiosResponse`\<`T`, `any`\>\>
-
-A promise that resolves with the function's result.
+`Promise`\<`T`\>
 
 #### Throws
 
-`Error('Circuit breaker is open')` when the circuit is tripped
-        and the timeout has not yet elapsed.
+`Error('Circuit breaker is open')` when the circuit is open and
+  the timeout has not elapsed, or when the circuit is half-open and a
+  probe request is already in flight.
 
 ***
 
@@ -89,31 +126,28 @@ A promise that resolves with the function's result.
 
 > **handleIsOpen**(): `boolean`
 
-Defined in: [src/circuit-breaker/circuit-break.ts:108](https://github.com/jhonesgoncalves/super-http-ts/blob/343ba080e74d310b0ef878b233587a6c610988e8/src/circuit-breaker/circuit-break.ts#L108)
+Defined in: [src/circuit-breaker/circuit-break.ts:158](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/circuit-breaker/circuit-break.ts#L158)
 
-Checks the open state and throws if the circuit is open and the timeout
-has not elapsed.  Useful for guard-checking before initiating work that
-isn't wrapped via [execute](#execute).
+Guard check: throws if the circuit is open and timeout has not elapsed.
+Returns `false` when the circuit is closed (safe to proceed).
 
 #### Returns
 
 `boolean`
 
-`false` when the circuit is closed (requests may proceed).
-
-#### Throws
-
-`Error('Circuit breaker is open')` when the circuit is open.
-
 ***
 
 ### setConfig()
 
-> **setConfig**(`config`): `void`
+> **setConfig**(`config`, `events?`): `void`
 
-Defined in: [src/circuit-breaker/circuit-break.ts:68](https://github.com/jhonesgoncalves/super-http-ts/blob/343ba080e74d310b0ef878b233587a6c610988e8/src/circuit-breaker/circuit-break.ts#L68)
+Defined in: [src/circuit-breaker/circuit-break.ts:99](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/circuit-breaker/circuit-break.ts#L99)
 
-Sets or updates the circuit breaker configuration.
+Sets or updates the circuit breaker configuration and optional event hooks.
+
+Intended to be called **once**, at wiring time. Reconfiguring a breaker
+that is already accumulating state changes the thresholds the existing
+counters are compared against — prefer a dedicated instance per config.
 
 #### Parameters
 
@@ -122,6 +156,12 @@ Sets or updates the circuit breaker configuration.
 [`CircuitBreakerConfig`](../interfaces/CircuitBreakerConfig.md)
 
 The new [CircuitBreakerConfig](../interfaces/CircuitBreakerConfig.md).
+
+##### events?
+
+`Pick`\<[`ResilienceEvents`](../interfaces/ResilienceEvents.md), `"onCircuitStateChange"`\>
+
+Optional observability hooks.
 
 #### Returns
 

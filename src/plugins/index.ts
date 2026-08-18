@@ -26,6 +26,12 @@ export interface SuperHttpPlugin {
   name: string;
   /** Called once when the plugin is installed on a client. */
   install(client: HttpClient): void;
+  /**
+   * Called by {@link HttpClient.close} — release timers, sockets and listeners
+   * here. A plugin that arms an interval and never clears it keeps working after
+   * the client it belongs to is gone.
+   */
+  uninstall?(client: HttpClient): void;
 }
 
 // ─── Built-in plugins ────────────────────────────────────────────────────────
@@ -105,10 +111,11 @@ export function LoggerPlugin(options: LoggerPluginOptions = {}): SuperHttpPlugin
  */
 export function MetricsReporterPlugin(options: { intervalMs?: number } = {}): SuperHttpPlugin {
   const { intervalMs = 60_000 } = options;
+  let timer: ReturnType<typeof setInterval> | undefined;
   return {
     name: 'metrics-reporter',
     install(client) {
-      const timer = setInterval(() => {
+      timer = setInterval(() => {
         const m = client.metrics();
         console.log(
           `[super-http:metrics] requests=${m.requests} success=${m.success} ` +
@@ -118,6 +125,10 @@ export function MetricsReporterPlugin(options: { intervalMs?: number } = {}): Su
       }, intervalMs);
       // Allow process to exit even if the timer is still active
       if (timer.unref) timer.unref();
+    },
+    uninstall() {
+      if (timer) clearInterval(timer);
+      timer = undefined;
     },
   };
 }

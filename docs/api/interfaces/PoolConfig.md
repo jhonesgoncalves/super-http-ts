@@ -1,4 +1,4 @@
-[**super-http v1.0.0**](../README.md)
+[**super-http v2.0.0**](../README.md)
 
 ***
 
@@ -6,25 +6,9 @@
 
 # Interface: PoolConfig
 
-Defined in: [src/http-client/http.client.ts:36](https://github.com/jhonesgoncalves/super-http-ts/blob/343ba080e74d310b0ef878b233587a6c610988e8/src/http-client/http.client.ts#L36)
+Defined in: [src/http-client/http.client.ts:137](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/http-client/http.client.ts#L137)
 
 Options for the underlying Node.js HTTP/HTTPS connection pool.
-
-These values are passed directly to `http.Agent` and `https.Agent`.
-Tuning the pool allows you to balance throughput against resource usage
-for your specific workload.
-
-## Example
-
-```ts
-const pool: PoolConfig = {
-  maxSockets: 100,
-  maxFreeSockets: 20,
-  keepAlive: true,
-  keepAliveMsecs: 2000,
-  timeout: 15_000,
-};
-```
 
 ## Properties
 
@@ -32,10 +16,9 @@ const pool: PoolConfig = {
 
 > `optional` **keepAlive?**: `boolean`
 
-Defined in: [src/http-client/http.client.ts:54](https://github.com/jhonesgoncalves/super-http-ts/blob/343ba080e74d310b0ef878b233587a6c610988e8/src/http-client/http.client.ts#L54)
+Defined in: [src/http-client/http.client.ts:151](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/http-client/http.client.ts#L151)
 
-Enable TCP keep-alive on sockets.  Prevents `ECONNRESET` errors that
-occur when a server closes an idle persistent connection.
+Enable TCP keep-alive.
 
 #### Default Value
 
@@ -49,9 +32,9 @@ true
 
 > `optional` **keepAliveMsecs?**: `number`
 
-Defined in: [src/http-client/http.client.ts:60](https://github.com/jhonesgoncalves/super-http-ts/blob/343ba080e74d310b0ef878b233587a6c610988e8/src/http-client/http.client.ts#L60)
+Defined in: [src/http-client/http.client.ts:153](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/http-client/http.client.ts#L153)
 
-Delay between keep-alive probes in milliseconds.
+Keep-alive probe interval (ms).
 
 #### Default Value
 
@@ -61,29 +44,46 @@ Delay between keep-alive probes in milliseconds.
 
 ***
 
-### maxFreeSockets?
+### maxBodyLength?
 
-> `optional` **maxFreeSockets?**: `number`
+> `optional` **maxBodyLength?**: `number`
 
-Defined in: [src/http-client/http.client.ts:47](https://github.com/jhonesgoncalves/super-http-ts/blob/343ba080e74d310b0ef878b233587a6c610988e8/src/http-client/http.client.ts#L47)
+Defined in: [src/http-client/http.client.ts:184](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/http-client/http.client.ts#L184)
 
-Maximum number of idle (keep-alive) sockets to keep open per host.
+Max request body sent, in bytes.
 
 #### Default Value
 
 ```ts
-10
+33554432 (32 MiB)
 ```
 
 ***
 
-### maxSockets?
+### maxContentLength?
 
-> `optional` **maxSockets?**: `number`
+> `optional` **maxContentLength?**: `number`
 
-Defined in: [src/http-client/http.client.ts:41](https://github.com/jhonesgoncalves/super-http-ts/blob/343ba080e74d310b0ef878b233587a6c610988e8/src/http-client/http.client.ts#L41)
+Defined in: [src/http-client/http.client.ts:179](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/http-client/http.client.ts#L179)
 
-Maximum number of concurrent open sockets per host.
+Max response body accepted, in bytes. Axios defaults to unlimited, so a
+runaway upstream can exhaust the client's memory.
+
+#### Default Value
+
+```ts
+33554432 (32 MiB)
+```
+
+***
+
+### maxFreeSockets?
+
+> `optional` **maxFreeSockets?**: `number`
+
+Defined in: [src/http-client/http.client.ts:149](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/http-client/http.client.ts#L149)
+
+Max idle keep-alive sockets per host.
 
 #### Default Value
 
@@ -93,14 +93,52 @@ Maximum number of concurrent open sockets per host.
 
 ***
 
+### maxSockets?
+
+> `optional` **maxSockets?**: `number`
+
+Defined in: [src/http-client/http.client.ts:147](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/http-client/http.client.ts#L147)
+
+Max concurrent sockets per host.
+
+Sized for burst headroom rather than average load: steady-state demand is
+roughly `rps * latencySeconds`, so the default only starts to bind when
+upstream latency degrades.
+
+#### Default Value
+
+```ts
+200
+```
+
+***
+
+### socketTimeoutMs?
+
+> `optional` **socketTimeoutMs?**: `number`
+
+Defined in: [src/http-client/http.client.ts:172](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/http-client/http.client.ts#L172)
+
+Socket inactivity timeout (ms) applied to the agent itself.
+
+Without this, a connection that goes quiet — a NAT or firewall dropping a
+half-open socket — is only noticed by the response timeout, and a socket
+stuck in connect is bounded by nothing else. Node's `http.Agent` does not
+expose a separate connect timeout, so this covers inactivity at any stage.
+
+Defaults to [PoolConfig.timeout](#timeout).
+
+***
+
 ### timeout?
 
 > `optional` **timeout?**: `number`
 
-Defined in: [src/http-client/http.client.ts:67](https://github.com/jhonesgoncalves/super-http-ts/blob/343ba080e74d310b0ef878b233587a6c610988e8/src/http-client/http.client.ts#L67)
+Defined in: [src/http-client/http.client.ts:161](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/http-client/http.client.ts#L161)
 
-Global request timeout in milliseconds.  Overrides the value in
-[HttpClientRequestConfig](HttpClientRequestConfig.md) when both are set.
+Response timeout (ms) — how long to wait for the upstream to answer a
+request. This is the axios-level timeout; it does not bound how long a
+socket may sit idle. See [PoolConfig.socketTimeoutMs](#sockettimeoutms).
 
 #### Default Value
 

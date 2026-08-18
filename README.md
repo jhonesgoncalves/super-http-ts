@@ -106,7 +106,7 @@ const { p99Latency, circuitBreakerTrips } = api.metrics()
 
 ---
 
-## Quick start — gRPC (new in 1.4)
+## Quick start — gRPC
 
 TypeScript-first gRPC with the same resilience pipeline — no `.proto` files required:
 
@@ -152,17 +152,22 @@ try {
 |---|---|---|
 | **Presets** | `createClient({ preset })` | `high-throughput` · `resilient-api` · `low-latency` |
 | **Connection pool** | `pool: { maxSockets }` | Shared keep-alive agent per base URL |
-| **Retry** | `.retry(n, strategy)` | Fixed · Exponential · Jitter · Retry-After |
-| **Circuit breaker** | `.circuitBreak(config)` | closed → open → half-open |
+| **Retry** | `.retry(n, strategy)` | Fixed · Exponential · Jitter · Retry-After — idempotency-aware |
+| **Circuit breaker** | `.circuitBreak(config)` | closed → open → half-open, single probe |
 | **Bulkhead** | `.bulkhead(config)` | Concurrency limiter + bounded queue |
-| **Rate limiter** | `.rateLimit(config)` | Token bucket with Retry-After support |
+| **Rate limiter** | `.rateLimit(config)` | Fixed-window limiter, retries included |
+| **Total deadline** | `.deadline(ms)` | Bounds the whole call, not one attempt |
+| **Cancellation** | `{ policy: { signal } }` | Aborts queue waits and backoff too |
 | **Fallback** | `.fallback(fn)` | Graceful degradation |
 | **Request dedup** | `.dedup()` | Coalesce identical concurrent GETs |
 | **Metrics** | `.metrics()` | p50/p95/p99, retries, CB trips, uptime |
+| **Live state** | `.state()` | Is the circuit open *right now* |
+| **Correlation ids** | `.correlate()` | Request id on every event and header |
 | **Lifecycle hooks** | `.on({ onRequest, onResponse, onError })` | Logging, tracing |
 | **Plugins** | `.use(plugin)` | LoggerPlugin, MetricsReporter, custom |
-| **Per-request policy** | `{ policy: { retry, fallback, timeout } }` | Override per endpoint |
-| **gRPC (new in 1.4)** | `createGrpcClient(def, address)` | TypeScript-first, no `.proto` files, same resilience pipeline |
+| **Per-request policy** | `{ policy: { retry, deadlineMs, signal, fallback } }` | Override per endpoint |
+| **Config validation** | — | Bad config throws at wiring time, not in production |
+| **gRPC** | `createGrpcClient(def, address)` | TypeScript-first, no `.proto` files, same resilience pipeline |
 
 ---
 
@@ -174,9 +179,11 @@ try {
 | 📡 [gRPC Support](https://jhonesgoncalves.github.io/super-http-ts/guide/grpc) | TypeScript-first gRPC — no .proto files |
 | 🤔 [Why super-http?](https://jhonesgoncalves.github.io/super-http-ts/guide/why) | Comparison with axios, undici, got |
 | 🔀 [Migrating from Axios](https://jhonesgoncalves.github.io/super-http-ts/guide/migration) | Drop-in upgrade guide |
+| ⬆️ [Upgrading 1.x → 2.0](https://jhonesgoncalves.github.io/super-http-ts/guide/migration-2) | Breaking changes and how to keep old behaviour |
 | 🎛️ [Presets](https://jhonesgoncalves.github.io/super-http-ts/guide/presets) | high-throughput · resilient-api · low-latency |
 | ⚡ [Circuit Breaker](https://jhonesgoncalves.github.io/super-http-ts/guide/circuit-breaker) | State machine explained |
 | 🔄 [Retry Strategies](https://jhonesgoncalves.github.io/super-http-ts/guide/retry) | Jitter, exponential, Retry-After |
+| ⏱️ [Deadlines & Cancellation](https://jhonesgoncalves.github.io/super-http-ts/guide/deadlines) | Bound the whole call, not one attempt |
 | 🧱 [Bulkhead](https://jhonesgoncalves.github.io/super-http-ts/guide/bulkhead) | Isolation pattern |
 | 🚦 [Rate Limiter](https://jhonesgoncalves.github.io/super-http-ts/guide/rate-limiter) | Token bucket |
 | 🛡️ [Fallback](https://jhonesgoncalves.github.io/super-http-ts/guide/fallback) | Graceful degradation |

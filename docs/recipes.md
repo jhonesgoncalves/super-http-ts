@@ -14,7 +14,7 @@ import { HttpClientFactory } from 'super-http';
 
 export const paymentsApi = HttpClientFactory.create('https://payments.internal', {
   headers: { 'X-Service': 'my-app' },
-}, { maxSockets: 50, timeout: 10_000 })
+}, { maxSockets: 200, timeout: 10_000 })
   .circuitBreak({ failureThreshold: 5, successThreshold: 2, timeoutMs: 15_000 })
   .retry(3, 300);
 

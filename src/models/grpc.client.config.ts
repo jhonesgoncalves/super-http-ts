@@ -107,6 +107,17 @@ export interface GrpcClientConfig {
    */
   rateLimit?: RateLimitConfig;
 
+  /**
+   * Coalesce concurrent unary calls that carry an identical payload into one RPC.
+   *
+   * Off by default. Two identical concurrent mutations are not necessarily one
+   * mutation — only the server knows whether its method is idempotent — so the
+   * client must not decide that silently.
+   *
+   * @defaultValue false
+   */
+  dedup?: boolean;
+
   // ─── Observability ─────────────────────────────────────────────────────────
 
   /**

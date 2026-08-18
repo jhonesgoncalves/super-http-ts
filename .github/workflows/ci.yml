@@ -36,6 +36,9 @@ jobs:
       - name: Test with coverage
         run: npm run test:coverage
 
+      - name: Integration tests (real sockets)
+        run: npm run test:integration
+
       - name: Setup Node.js 20 for Codecov action runtime
         if: matrix.node-version == '20.x'
         uses: actions/setup-node@v4

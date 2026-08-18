@@ -61,10 +61,12 @@ export class HttpClientFactory {
   }
 
   /**
-   * Removes all cached instances.
+   * Closes and removes all cached instances.
    *
    * Primarily useful in tests to ensure each test case starts with a fresh
-   * client and pool.
+   * client and pool. Each client is closed before being dropped: emptying the
+   * map alone left every cached client's keep-alive sockets open, so the call
+   * advertised for test isolation was leaking a pool per invocation.
    *
    * @example
    * ```ts
@@ -72,6 +74,9 @@ export class HttpClientFactory {
    * ```
    */
   static clear(): void {
+    for (const instance of HttpClientFactory.instances.values()) {
+      void instance.close().catch(() => undefined);
+    }
     HttpClientFactory.instances.clear();
   }
 }

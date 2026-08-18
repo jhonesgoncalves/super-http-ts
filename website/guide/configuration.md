@@ -59,31 +59,64 @@ Passed as `pool` in `createClient`, or as the third argument in `HttpClientFacto
 
 | Option | Type | Default | Description |
 |---|---|---|---|
-| `maxSockets` | `number` | `50` | Max concurrent sockets per host |
-| `maxFreeSockets` | `number` | `10` | Max idle keep-alive sockets |
+| `maxSockets` | `number` | `200` | Max concurrent sockets per host (≥ 1) |
+| `maxFreeSockets` | `number` | `50` | Max idle keep-alive sockets |
 | `keepAlive` | `boolean` | `true` | Enable TCP keep-alive |
 | `keepAliveMsecs` | `number` | `1000` | Keep-alive probe interval (ms) |
-| `timeout` | `number` | `30000` | Request timeout (ms) |
+| `timeout` | `number` | `30000` | Response timeout (ms) |
+| `socketTimeoutMs` | `number` | = `timeout` | Socket inactivity timeout on the agent |
+| `maxContentLength` | `number` | `33554432` | Max response body accepted (bytes) |
+| `maxBodyLength` | `number` | `33554432` | Max request body sent (bytes) |
 
 ```typescript
 createClient('https://api.example.com', {}, {
-  maxSockets: 100,
-  maxFreeSockets: 20,
+  maxSockets: 200,
+  maxFreeSockets: 50,
   keepAlive: true,
   keepAliveMsecs: 2_000,
   timeout: 15_000,
+  socketTimeoutMs: 15_000,
 })
+```
+
+`timeout` is the axios response timeout. `socketTimeoutMs` reaches the agent and
+bounds socket inactivity — that is what catches a connection silently dropped by a
+NAT or firewall. Body limits default to 32 MiB, where axios itself is unlimited.
+
+---
+
+## .deadline(ms)
+
+Total time budget for every request: queue waits, all attempts and all backoff
+combined. See [Deadlines & Cancellation](./deadlines).
+
+```typescript
+client.deadline(2_000)
 ```
 
 ---
 
-## .retry(retries, strategy, retryOn?)
+## .retry(retries, strategy, options?)
 
 | Parameter | Type | Description |
 |---|---|---|
-| `retries` | `number` | Max retry attempts |
+| `retries` | `number` | Max retry attempts (≥ 0) |
 | `strategy` | `RetryStrategy \| number` | Delay strategy or fixed ms |
-| `retryOn` | `number[]` | Optional: retry only on these HTTP status codes |
+| `options` | `number[] \| RetryOptions` | Status codes to add, or an options object |
+
+```typescript
+client.retry(3, 500, [429, 503])                      // add these statuses
+client.retry(3, 500, { retryNonIdempotent: true })    // allow POST/PATCH retries
+```
+
+| `RetryOptions` | Type | Default | Description |
+|---|---|---|---|
+| `retryOn` | `number[]` | — | Extra statuses, **on top of** the network-error rules |
+| `retryNonIdempotent` | `boolean` | `false` | Retry `POST`/`PATCH` on ambiguous errors |
+
+Ambiguous errors (`ECONNRESET`, `ETIMEDOUT`, `ECONNABORTED`, `EPIPE`, 5xx) are
+retried only for idempotent methods unless `retryNonIdempotent` is set. See
+[Retry Strategies](./retry#what-gets-retried).
 
 **Strategies:**
 
@@ -100,9 +133,10 @@ createClient('https://api.example.com', {}, {
 
 | Option | Type | Description |
 |---|---|---|
-| `failureThreshold` | `number` | Failures before circuit opens |
-| `successThreshold` | `number` | Successes to close from half-open |
+| `failureThreshold` | `number` | Consecutive counted failures before the circuit opens (≥ 1) |
+| `successThreshold` | `number` | Successes to close from half-open (≥ 1) |
 | `timeoutMs` | `number` | Open duration before probing (ms) |
+| `shouldTrip` | `(error) => boolean` | Which errors count. Defaults to network errors and 5xx only |
 
 ---
 
@@ -110,9 +144,9 @@ createClient('https://api.example.com', {}, {
 
 | Option | Type | Default | Description |
 |---|---|---|---|
-| `maxConcurrent` | `number` | — | Max in-flight requests |
+| `maxConcurrent` | `number` | — | Max in-flight requests (≥ 1) |
 | `maxQueue` | `number` | `50` | Max queued requests |
-| `queueTimeoutMs` | `number` | `undefined` | Reject queued after this ms |
+| `queueTimeoutMs` | `number` | `10000` | Reject queued after this ms. `Infinity` waits indefinitely |
 
 ---
 
@@ -120,10 +154,11 @@ createClient('https://api.example.com', {}, {
 
 | Option | Type | Default | Description |
 |---|---|---|---|
-| `permitLimit` | `number` | — | Max requests per window |
-| `windowMs` | `number` | — | Window size in ms |
+| `permitLimit` | `number` | — | Max requests per window (≥ 1) |
+| `windowMs` | `number` | — | Window size in ms (≥ 1) |
 | `queueRequests` | `boolean` | `false` | Queue excess instead of rejecting |
-| `queueTimeoutMs` | `number` | `undefined` | Max wait time for queued token |
+| `queueTimeoutMs` | `number` | `10000` | Max wait for a queued token. `Infinity` waits indefinitely |
+| `maxQueue` | `number` | `1000` | Max requests allowed to wait for a token |
 
 ---
 
@@ -136,9 +171,43 @@ client.fallback(async (error: unknown) => await alternativeSource())
 
 ---
 
-## .dedup()
+## .dedup(options?)
 
-No configuration — enables request deduplication (idempotent calls only).
+Coalesces identical concurrent requests. Only `GET` and `HEAD` by default, and the
+request body is part of the key.
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `methods` | `string[]` | `['GET','HEAD']` | Methods eligible for coalescing |
+
+```typescript
+client.dedup()
+client.dedup({ methods: ['GET', 'HEAD', 'POST'] })  // opt in deliberately
+```
+
+---
+
+## .correlate(options?)
+
+Attaches a per-request id to every resilience event and sends it upstream.
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `header` | `string` | `'x-request-id'` | Header carrying the id |
+| `generate` | `() => string` | `crypto.randomUUID` | Id generator |
+
+---
+
+## .state()
+
+Current state of every configured component — see
+[Observability](./observability#current-state).
+
+---
+
+## .close()
+
+Destroys both agents' sockets and clears plugin timers. Call it on shutdown.
 
 ---
 
@@ -178,10 +247,15 @@ await api.get('/inventory', {
 
 | `policy` field | Type | Description |
 |---|---|---|
-| `timeout` | `number` | Override timeout for this request (ms) |
-| `retry` | `{ attempts, delayMs?, retryOn? } \| false` | Override retry, or `false` to disable |
+| `timeout` | `number` | Override the per-attempt timeout (ms) |
+| `deadlineMs` | `number` | Total budget for this call: queue waits + attempts + backoff |
+| `signal` | `AbortSignal` | Cancel the whole call, including queue waits and backoff |
+| `retry` | `{ attempts, delayMs?, retryOn?, retryNonIdempotent? } \| false` | Override retry, or `false` to disable |
 | `circuitBreaker` | `Partial<CircuitBreakerConfig> \| false` | Override CB config, or `false` to bypass |
 | `fallback` | `(error) => T` | Override fallback for this request |
+
+A `policy.circuitBreaker` override gets its **own** breaker instance, with its own
+failure counter — it does not reconfigure the client's.
 
 ---
 
@@ -197,6 +271,9 @@ await api.get('/inventory', {
 | `onBulkheadReject` | `BulkheadRejectEvent` | Bulkhead queue full |
 | `onFallback` | `FallbackEvent` | Fallback handler invoked |
 | `onRateLimitReject` | `RateLimitRejectEvent` | Rate limit token unavailable |
+
+Handlers accumulate: two `on()` calls for the same hook register both, and all run.
+With `correlate()` enabled, every event carries a `requestId`.
 
 ---
 

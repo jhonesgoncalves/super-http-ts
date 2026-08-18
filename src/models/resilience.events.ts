@@ -10,6 +10,14 @@ export interface RetryEvent {
   error: unknown;
   /** Delay that will be waited before the next attempt (ms). */
   delayMs: number;
+  /**
+   * Correlation id of the request this retry belongs to.
+   *
+   * Without it these events are anonymous: a retry log line cannot be tied back
+   * to the request that produced it, which is exactly what you need during an
+   * incident.
+   */
+  requestId?: string;
 }
 
 /** Circuit breaker states. */
@@ -33,6 +41,8 @@ export interface BulkheadRejectEvent {
   active: number;
   /** Number of requests waiting in the queue at rejection time. */
   queued: number;
+  /** Correlation id of the request this event belongs to. */
+  requestId?: string;
 }
 
 /**
@@ -41,6 +51,8 @@ export interface BulkheadRejectEvent {
 export interface FallbackEvent {
   /** The original error that triggered the fallback. */
   error: unknown;
+  /** Correlation id of the request this event belongs to. */
+  requestId?: string;
 }
 
 /**
@@ -51,6 +63,8 @@ export interface RateLimitRejectEvent {
   permitLimit: number;
   /** Window size in ms. */
   windowMs: number;
+  /** Correlation id of the request this event belongs to. */
+  requestId?: string;
 }
 
 /**

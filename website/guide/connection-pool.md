@@ -35,7 +35,8 @@ Error: socket hang up (ECONNRESET)
 
 super-http solves this two ways:
 1. `keepAliveMsecs` sends TCP keep-alive probes to detect dead connections early
-2. Retry on `ECONNRESET` — even if a stale socket slips through, the request is retried transparently
+2. Retry on `ECONNRESET` — even if a stale socket slips through, the request is retried transparently for idempotent methods (see [Retry](./retry#what-gets-retried))
+3. `socketTimeoutMs` bounds how long a socket may sit inactive before the agent gives up on it
 
 ---
 
@@ -43,13 +44,28 @@ super-http solves this two ways:
 
 ```typescript
 const client = HttpClientFactory.create('https://api.example.com', {}, {
-  maxSockets: 50,        // max concurrent open sockets per host
-  maxFreeSockets: 10,    // max idle sockets to keep open
-  keepAlive: true,       // enable TCP keep-alive
-  keepAliveMsecs: 1000,  // probe interval (ms)
-  timeout: 30_000,       // request timeout (ms)
+  maxSockets: 200,          // max concurrent open sockets per host
+  maxFreeSockets: 50,       // max idle sockets to keep open
+  keepAlive: true,          // enable TCP keep-alive
+  keepAliveMsecs: 1000,     // probe interval (ms)
+  timeout: 30_000,          // response timeout (ms)
+  socketTimeoutMs: 30_000,  // socket inactivity timeout on the agent
 })
 ```
+
+### `timeout` vs `socketTimeoutMs`
+
+`timeout` is the axios response timeout — how long to wait for an answer.
+`socketTimeoutMs` goes to the `http.Agent` itself and bounds **socket
+inactivity**, which is what catches a connection silently dropped by a NAT or a
+firewall. Node's agent exposes no separate connect timeout, so inactivity covers
+a stuck connect too.
+
+::: warning Fixed in 2.0
+Before 2.0, `timeout` was read out of the pool config and used **only** as the
+axios response timeout — it never reached the agent, so nothing bounded a socket
+that simply went quiet.
+:::
 
 ### Tuning for your workload
 
@@ -59,8 +75,31 @@ const client = HttpClientFactory.create('https://api.example.com', {}, {
 | High throughput service | 100–200 | 20–50 |
 | Background jobs | 5–10 | 2–5 |
 
-::: tip
-Setting `maxSockets` too high can overwhelm the upstream server. A good starting point is `50` and tune up from there based on your upstream's capacity.
+::: tip Sizing is about burst headroom, not average load
+Steady-state demand is `rps × latencySeconds` (Little's Law): 58 rps at 200 ms is
+only about **12 sockets**. The default of 200 is not sized for average throughput
+— it is headroom for when upstream latency degrades. At a p99 of 2 s, that same
+58 rps wants ~116 sockets.
+
+Compute the steady-state figure, then size for your worst plausible latency.
+Setting it far higher than the upstream can absorb just moves the queue.
+:::
+
+---
+
+## Releasing the pool
+
+Dropping the client reference is not enough: the agents keep their keep-alive
+sockets open until the remote or the OS closes them.
+
+```typescript
+await client.close()       // destroys both agents' sockets, clears plugin timers
+HttpClientFactory.clear()  // closes every cached client, then empties the cache
+```
+
+::: warning Fixed in 2.0
+`HttpClientFactory.clear()` used to just empty the cache map, leaking a connection
+pool per invocation — including in the test-isolation flow it is recommended for.
 :::
 
 ---

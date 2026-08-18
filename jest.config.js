@@ -3,19 +3,20 @@ module.exports = {
     '^.+\\.(t|j)s$': ['ts-jest', { tsconfig: 'tsconfig.json' }],
   },
   testRegex: '(/__tests__/.*|(\\.|/)(test|spec))\\.(t|j)s$',
-  testPathIgnorePatterns: ['/node_modules/', '/example/'],
+  testPathIgnorePatterns: ['/node_modules/', '/example/', '/__integration__/'],
   moduleFileExtensions: ['ts', 'js', 'json', 'node'],
   collectCoverageFrom: [
     'src/**/*.ts',
     '!src/**/__tests__/**',
+    '!src/__integration__/**',       // integration fixtures + suites
     '!src/index.ts',
     '!src/plugins/index.ts',       // plugin factories — covered by integration in examples
     '!src/nestjs/index.ts',        // re-exports only
     '!src/nestjs/super-http.module.ts',   // requires full NestJS DI context — tested via e2e
     '!src/nestjs/super-http.service.ts',  // NestJS injectable — tested via e2e
     '!src/grpc/index.ts',                 // re-exports only
-    '!src/transport/grpc-transport.ts',   // requires live HTTP/2 — tested via integration
-    '!src/grpc/grpc-channel-registry.ts', // requires live HTTP/2 — tested via integration
+    '!src/transport/grpc-transport.ts',   // live HTTP/2 — see jest.integration.config.js
+    '!src/grpc/grpc-channel-registry.ts', // live HTTP/2 — see jest.integration.config.js
   ],
   coverageReporters: ['text', 'lcov', 'html'],
   coverageThreshold: {

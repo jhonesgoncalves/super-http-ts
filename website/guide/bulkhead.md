@@ -26,7 +26,9 @@ With bulkhead (maxConcurrent: 5):
 client.bulkhead({ maxConcurrent: 20 })
 ```
 
-Requests beyond `maxConcurrent` are **rejected immediately** by default.
+Requests beyond `maxConcurrent` **queue** — `maxQueue` defaults to 50 — and wait
+up to `queueTimeoutMs` (default 10 s) for a slot. Set `maxQueue: 0` to reject
+immediately instead.
 
 ---
 
@@ -48,9 +50,22 @@ When a slot frees up, the oldest queued request is promoted.
 
 | Option | Type | Default | Description |
 |---|---|---|---|
-| `maxConcurrent` | `number` | — | Max in-flight requests |
+| `maxConcurrent` | `number` | — | Max in-flight requests. Must be ≥ 1 |
 | `maxQueue` | `number` | `50` | Max requests in the waiting queue |
-| `queueTimeoutMs` | `number` | `undefined` | Reject queued request after this many ms |
+| `queueTimeoutMs` | `number` | `10000` | Reject queued request after this many ms. Pass `Infinity` to wait indefinitely |
+
+::: warning Changed in 2.0
+`queueTimeoutMs` used to default to `undefined`, which meant **waiting forever**.
+So `bulkhead({ maxConcurrent: 20 })` gave you 50 queue slots that could block a
+caller indefinitely — a blocked thread by another name, and the most common way a
+healthy service is taken down by a sick dependency. An unbounded wait is now
+opt-in via `Infinity`.
+:::
+
+::: danger maxConcurrent must be at least 1
+`maxConcurrent: 0` used to be accepted and then deadlock every request with no
+error at all. It now throws at the call that sets it.
+:::
 
 ---
 
@@ -59,7 +74,27 @@ When a slot frees up, the oldest queued request is promoted.
 | Error | When |
 |---|---|
 | `Error('Bulkhead queue full')` | `active >= maxConcurrent` AND `queue.length >= maxQueue` |
-| `Error('Bulkhead queue timeout')` | Queued request waited longer than `queueTimeoutMs` |
+| `Error('Bulkhead queue timeout')` | Queued request waited longer than `queueTimeoutMs`, or ran out of [deadline](./deadlines) budget |
+
+Neither is retried: re-queueing a shed request is exactly the load the bulkhead
+exists to refuse.
+
+---
+
+## Deadlines and cancellation
+
+A queued request also gives up when the call's [deadline](./deadlines) runs out or
+its `AbortSignal` fires, and is removed from the queue when it does:
+
+```typescript
+const controller = new AbortController()
+client.bulkhead({ maxConcurrent: 5, queueTimeoutMs: 30_000 })
+
+const pending = client.request({ url: '/report', policy: { signal: controller.signal } })
+controller.abort()  // leaves the queue immediately, does not hold a slot
+```
+
+`client.state().bulkhead` reports live `active` and `queued` counts.
 
 ---
 

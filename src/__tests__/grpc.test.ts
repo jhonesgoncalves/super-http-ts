@@ -10,7 +10,7 @@ import { defineService, unary, serverStream, clientStream, bidi } from '../grpc/
 import { createGrpcClient } from '../grpc/grpc-client';
 import { GrpcError, getDecision, isGrpcRetryable, shouldTripCircuit } from '../grpc/grpc-error-mapper';
 import { applyGrpcPreset } from '../grpc/grpc-presets';
-import { GrpcTransport } from '../transport/grpc-transport';
+import { GrpcTransport, parseEnvelopes, EnvelopeTooLargeError } from '../transport/grpc-transport';
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 
@@ -216,9 +216,16 @@ describe('applyGrpcPreset', () => {
     expect(cfg.retries).toBe(3); // preset default kept
   });
 
-  it('unknown preset returns config unchanged', () => {
-    const cfg = applyGrpcPreset({ preset: 'nonexistent' as never });
-    expect(cfg).toEqual({ preset: 'nonexistent' });
+  it('rejects an unknown preset name instead of silently ignoring it', () => {
+    // Swallowing a typo produced a client with no resilience at all, while the
+    // calling code read as though a preset were in force.
+    expect(() => applyGrpcPreset({ preset: 'nonexistent' as never })).toThrow(/unknown gRPC preset/);
+    expect(() => applyGrpcPreset({ preset: 'nonexistent' as never })).toThrow(/resilient-api/);
+  });
+
+  it('leaves a config with no preset untouched', () => {
+    const cfg = applyGrpcPreset({ address: 'grpc://localhost:50051' } as never);
+    expect(cfg).toEqual({ address: 'grpc://localhost:50051' });
   });
 });
 
@@ -644,5 +651,52 @@ describe('createGrpcClient — bidi streaming failure', () => {
     }).rejects.toThrow('bidi error');
 
     expect(client.metrics().failed).toBe(1);
+  });
+});
+
+// ─── Connect-RPC envelope framing — declared length must be validated ────────
+describe('parseEnvelopes', () => {
+  const envelope = (payload: string, flags = 0x00): Buffer => {
+    const body = Buffer.from(payload);
+    const header = Buffer.alloc(5);
+    header[0] = flags;
+    header.writeUInt32BE(body.length, 1);
+    return Buffer.concat([header, body]);
+  };
+
+  it('parses complete envelopes', () => {
+    const buf = Buffer.concat([envelope('one'), envelope('two')]);
+    const { envelopes, remaining } = parseEnvelopes(buf);
+    expect(envelopes.map((e) => e.data.toString())).toEqual(['one', 'two']);
+    expect(remaining).toHaveLength(0);
+  });
+
+  it('keeps a trailing partial envelope for the next chunk', () => {
+    const full = envelope('hello');
+    const { envelopes, remaining } = parseEnvelopes(full.subarray(0, 7));
+    expect(envelopes).toHaveLength(0);
+    expect(remaining).toHaveLength(7);
+  });
+
+  it('rejects a declared length beyond the ceiling instead of waiting for it', () => {
+    // A peer (or corruption) claiming 4 GiB: without a check the parser parks
+    // forever while the pending buffer grows without bound.
+    const header = Buffer.alloc(5);
+    header[0] = 0x00;
+    header.writeUInt32BE(0xffffffff, 1);
+
+    expect(() => parseEnvelopes(header)).toThrow(EnvelopeTooLargeError);
+    expect(() => parseEnvelopes(header)).toThrow(/exceeds/);
+  });
+
+  it('honours a caller-supplied ceiling', () => {
+    const buf = envelope('0123456789');
+    expect(() => parseEnvelopes(buf, 4)).toThrow(EnvelopeTooLargeError);
+    expect(parseEnvelopes(buf, 1024).envelopes).toHaveLength(1);
+  });
+
+  it('accepts a message exactly at the limit', () => {
+    const buf = envelope('abcd');
+    expect(parseEnvelopes(buf, 4).envelopes).toHaveLength(1);
   });
 });

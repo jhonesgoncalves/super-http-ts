@@ -39,17 +39,46 @@ interface Envelope {
 }
 
 /**
+ * Largest single message accepted off the wire.
+ *
+ * The 4-byte envelope length is attacker- or corruption-controlled: a peer can
+ * declare 0xFFFFFFFF and the parser will keep waiting for 4 GiB that never
+ * arrives while the pending buffer grows without bound. Validating the declared
+ * length against a ceiling turns that into a clean error.
+ */
+export const MAX_RECEIVE_MESSAGE_BYTES = 16 * 1024 * 1024;
+
+/** Thrown when a peer declares an envelope larger than the accepted ceiling. */
+export class EnvelopeTooLargeError extends Error {
+  constructor(declared: number, limit: number) {
+    super(`gRPC message of ${declared} bytes exceeds the ${limit}-byte limit`);
+    this.name = 'EnvelopeTooLargeError';
+  }
+}
+
+/**
  * Parses as many complete 5+N byte envelopes as possible from `buffer`.
  * Returns `{ envelopes, remaining }` where `remaining` is any trailing partial
  * envelope that needs more data before it can be decoded.
+ *
+ * @throws {@link EnvelopeTooLargeError} when a declared length exceeds `limit`.
+ *
+ * @internal Exported for tests; not part of the public API.
  */
-function parseEnvelopes(buffer: Buffer): { envelopes: Envelope[]; remaining: Buffer } {
+export function parseEnvelopes(
+  buffer: Buffer,
+  limit: number = MAX_RECEIVE_MESSAGE_BYTES,
+): { envelopes: Envelope[]; remaining: Buffer } {
   const envelopes: Envelope[] = [];
   let offset = 0;
 
   while (offset + 5 <= buffer.length) {
     const flags = buffer[offset];
     const len = buffer.readUInt32BE(offset + 1);
+
+    // Check before trusting the length: an absurd value must fail fast rather
+    // than park the stream waiting for bytes that will never come.
+    if (len > limit) throw new EnvelopeTooLargeError(len, limit);
 
     if (offset + 5 + len > buffer.length) break; // incomplete message — wait for more data
 
@@ -149,12 +178,19 @@ export class GrpcTransport implements Transport {
         reject(new GrpcError('deadline_exceeded', `gRPC call timed out after ${timeoutMs}ms`));
       }, timeoutMs);
 
-      // Cancellation
-      request.signal?.addEventListener('abort', () => {
+      // Cancellation. The listener is removed on abort and by the settle paths
+      // below: a long-lived signal reused across calls must not accumulate one
+      // listener per call.
+      const onAbort = (): void => {
         clearTimeout(timer);
+        request.signal?.removeEventListener('abort', onAbort);
         req.destroy();
         reject(new GrpcError('canceled', 'gRPC call was canceled'));
-      });
+      };
+      request.signal?.addEventListener('abort', onAbort, { once: true });
+      const detachAbort = (): void => request.signal?.removeEventListener('abort', onAbort);
+      req.once('close', detachAbort);
+      req.once('error', detachAbort);
 
       let statusCode = 200;
       const chunks: Buffer[] = [];
@@ -236,11 +272,16 @@ export class GrpcTransport implements Transport {
       push({ type: 'error', error: new GrpcError('deadline_exceeded', `gRPC stream timed out after ${timeoutMs}ms`) });
     }, timeoutMs);
 
-    request.signal?.addEventListener('abort', () => {
+    const onStreamAbort = (): void => {
       clearTimeout(timer);
+      request.signal?.removeEventListener('abort', onStreamAbort);
       req.destroy();
       push({ type: 'error', error: new GrpcError('canceled', 'gRPC stream was canceled') });
-    });
+    };
+    request.signal?.addEventListener('abort', onStreamAbort, { once: true });
+    const detachStreamAbort = (): void => request.signal?.removeEventListener('abort', onStreamAbort);
+    req.once('close', detachStreamAbort);
+    req.once('error', detachStreamAbort);
 
     req.on('data', (chunk: Buffer) => push({ type: 'data', chunk }));
     req.on('end', () => {

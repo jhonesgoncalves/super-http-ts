@@ -19,7 +19,9 @@ CLOSED ────────────────────────�
 ```
 
 ### Closed (normal)
-Requests flow normally. Each failure increments the counter. When `failureThreshold` consecutive failures occur, the circuit **trips** to open.
+Requests flow normally. Each counted failure increments the counter, and **any
+success resets it to zero** — `failureThreshold` means *consecutive* failures.
+When the streak reaches the threshold, the circuit **trips** to open.
 
 ### Open (tripped)
 All requests throw immediately:
@@ -29,9 +31,51 @@ Error: Circuit breaker is open
 No network call is made. After `timeoutMs` milliseconds, the circuit moves to half-open.
 
 ### Half-open (probing)
-One request is allowed through as a probe:
-- **Succeeds** → success counter increments. After `successThreshold` consecutive successes, the circuit **closes**.
-- **Fails** → circuit re-opens and the timeout resets.
+Exactly **one** request at a time is allowed through as a probe. Concurrent
+callers arriving while a probe is in flight get `Circuit breaker is open` — a
+recovering upstream should not be hit by the whole backlog at once.
+
+- **Succeeds** → success counter increments. After `successThreshold` successes, the circuit **closes**.
+- **Fails** → circuit re-opens immediately and the timeout resets.
+
+---
+
+## What counts as a failure
+
+By default only **network errors and 5xx responses** count. A `4xx` is a correct
+answer from a healthy service about a bad request, so it does not move the
+counter:
+
+| Response | Counts | Why |
+|---|:---:|---|
+| Network error, timeout, reset | ✅ | The integration point failed |
+| HTTP 5xx | ✅ | The upstream is faulting |
+| HTTP 4xx | ❌ | The caller asked for something wrong |
+| HTTP 429 | ❌ | Backpressure — the rate limiter and `Retry-After` handle it |
+
+::: warning Changed in 2.0
+In 1.x every rejected request counted, and axios rejects `4xx`. A crawler hitting
+missing pages or a batch of expired tokens would open the circuit on an upstream
+that was answering perfectly — and then take down the traffic that was working.
+:::
+
+Supply your own predicate to change this:
+
+```typescript
+client.circuitBreak({
+  failureThreshold: 5,
+  successThreshold: 2,
+  timeoutMs: 10_000,
+  // Count 429 as a failure too, e.g. when the upstream has no rate-limit contract
+  shouldTrip: (error) => {
+    const status = (error as { response?: { status?: number } })?.response?.status
+    return status === undefined || status >= 500 || status === 429
+  },
+})
+```
+
+Errors the predicate rejects still propagate to the caller unchanged — they
+simply do not move the failure counter.
 
 ---
 
@@ -82,9 +126,28 @@ async function getRecommendations(userId: string) {
 
 ---
 
+## Reading the current state
+
+`metrics().circuitBreakerTrips` counts how many times the circuit has *ever*
+opened. To answer "is it open right now?" — the question a dashboard or an alert
+actually asks — use `state()`:
+
+```typescript
+const s = client.state()
+if (s.circuit?.open) {
+  // skip the call, serve from cache
+}
+
+// Breakers created for per-request policy overrides are listed separately
+s.policyCircuits // { '1:1:60000': { state: 'open', open: true } }
+```
+
+---
+
 ## Combining with retry
 
-When both are configured, the circuit breaker wraps the retry:
+The circuit breaker is the innermost policy, so every retry attempt goes through
+it:
 
 ```typescript
 client
@@ -95,12 +158,34 @@ client
 Execution order per request:
 
 ```
-retry wrapper
-  └─► circuit breaker
-        └─► actual HTTP request
+retry
+ └─► bulkhead
+      └─► rate limiter
+           └─► circuit breaker
+                └─► actual HTTP request
 ```
 
 If the circuit is open, the retry wrapper receives `"Circuit breaker is open"` and **stops immediately** — it does not wait for the delay or burn retry attempts.
+
+---
+
+## Per-request overrides get their own breaker
+
+A `policy.circuitBreaker` override is a *different* breaker, with its own
+thresholds and its own failure counter:
+
+```typescript
+// This breaker is dedicated to threshold 1 — it does not touch the client's
+await client.request({
+  url: '/optional-enrichment',
+  policy: { circuitBreaker: { failureThreshold: 1, timeoutMs: 30_000 } },
+})
+```
+
+Up to 64 distinct configurations are tracked per client; beyond that, overrides
+fall back to the client-level breaker. Since policies are normally constant
+literals, that ceiling only exists to stop a caller that builds configs
+dynamically from growing the map without bound.
 
 ---
 

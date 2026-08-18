@@ -1,5 +1,6 @@
 import type { GrpcClientConfig } from '../models/grpc.client.config';
 import { ExponentialJitterRetryStrategy } from '../models/retry.strategy';
+import { assertOneOf } from '../models/validate';
 
 /**
  * gRPC preset configurations — same names as HTTP presets for a consistent
@@ -54,6 +55,7 @@ const GRPC_PRESETS: Record<string, GrpcPreset> = {
     bulkhead: {
       maxConcurrent: 50,
       maxQueue: 200,
+      queueTimeoutMs: 5_000,
     },
     encoding: 'json',
     protocol: 'connect',
@@ -82,8 +84,10 @@ const GRPC_PRESETS: Record<string, GrpcPreset> = {
  */
 export function applyGrpcPreset(config: GrpcClientConfig): GrpcClientConfig {
   if (!config.preset) return config;
+  // A typo used to be swallowed here, so the client silently ran with no
+  // resilience at all while the code read as if a preset were applied.
+  assertOneOf(config.preset, Object.keys(GRPC_PRESETS), 'gRPC preset');
   const preset = GRPC_PRESETS[config.preset];
-  if (!preset) return config;
   // Preset is the base; explicit fields override
   return { ...preset, ...config };
 }

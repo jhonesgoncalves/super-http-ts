@@ -75,6 +75,7 @@ export default withMermaid(defineConfig({
             { text: 'Getting Started', link: '/guide/getting-started' },
             { text: 'Why super-http?', link: '/guide/why' },
             { text: 'Migrating from Axios', link: '/guide/migration' },
+            { text: 'Upgrading 1.x → 2.0', link: '/guide/migration-2' },
           ],
         },
         {
@@ -82,6 +83,7 @@ export default withMermaid(defineConfig({
           items: [
             { text: 'Connection Pooling', link: '/guide/connection-pool' },
             { text: 'Retry Strategies', link: '/guide/retry' },
+            { text: 'Deadlines & Cancellation', link: '/guide/deadlines' },
             { text: 'Circuit Breaker', link: '/guide/circuit-breaker' },
             { text: 'Bulkhead', link: '/guide/bulkhead' },
             { text: 'Rate Limiter', link: '/guide/rate-limiter' },

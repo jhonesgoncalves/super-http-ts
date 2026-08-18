@@ -7,6 +7,152 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.0.0] — Unreleased
+
+Hardening pass against the stability patterns in Michael Nygard's *Release It!*,
+plus four data-integrity bugs found along the way. See the
+[1.x → 2.0 migration guide](website/guide/migration-2.md).
+
+### Security
+
+- **`axios` bumped from `1.3.4` to `^1.19.0`.** The lockfile pinned `1.3.4` (Feb 2023), which `npm ci` installed in CI and in any consumer inheriting the lockfile. That version sits inside the `>=1.0.0 <1.18.0` range flagged **high** by `npm audit`, covering SSRF via absolute URL ([GHSA-jr5f-v2jv-69x6](https://github.com/advisories/GHSA-jr5f-v2jv-69x6)), CSRF ([GHSA-wf5p-g6vw-rhxx](https://github.com/advisories/GHSA-wf5p-g6vw-rhxx)), `Proxy-Authorization` leakage across redirects, prototype-pollution config gadgets and several DoS vectors. `npm audit --omit=dev` is now clean.
+
+### ⚠️ BREAKING CHANGES
+
+Every one of these changes a default that was unsafe. The old behaviour is
+recoverable in each case — the migration guide shows how.
+
+- **Retry now respects method idempotency.** Errors that prove the request never
+  executed (`ECONNREFUSED`, `ENOTFOUND`, `EAI_AGAIN`) are still retried for any
+  method. Ambiguous errors — `ECONNRESET`, `ETIMEDOUT`, `ECONNABORTED`, `EPIPE`
+  and any 5xx, where the request may already have been applied — are now retried
+  only for idempotent methods (`GET`/`HEAD`/`OPTIONS`/`PUT`/`DELETE`/`TRACE`).
+  Axios surfaces its own timeout as `ETIMEDOUT`/`ECONNABORTED`, so previously
+  **every timed-out `POST` was re-sent**, and a `POST /payments` with `retry(3)`
+  could charge four times. Opt back in per client with
+  `retry(n, delay, { retryNonIdempotent: true })` or per request with
+  `policy: { retry: { attempts: n, retryNonIdempotent: true } }`.
+- **`retryOn` is additive instead of a replacement.** `retry(3, 500, [503])` used
+  to *disable* network-error retries entirely; it now adds 503 on top of them.
+- **A 4xx no longer trips the circuit breaker.** Axios rejects 4xx responses and
+  the breaker counted every rejection, so a burst of 404s or 401s — correct
+  answers from a healthy upstream — opened the circuit and took down working
+  traffic. `429` is also excluded: it is backpressure, which the rate limiter and
+  `Retry-After` handle. Override with `circuitBreak({ …, shouldTrip })`.
+- **gRPC deduplication is opt-in.** It was on for every unary call with no way to
+  disable it, silently collapsing two concurrent identical mutations into one RPC.
+  Set `dedup: true` in `GrpcClientConfig` to restore it.
+- **HTTP deduplication only coalesces `GET` and `HEAD`.** Widen deliberately with
+  `dedup({ methods: [...] })`.
+- **Queues no longer wait forever.** `queueTimeoutMs` now defaults to 10 s on both
+  `Bulkhead` and `RateLimiter`; pass `Infinity` to opt back into an unbounded
+  wait. The rate limiter also gained `maxQueue` (default 1000).
+- **Response and request bodies are capped at 32 MiB** (`maxContentLength` /
+  `maxBodyLength`), where axios defaults to unlimited. Raise via `PoolConfig`.
+- **Invalid configuration now throws at wiring time** instead of misbehaving at
+  runtime. See *Fail Fast* below.
+- **An unknown gRPC preset name throws** instead of being silently ignored, which
+  used to produce a client with no resilience at all.
+- **`on()` accumulates handlers** rather than overwriting per key. Two plugins
+  observing the same hook both run now; previously only the last registered did.
+
+### Fixed
+
+- **Deduplication returned one caller another caller's response.** The HTTP dedup
+  key was `method:url:params` — the request **body was not part of it** — so two
+  concurrent `POST`s with different payloads collapsed into one call and the
+  second caller received the first one's result. The body is now part of the key,
+  and a body that cannot be compared byte-for-byte (a stream, a `FormData`, a
+  circular object) is never deduplicated rather than guessed at. The documentation
+  had claimed the body was already keyed; it was not.
+- **`shouldTripCircuit` was dead code.** The gRPC error mapper's per-code table
+  correctly marked `not_found`, `invalid_argument`, `unauthenticated`,
+  `permission_denied`, `resource_exhausted` and `aborted` as non-tripping, and the
+  function implementing it was exported and tested — but never called. The gRPC
+  breaker counted every error, so a burst of 404s opened the circuit. Now wired in.
+- **No call had an upper bound the caller could state.** `timeout` bounded a single
+  attempt, and each retry got a fresh one, so with the shipped `resilient-api`
+  preset one `await client.get()` could run ~76 s (5 s bulkhead queue + 4 × 15 s
+  attempts + ~11 s of backoff). New `client.deadline(ms)` and
+  `policy: { deadlineMs }` bound the **total**: queue waits, every attempt and
+  every backoff. Each stage clamps itself to the remaining budget, and retry fails
+  immediately rather than sleeping past the deadline.
+- **Nothing was cancellable.** `policy: { signal }` now cancels the whole call.
+  The retry backoff, the bulkhead wait and the rate-limiter wait are all abortable;
+  previously the caller could give up while the library kept the work alive to its
+  end.
+- **Retry escaped the rate limiter and starved the bulkhead.** Retry was the
+  innermost decorator, so a request held its bulkhead slot through every backoff
+  sleep — effective concurrency collapsed with no socket in use — and only the
+  first attempt of a call ever took a token, letting `permitLimit: 100` emit 400
+  requests. The composition is now `retry(bulkhead(rateLimit(circuitBreaker)))`, so
+  capacity is released during backoff and re-acquired per attempt. Bulkhead and
+  rate-limiter rejections are explicitly non-retryable.
+- **`policy.retry` discarded the client's retry strategy**, always building a fixed
+  100 ms delay — turning any per-request override into a thundering herd even when
+  the client was configured with exponential jitter. It now inherits the client
+  strategy unless `delayMs` is given explicitly.
+- **`RetryAfterStrategy` ignored its own `maxDelayMs`** on the header path, so
+  `Retry-After: 3600` produced a one-hour, non-abortable sleep. Now clamped.
+- **The gRPC envelope length was trusted without validation.** A peer declaring
+  `0xFFFFFFFF` made the parser wait for 4 GiB that never arrives while the pending
+  buffer grew without bound. Lengths are now checked against a 16 MiB ceiling.
+- **`PoolConfig.timeout` never reached the agent.** It was read out of the config
+  and used only as the axios response timeout, so nothing bounded a socket that
+  simply went quiet. Agents now get an inactivity timeout, configurable separately
+  via `socketTimeoutMs`.
+- **gRPC abort listeners were never removed**, so a long-lived `AbortSignal` reused
+  across calls accumulated one listener per call.
+- **`HttpClient` had no way to release its resources.** New `close()` destroys both
+  agents and clears plugin timers. `HttpClientFactory.clear()` now closes each
+  client before dropping it — the call advertised for test isolation was leaking a
+  connection pool per invocation.
+- **Deduplication had no TTL**, so a request that never settled pinned its key
+  forever and every later identical call joined the same doomed promise.
+- **`MetricsReporterPlugin` never cleared its interval.** Plugins may now define
+  `uninstall()`, called by `close()`.
+- **The gRPC `resilient-api` preset shipped a 200-deep bulkhead queue with no
+  timeout**, so 200 RPCs could block indefinitely by factory configuration.
+
+- **Circuit breaker counted cumulative, not consecutive, failures — and tripped on healthy services.** A success never cleared the failure counter (`handleSuccess` called `transitionTo('closed')`, which returns early when already closed), and the counter was only reset when a full `timeoutMs` elapsed with no failure at all. With the `resilient-api` preset (`failureThreshold: 10`, `timeoutMs: 10_000`) a service at 99.5% success and ~58 rps tripped its breaker roughly every 30 seconds. A success now resets the streak, so `failureThreshold` means what the docs always said it meant.
+- **Circuit breaker allowed unlimited concurrent probes in half-open.** `execute()` only guarded against `open`, so every request arriving during recovery reached the upstream — a stampede on the service that had just come back. Half-open now admits exactly one probe at a time; the rest are refused with `Circuit breaker is open`.
+- **`successThreshold` decayed to `1` after the first few successes.** `successes` was never reset when the circuit opened, and grew monotonically while closed, so the first successful probe after a trip closed the circuit regardless of the configured threshold. Counters are now reset on every transition.
+- **A per-request `policy.circuitBreaker` permanently rewrote the client-wide breaker.** `withCircuitBreaker` called `setConfig()` on the single shared breaker on *every* request, so one override changed the thresholds for all subsequent requests, and requests with different policies pooled their failure counts and open/closed state. Overrides now get their own breaker instance keyed by config (capped at 64 distinct configs), and the client-level breaker is configured once by `circuitBreak()`.
+- **Circuit-breaker state-change events reported `failures: 0` on close.** The counter was zeroed before the event was constructed; events now carry the streak that caused the transition.
+- **Unbounded memory growth in `MetricsCollector`.** Every successful request pushed its latency onto an array that was never trimmed — roughly 40 MB/day at 58 rps. Worse, `snapshot()` copied and sorted that whole array, and `MetricsReporterPlugin` calls it every 60 s, so a multi-million-element sort blocked the event loop periodically long before memory became fatal. Latencies now live in a fixed 2048-entry ring buffer (16 KB per client, `sort()` bounded to 2048).
+- **Rate limiter permanently lost a token on every queue timeout.** A timed-out waiter was rejected but left in `waitQueue`; `drainQueue()` then decremented `tokens` and resolved the already-settled promise, so effective throughput decayed below `permitLimit` cumulatively. The entry is now removed before rejecting, matching `Bulkhead`. Also clamps a negative refill delay.
+- **`resetMetrics()` did not reset `uptime`**, despite the documented contract that all counters accumulate from the last reset.
+
+### Added
+
+- **Fail Fast configuration guards.** `maxConcurrent: 0` used to deadlock every
+  request with no error; `permitLimit: 0` rejected or hung forever; `windowMs: 0`
+  turned the rate limiter into a silent no-op; `failureThreshold: 0` left the
+  circuit permanently open; `maxSockets: 0` meant *unlimited* to Node, the opposite
+  of what it reads like. All of these now throw at the call that sets them, naming
+  the value received and the value expected.
+- **`client.state()`** — the current state of every configured component: circuit
+  state (including per-policy breakers), bulkhead active/queued, rate-limiter
+  tokens and queue depth, dedup in-flight count. `circuitBreakerTrips` could only
+  say the circuit opened at some point, never whether it is open right now.
+- **`client.correlate()`** — a per-request id, sent in a configurable header
+  (default `x-request-id`, never overwriting a caller-supplied one) and attached to
+  every resilience event. Retry and fallback events were previously anonymous.
+- **`RateLimiter.queuedCount`** and **`PoolConfig.socketTimeoutMs`**.
+- **An integration suite that uses real sockets** (`npm run test:integration`).
+  The unit suite mocks axios wholesale, so it never exercised `http.Agent`,
+  keep-alive, real timeouts, resets or partial responses — which is exactly where
+  these bugs were hiding. 59 tests against a fault-injection server, now part of CI.
+
+### Changed
+
+- **Connection pool defaults raised: `maxSockets` 50 → 200, `maxFreeSockets` 10 → 50.** Steady-state demand is about `rps * latencySeconds` (~12 sockets at 58 rps / 200 ms), so the old default was adequate on average but had no headroom for latency degradation or bursts. Preset pools (100–500) are unchanged.
+- `MetricsSnapshot.p50Latency` / `p95Latency` / `p99Latency` are now computed over a rolling window of the most recent successful requests rather than the full process history, so they track current behaviour. `avgLatency` remains exact across all successes.
+- `RateLimitConfig` doc corrected: the limiter is a fixed-window token bucket, not sliding-window.
+- `MetricsSnapshot.requests` doc corrected: retried attempts are counted in `retries`, not `requests`.
+
+---
+
 ## [1.4.7] — 2026-06-09
 
 ### Fixed

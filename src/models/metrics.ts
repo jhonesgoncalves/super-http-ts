@@ -6,7 +6,7 @@
  * {@link HttpClient.resetMetrics | client.resetMetrics()} call).
  */
 export interface MetricsSnapshot {
-  /** Total logical requests dispatched (includes retried attempts). */
+  /** Total logical requests dispatched (retried attempts are counted in `retries`). */
   requests: number;
   /** Requests that completed with a 2xx / non-error response. */
   success: number;
@@ -22,19 +22,25 @@ export interface MetricsSnapshot {
   rateLimitRejects: number;
   /** Number of times the fallback handler was invoked. */
   fallbacks: number;
-  /** Average response latency in ms (successful requests only). */
+  /** Average response latency in ms across **all** successful requests. */
   avgLatency: number;
-  /** Median (p50) response latency in ms. */
+  /**
+   * Median (p50) response latency in ms.
+   *
+   * Percentiles are computed over a rolling window of the most recent
+   * successful requests (the most recent 2048), not the full history —
+   * so they track current behaviour rather than the process lifetime.
+   */
   p50Latency: number;
-  /** 95th-percentile response latency in ms. */
+  /** 95th-percentile response latency in ms, over the recent-request window. */
   p95Latency: number;
-  /** 99th-percentile response latency in ms. */
+  /** 99th-percentile response latency in ms, over the recent-request window. */
   p99Latency: number;
-  /** Milliseconds since the client was created. */
+  /** Milliseconds since the client was created (or since the last reset). */
   uptime: number;
 }
 
-function pct(sorted: number[], p: number): number {
+function pct(sorted: ArrayLike<number>, p: number): number {
   if (sorted.length === 0) return 0;
   const idx = Math.ceil((p / 100) * sorted.length) - 1;
   return sorted[Math.max(0, idx)];
@@ -43,9 +49,17 @@ function pct(sorted: number[], p: number): number {
 /**
  * Internal metrics accumulator wired into the `HttpClient` lifecycle.
  * Not part of the public API — use `client.metrics()` instead.
+ *
+ * Latencies are kept in a fixed-size ring buffer, so memory is constant no
+ * matter how many requests the client serves, and `snapshot()` sorts a bounded
+ * array rather than the full history.
+ *
  * @internal
  */
 export class MetricsCollector {
+  /** Default number of recent latencies retained (~35 s of traffic at 58 rps). */
+  static readonly DEFAULT_LATENCY_WINDOW = 2048;
+
   private _requests = 0;
   private _success = 0;
   private _failed = 0;
@@ -54,15 +68,29 @@ export class MetricsCollector {
   private _bhRejects = 0;
   private _rlRejects = 0;
   private _fallbacks = 0;
-  private _latencies: number[] = [];
-  private readonly _startTime = Date.now();
+
+  /** Ring buffer of recent latencies. Fixed cost: `latencyWindow` * 8 bytes. */
+  private readonly _latencies: Float64Array;
+  /** Total latencies recorded — doubles as the write cursor and the fill level. */
+  private _writes = 0;
+  /** Exact sum over all successes, so `avgLatency` is not windowed. */
+  private _latencySum = 0;
+  private _startTime = Date.now();
+
+  /**
+   * @param latencyWindow - Number of recent latency samples kept for percentiles.
+   */
+  constructor(private readonly latencyWindow: number = MetricsCollector.DEFAULT_LATENCY_WINDOW) {
+    this._latencies = new Float64Array(latencyWindow);
+  }
 
   recordRequest(): void {
     this._requests++;
   }
   recordSuccess(latencyMs: number): void {
     this._success++;
-    this._latencies.push(latencyMs);
+    this._latencySum += latencyMs;
+    this._latencies[this._writes++ % this.latencyWindow] = latencyMs;
   }
   recordFailure(): void {
     this._failed++;
@@ -85,8 +113,10 @@ export class MetricsCollector {
 
   /** Returns a point-in-time snapshot of all metrics. */
   snapshot(): MetricsSnapshot {
-    const sorted = [...this._latencies].sort((a, b) => a - b);
-    const avg = sorted.length ? sorted.reduce((a, b) => a + b, 0) / sorted.length : 0;
+    const filled = Math.min(this._writes, this.latencyWindow);
+    // Typed-array sort is numeric-ascending by default — no comparator needed.
+    const sorted = this._latencies.slice(0, filled).sort();
+    const avg = this._success ? this._latencySum / this._success : 0;
     return {
       requests: this._requests,
       success: this._success,
@@ -104,7 +134,7 @@ export class MetricsCollector {
     };
   }
 
-  /** Resets all counters and latency history. */
+  /** Resets all counters, latency history and uptime. */
   reset(): void {
     this._requests = 0;
     this._success = 0;
@@ -114,6 +144,8 @@ export class MetricsCollector {
     this._bhRejects = 0;
     this._rlRejects = 0;
     this._fallbacks = 0;
-    this._latencies = [];
+    this._writes = 0;
+    this._latencySum = 0;
+    this._startTime = Date.now();
   }
 }

@@ -1,4 +1,6 @@
 import { BulkheadRejectEvent, ResilienceEvents } from '../models/resilience.events';
+import { toError } from '../models/deadline';
+import { assertDuration, assertIntAtLeast, assertOptional } from '../models/validate';
 
 /**
  * Configuration for the {@link Bulkhead} isolation pattern.
@@ -28,7 +30,13 @@ export interface BulkheadConfig {
 
   /**
    * How long (ms) a queued request may wait before being rejected.
-   * `undefined` means wait indefinitely.
+   *
+   * Defaults to {@link Bulkhead.DEFAULT_QUEUE_TIMEOUT_MS}. Waiting forever is a
+   * blocked thread by another name — the most common way a healthy service is
+   * taken down by a sick dependency — so it has to be asked for explicitly with
+   * `Infinity`.
+   *
+   * @defaultValue 10000
    */
   queueTimeoutMs?: number;
 }
@@ -46,17 +54,27 @@ export interface BulkheadConfig {
  * ```
  */
 export class Bulkhead {
+  /** Queue wait applied when `queueTimeoutMs` is omitted. */
+  static readonly DEFAULT_QUEUE_TIMEOUT_MS = 10_000;
+
   private active = 0;
   private readonly queue: Array<{
     resolve: () => void;
     reject: (err: Error) => void;
     timer?: ReturnType<typeof setTimeout>;
+    onAbort?: () => void;
   }> = [];
 
   constructor(
     private readonly config: BulkheadConfig,
     private readonly events?: Pick<ResilienceEvents, 'onBulkheadReject'>,
-  ) {}
+  ) {
+    // maxConcurrent: 0 makes `active < maxConcurrent` false forever, so every
+    // request queues and nothing ever dequeues — a total deadlock with no error.
+    assertIntAtLeast(config.maxConcurrent, 1, 'bulkhead.maxConcurrent');
+    assertOptional(config.maxQueue, (v) => assertIntAtLeast(v, 0, 'bulkhead.maxQueue'));
+    assertOptional(config.queueTimeoutMs, (v) => assertDuration(v, 'bulkhead.queueTimeoutMs', true));
+  }
 
   /** Current number of active (in-flight) requests. */
   get activeCount(): number {
@@ -76,7 +94,7 @@ export class Bulkhead {
    * @throws `Error('Bulkhead queue timeout')` when a queued request exceeds
    *   `queueTimeoutMs`.
    */
-  async execute<T>(fn: () => Promise<T>): Promise<T> {
+  async execute<T>(fn: () => Promise<T>, opts: { signal?: AbortSignal; maxWaitMs?: number } = {}): Promise<T> {
     const maxQueue = this.config.maxQueue ?? 50;
 
     if (this.active < this.config.maxConcurrent) {
@@ -89,17 +107,46 @@ export class Bulkhead {
       throw new Error('Bulkhead queue full');
     }
 
+    // The wait is bounded by the smaller of the configured timeout and whatever
+    // is left of the caller's total budget.
+    const configured = this.config.queueTimeoutMs ?? Bulkhead.DEFAULT_QUEUE_TIMEOUT_MS;
+    const waitMs = opts.maxWaitMs === undefined ? configured : Math.min(configured, opts.maxWaitMs);
+
     // Enqueue and wait for a slot
     await new Promise<void>((resolve, reject) => {
       const entry: (typeof this.queue)[number] = { resolve, reject };
 
-      if (this.config.queueTimeoutMs !== undefined) {
+      const drop = (): void => {
+        const idx = this.queue.indexOf(entry);
+        if (idx !== -1) this.queue.splice(idx, 1);
+        if (entry.timer) clearTimeout(entry.timer);
+        if (entry.onAbort) opts.signal?.removeEventListener('abort', entry.onAbort);
+      };
+
+      if (Number.isFinite(waitMs)) {
         entry.timer = setTimeout(() => {
-          const idx = this.queue.indexOf(entry);
-          if (idx !== -1) this.queue.splice(idx, 1);
+          drop();
           reject(new Error('Bulkhead queue timeout'));
-        }, this.config.queueTimeoutMs);
+        }, waitMs);
       }
+
+      if (opts.signal) {
+        if (opts.signal.aborted) {
+          reject(toError(opts.signal.reason));
+          return;
+        }
+        entry.onAbort = () => {
+          drop();
+          reject(toError(opts.signal?.reason));
+        };
+        opts.signal.addEventListener('abort', entry.onAbort, { once: true });
+      }
+
+      // Wrap resolve so a granted slot also tears down the abort listener.
+      entry.resolve = () => {
+        if (entry.onAbort) opts.signal?.removeEventListener('abort', entry.onAbort);
+        resolve();
+      };
 
       this.queue.push(entry);
     });

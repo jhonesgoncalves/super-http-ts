@@ -1,7 +1,9 @@
 import { RateLimitRejectEvent, ResilienceEvents } from '../models/resilience.events';
+import { toError } from '../models/deadline';
+import { assertDuration, assertIntAtLeast, assertOptional } from '../models/validate';
 
 /**
- * Configuration for the {@link RateLimiter} (sliding-window token bucket).
+ * Configuration for the {@link RateLimiter} (fixed-window token bucket).
  *
  * @example
  * ```ts
@@ -33,8 +35,25 @@ export interface RateLimitConfig {
    * Max time (ms) a queued request will wait for a token before being
    * rejected with `Error('Rate limit queue timeout')`.
    * Only relevant when `queueRequests` is `true`.
+   *
+   * Defaults to {@link RateLimiter.DEFAULT_QUEUE_TIMEOUT_MS}. Pass `Infinity` to
+   * wait forever — that blocks the caller indefinitely, so it has to be asked
+   * for deliberately rather than being what you get by omission.
+   *
+   * @defaultValue 10000
    */
   queueTimeoutMs?: number;
+
+  /**
+   * Max number of requests allowed to wait for a token. Beyond this, callers are
+   * rejected immediately with `Error('Rate limit queue full')`.
+   *
+   * An unbounded wait queue grows without limit while a window is saturated — a
+   * memory leak plus latency nobody can put a number on.
+   *
+   * @defaultValue 1000
+   */
+  maxQueue?: number;
 }
 
 /**
@@ -51,18 +70,36 @@ export interface RateLimitConfig {
  * ```
  */
 export class RateLimiter {
+  /** Queue wait applied when `queueTimeoutMs` is omitted. */
+  static readonly DEFAULT_QUEUE_TIMEOUT_MS = 10_000;
+  /** Wait-queue ceiling applied when `maxQueue` is omitted. */
+  static readonly DEFAULT_MAX_QUEUE = 1000;
+
   private tokens: number;
   private windowStart: number;
   private readonly waitQueue: Array<{
     resolve: () => void;
     reject: (err: Error) => void;
     timer?: ReturnType<typeof setTimeout>;
+    onAbort?: () => void;
   }> = [];
+  /**
+   * One drain timer for the whole limiter. Arming one per waiter meant N timers
+   * all firing at the same instant to do the same piece of work.
+   */
+  private drainTimer?: ReturnType<typeof setTimeout>;
 
   constructor(
     private readonly config: RateLimitConfig,
     private readonly events?: Pick<ResilienceEvents, 'onRateLimitReject'>,
   ) {
+    // permitLimit: 0 rejects (or queues forever) every request; windowMs: 0
+    // refills on every acquire, silently turning the limiter into a no-op.
+    assertIntAtLeast(config.permitLimit, 1, 'rateLimit.permitLimit');
+    assertIntAtLeast(config.windowMs, 1, 'rateLimit.windowMs');
+    assertOptional(config.maxQueue, (v) => assertIntAtLeast(v, 0, 'rateLimit.maxQueue'));
+    assertOptional(config.queueTimeoutMs, (v) => assertDuration(v, 'rateLimit.queueTimeoutMs', true));
+
     this.tokens = config.permitLimit;
     this.windowStart = Date.now();
   }
@@ -70,12 +107,17 @@ export class RateLimiter {
   /**
    * Acquires a token, blocking if `queueRequests` is enabled.
    *
+   * @param opts.signal    - Abort the wait when this fires.
+   * @param opts.maxWaitMs - Ceiling from the caller's remaining total budget.
+   *   Combined with `queueTimeoutMs`; the smaller of the two wins.
+   *
    * @throws `Error('Rate limit exceeded')` when no token is available and
    *   `queueRequests` is `false`.
+   * @throws `Error('Rate limit queue full')` when the wait queue is at `maxQueue`.
    * @throws `Error('Rate limit queue timeout')` when a queued request waits
-   *   longer than `queueTimeoutMs`.
+   *   longer than the effective timeout.
    */
-  async acquire(): Promise<void> {
+  async acquire(opts: { signal?: AbortSignal; maxWaitMs?: number } = {}): Promise<void> {
     this.refillIfNeeded();
 
     if (this.tokens > 0) {
@@ -84,27 +126,58 @@ export class RateLimiter {
     }
 
     if (!this.config.queueRequests) {
-      const event: RateLimitRejectEvent = {
-        permitLimit: this.config.permitLimit,
-        windowMs: this.config.windowMs,
-      };
-      this.safeCall(() => this.events?.onRateLimitReject?.(event));
+      this.emitReject();
       throw new Error('Rate limit exceeded');
     }
 
-    // Queue the request until next refill
+    if (this.waitQueue.length >= (this.config.maxQueue ?? RateLimiter.DEFAULT_MAX_QUEUE)) {
+      this.emitReject();
+      throw new Error('Rate limit queue full');
+    }
+
+    const configured = this.config.queueTimeoutMs ?? RateLimiter.DEFAULT_QUEUE_TIMEOUT_MS;
+    const waitMs = opts.maxWaitMs === undefined ? configured : Math.min(configured, opts.maxWaitMs);
+
     await new Promise<void>((resolve, reject) => {
-      const timeUntilRefill = this.config.windowMs - (Date.now() - this.windowStart);
       const entry: (typeof this.waitQueue)[number] = { resolve, reject };
 
-      if (this.config.queueTimeoutMs !== undefined) {
-        entry.timer = setTimeout(() => reject(new Error('Rate limit queue timeout')), this.config.queueTimeoutMs);
+      const drop = (): void => {
+        const idx = this.waitQueue.indexOf(entry);
+        if (idx !== -1) this.waitQueue.splice(idx, 1);
+        if (entry.timer) clearTimeout(entry.timer);
+        if (entry.onAbort) opts.signal?.removeEventListener('abort', entry.onAbort);
+      };
+
+      if (Number.isFinite(waitMs)) {
+        entry.timer = setTimeout(() => {
+          // Dequeue before rejecting. Leaving a settled entry in the queue makes
+          // drainQueue() spend a token resolving a promise nobody is waiting on,
+          // permanently lowering effective throughput below permitLimit.
+          drop();
+          reject(new Error('Rate limit queue timeout'));
+        }, waitMs);
       }
 
-      this.waitQueue.push(entry);
+      if (opts.signal) {
+        if (opts.signal.aborted) {
+          reject(toError(opts.signal.reason));
+          return;
+        }
+        entry.onAbort = () => {
+          drop();
+          reject(toError(opts.signal?.reason));
+        };
+        opts.signal.addEventListener('abort', entry.onAbort, { once: true });
+      }
 
-      // Schedule a refill drain
-      setTimeout(() => this.drainQueue(), timeUntilRefill + 1);
+      // A granted token also tears down the abort listener.
+      entry.resolve = () => {
+        if (entry.onAbort) opts.signal?.removeEventListener('abort', entry.onAbort);
+        resolve();
+      };
+
+      this.waitQueue.push(entry);
+      this.scheduleDrain();
     });
   }
 
@@ -112,6 +185,32 @@ export class RateLimiter {
   get available(): number {
     this.refillIfNeeded();
     return this.tokens;
+  }
+
+  /** Number of requests currently waiting for a token. */
+  get queuedCount(): number {
+    return this.waitQueue.length;
+  }
+
+  private emitReject(): void {
+    const event: RateLimitRejectEvent = {
+      permitLimit: this.config.permitLimit,
+      windowMs: this.config.windowMs,
+    };
+    this.safeCall(() => this.events?.onRateLimitReject?.(event));
+  }
+
+  /** Arms a single drain for the next window boundary, if one is not already armed. */
+  private scheduleDrain(): void {
+    if (this.drainTimer !== undefined) return;
+    const untilRefill = Math.max(0, this.config.windowMs - (Date.now() - this.windowStart));
+    this.drainTimer = setTimeout(() => {
+      this.drainTimer = undefined;
+      this.drainQueue();
+      // Callers can still be queued if the fresh window ran out of tokens too.
+      if (this.waitQueue.length > 0) this.scheduleDrain();
+    }, untilRefill + 1);
+    this.drainTimer.unref?.();
   }
 
   private refillIfNeeded(): void {

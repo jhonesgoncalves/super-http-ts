@@ -1,4 +1,4 @@
-[**super-http v1.0.0**](../README.md)
+[**super-http v2.0.0**](../README.md)
 
 ***
 
@@ -6,11 +6,15 @@
 
 # Interface: HttpClientRequestConfig
 
-Defined in: [src/models/http.client.request.config.ts:3](https://github.com/jhonesgoncalves/super-http-ts/blob/343ba080e74d310b0ef878b233587a6c610988e8/src/models/http.client.request.config.ts#L3)
+Defined in: [src/models/http.client.request.config.ts:4](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/models/http.client.request.config.ts#L4)
 
 ## Extends
 
 - `AxiosRequestConfig`
+
+## Extended by
+
+- [`CreateClientOptions`](CreateClientOptions.md)
 
 ## Properties
 
@@ -18,11 +22,35 @@ Defined in: [src/models/http.client.request.config.ts:3](https://github.com/jhon
 
 > `optional` **adapter?**: `AxiosAdapterConfig` \| `AxiosAdapterConfig`[]
 
-Defined in: node\_modules/axios/index.d.ts:319
+Defined in: node\_modules/axios/index.d.ts:403
 
 #### Inherited from
 
-`AxiosRequestConfig.adapter`
+[`CreateClientOptions`](CreateClientOptions.md).[`adapter`](CreateClientOptions.md#adapter)
+
+***
+
+### allowAbsoluteUrls?
+
+> `optional` **allowAbsoluteUrls?**: `boolean`
+
+Defined in: node\_modules/axios/index.d.ts:391
+
+#### Inherited from
+
+[`CreateClientOptions`](CreateClientOptions.md).[`allowAbsoluteUrls`](CreateClientOptions.md#allowabsoluteurls)
+
+***
+
+### allowedSocketPaths?
+
+> `optional` **allowedSocketPaths?**: `string` \| `string`[] \| `null`
+
+Defined in: node\_modules/axios/index.d.ts:429
+
+#### Inherited from
+
+[`CreateClientOptions`](CreateClientOptions.md).[`allowedSocketPaths`](CreateClientOptions.md#allowedsocketpaths)
 
 ***
 
@@ -30,11 +58,11 @@ Defined in: node\_modules/axios/index.d.ts:319
 
 > `optional` **auth?**: `AxiosBasicCredentials`
 
-Defined in: node\_modules/axios/index.d.ts:320
+Defined in: node\_modules/axios/index.d.ts:404
 
 #### Inherited from
 
-`AxiosRequestConfig.auth`
+[`CreateClientOptions`](CreateClientOptions.md).[`auth`](CreateClientOptions.md#auth)
 
 ***
 
@@ -42,7 +70,7 @@ Defined in: node\_modules/axios/index.d.ts:320
 
 > `optional` **baseURL?**: `string`
 
-Defined in: node\_modules/axios/index.d.ts:309
+Defined in: node\_modules/axios/index.d.ts:390
 
 #### Inherited from
 
@@ -52,9 +80,9 @@ Defined in: node\_modules/axios/index.d.ts:309
 
 ### beforeRedirect?
 
-> `optional` **beforeRedirect?**: (`options`, `responseDetails`) => `void`
+> `optional` **beforeRedirect?**: (`options`, `responseDetails`, `requestDetails`) => `void`
 
-Defined in: node\_modules/axios/index.d.ts:332
+Defined in: node\_modules/axios/index.d.ts:416
 
 #### Parameters
 
@@ -67,6 +95,24 @@ Defined in: node\_modules/axios/index.d.ts:332
 ###### headers
 
 `Record`\<`string`, `string`\>
+
+###### statusCode
+
+`HttpStatusCode`
+
+##### requestDetails
+
+###### headers
+
+`Record`\<`string`, `string`\>
+
+###### method
+
+`string`
+
+###### url
+
+`string`
 
 #### Returns
 
@@ -82,11 +128,11 @@ Defined in: node\_modules/axios/index.d.ts:332
 
 > `optional` **cancelToken?**: `CancelToken`
 
-Defined in: node\_modules/axios/index.d.ts:337
+Defined in: node\_modules/axios/index.d.ts:434
 
 #### Inherited from
 
-`AxiosRequestConfig.cancelToken`
+[`CreateClientOptions`](CreateClientOptions.md).[`cancelToken`](CreateClientOptions.md#canceltoken)
 
 ***
 
@@ -94,7 +140,7 @@ Defined in: node\_modules/axios/index.d.ts:337
 
 > `optional` **data?**: `any`
 
-Defined in: node\_modules/axios/index.d.ts:315
+Defined in: node\_modules/axios/index.d.ts:399
 
 #### Inherited from
 
@@ -106,11 +152,11 @@ Defined in: node\_modules/axios/index.d.ts:315
 
 > `optional` **decompress?**: `boolean`
 
-Defined in: node\_modules/axios/index.d.ts:338
+Defined in: node\_modules/axios/index.d.ts:435
 
 #### Inherited from
 
-`AxiosRequestConfig.decompress`
+[`CreateClientOptions`](CreateClientOptions.md).[`decompress`](CreateClientOptions.md#decompress)
 
 ***
 
@@ -118,7 +164,25 @@ Defined in: node\_modules/axios/index.d.ts:338
 
 > `optional` **env?**: `object`
 
-Defined in: node\_modules/axios/index.d.ts:342
+Defined in: node\_modules/axios/index.d.ts:439
+
+#### fetch?
+
+> `optional` **fetch?**: (`input`, `init?`) => `Promise`\<`Response`\>
+
+##### Parameters
+
+###### input
+
+`string` \| `URL` \| `Request`
+
+###### init?
+
+`RequestInit`
+
+##### Returns
+
+`Promise`\<`Response`\>
 
 #### FormData?
 
@@ -134,9 +198,81 @@ Defined in: node\_modules/axios/index.d.ts:342
 
 `object`
 
+#### Request?
+
+> `optional` **Request?**: (`input`, `init?`) => `Request`
+
+##### Parameters
+
+###### input
+
+`string` \| `URL` \| `Request`
+
+###### init?
+
+`RequestInit`
+
+##### Returns
+
+`Request`
+
+#### Response?
+
+> `optional` **Response?**: (`body?`, `init?`) => `Response`
+
+##### Parameters
+
+###### body?
+
+`string` \| `URLSearchParams` \| `ArrayBuffer` \| `ArrayBufferView` \| `Blob` \| `FormData` \| `null`
+
+###### init?
+
+`ResponseInit`
+
+##### Returns
+
+`Response`
+
 #### Inherited from
 
 `AxiosRequestConfig.env`
+
+***
+
+### family?
+
+> `optional` **family?**: `AddressFamily`
+
+Defined in: node\_modules/axios/index.d.ts:449
+
+#### Inherited from
+
+[`CreateClientOptions`](CreateClientOptions.md).[`family`](CreateClientOptions.md#family)
+
+***
+
+### fetchOptions?
+
+> `optional` **fetchOptions?**: `Record`\<`string`, `any`\> \| `Omit`\<`RequestInit`, `"signal"` \| `"headers"` \| `"method"` \| `"body"`\>
+
+Defined in: node\_modules/axios/index.d.ts:468
+
+#### Inherited from
+
+[`CreateClientOptions`](CreateClientOptions.md).[`fetchOptions`](CreateClientOptions.md#fetchoptions)
+
+***
+
+### formDataHeaderPolicy?
+
+> `optional` **formDataHeaderPolicy?**: `"legacy"` \| `"content-only"`
+
+Defined in: node\_modules/axios/index.d.ts:473
+
+#### Inherited from
+
+[`CreateClientOptions`](CreateClientOptions.md).[`formDataHeaderPolicy`](CreateClientOptions.md#formdataheaderpolicy)
 
 ***
 
@@ -144,11 +280,11 @@ Defined in: node\_modules/axios/index.d.ts:342
 
 > `optional` **formSerializer?**: `FormSerializerOptions`
 
-Defined in: node\_modules/axios/index.d.ts:345
+Defined in: node\_modules/axios/index.d.ts:448
 
 #### Inherited from
 
-`AxiosRequestConfig.formSerializer`
+[`CreateClientOptions`](CreateClientOptions.md).[`formSerializer`](CreateClientOptions.md#formserializer)
 
 ***
 
@@ -156,7 +292,7 @@ Defined in: node\_modules/axios/index.d.ts:345
 
 > `optional` **headers?**: `AxiosHeaders` \| `Partial`\<`RawAxiosHeaders` & `object` & `object`\> & `Partial`\<`object` & `object`\>
 
-Defined in: node\_modules/axios/index.d.ts:312
+Defined in: node\_modules/axios/index.d.ts:394
 
 #### Inherited from
 
@@ -164,15 +300,33 @@ Defined in: node\_modules/axios/index.d.ts:312
 
 ***
 
+### http2Options?
+
+> `optional` **http2Options?**: `Record`\<`string`, `any`\> & `object`
+
+Defined in: node\_modules/axios/index.d.ts:470
+
+#### Type Declaration
+
+##### sessionTimeout?
+
+> `optional` **sessionTimeout?**: `number`
+
+#### Inherited from
+
+`AxiosRequestConfig.http2Options`
+
+***
+
 ### httpAgent?
 
 > `optional` **httpAgent?**: `any`
 
-Defined in: node\_modules/axios/index.d.ts:334
+Defined in: node\_modules/axios/index.d.ts:431
 
 #### Inherited from
 
-`AxiosRequestConfig.httpAgent`
+[`CreateClientOptions`](CreateClientOptions.md).[`httpAgent`](CreateClientOptions.md#httpagent)
 
 ***
 
@@ -180,11 +334,23 @@ Defined in: node\_modules/axios/index.d.ts:334
 
 > `optional` **httpsAgent?**: `any`
 
-Defined in: node\_modules/axios/index.d.ts:335
+Defined in: node\_modules/axios/index.d.ts:432
 
 #### Inherited from
 
-`AxiosRequestConfig.httpsAgent`
+[`CreateClientOptions`](CreateClientOptions.md).[`httpsAgent`](CreateClientOptions.md#httpsagent)
+
+***
+
+### httpVersion?
+
+> `optional` **httpVersion?**: `1` \| `2`
+
+Defined in: node\_modules/axios/index.d.ts:469
+
+#### Inherited from
+
+[`CreateClientOptions`](CreateClientOptions.md).[`httpVersion`](CreateClientOptions.md#httpversion)
 
 ***
 
@@ -192,11 +358,23 @@ Defined in: node\_modules/axios/index.d.ts:335
 
 > `optional` **insecureHTTPParser?**: `boolean`
 
-Defined in: node\_modules/axios/index.d.ts:341
+Defined in: node\_modules/axios/index.d.ts:438
 
 #### Inherited from
 
-`AxiosRequestConfig.insecureHTTPParser`
+[`CreateClientOptions`](CreateClientOptions.md).[`insecureHTTPParser`](CreateClientOptions.md#insecurehttpparser)
+
+***
+
+### lookup?
+
+> `optional` **lookup?**: ((`hostname`, `options`, `cb`) => `void`) \| ((`hostname`, `options`) => `Promise`\<`LookupAddress` \| \[`LookupAddressEntry` \| `LookupAddressEntry`[], `AddressFamily`\]\>)
+
+Defined in: node\_modules/axios/index.d.ts:450
+
+#### Inherited from
+
+`AxiosRequestConfig.lookup`
 
 ***
 
@@ -204,11 +382,11 @@ Defined in: node\_modules/axios/index.d.ts:341
 
 > `optional` **maxBodyLength?**: `number`
 
-Defined in: node\_modules/axios/index.d.ts:329
+Defined in: node\_modules/axios/index.d.ts:413
 
 #### Inherited from
 
-`AxiosRequestConfig.maxBodyLength`
+[`CreateClientOptions`](CreateClientOptions.md).[`maxBodyLength`](CreateClientOptions.md#maxbodylength)
 
 ***
 
@@ -216,11 +394,11 @@ Defined in: node\_modules/axios/index.d.ts:329
 
 > `optional` **maxContentLength?**: `number`
 
-Defined in: node\_modules/axios/index.d.ts:327
+Defined in: node\_modules/axios/index.d.ts:411
 
 #### Inherited from
 
-`AxiosRequestConfig.maxContentLength`
+[`CreateClientOptions`](CreateClientOptions.md).[`maxContentLength`](CreateClientOptions.md#maxcontentlength)
 
 ***
 
@@ -228,11 +406,11 @@ Defined in: node\_modules/axios/index.d.ts:327
 
 > `optional` **maxRate?**: `number` \| \[`number`, `number`\]
 
-Defined in: node\_modules/axios/index.d.ts:331
+Defined in: node\_modules/axios/index.d.ts:415
 
 #### Inherited from
 
-`AxiosRequestConfig.maxRate`
+[`CreateClientOptions`](CreateClientOptions.md).[`maxRate`](CreateClientOptions.md#maxrate)
 
 ***
 
@@ -240,23 +418,23 @@ Defined in: node\_modules/axios/index.d.ts:331
 
 > `optional` **maxRedirects?**: `number`
 
-Defined in: node\_modules/axios/index.d.ts:330
+Defined in: node\_modules/axios/index.d.ts:414
 
 #### Inherited from
 
-`AxiosRequestConfig.maxRedirects`
+[`CreateClientOptions`](CreateClientOptions.md).[`maxRedirects`](CreateClientOptions.md#maxredirects)
 
 ***
 
 ### method?
 
-> `optional` **method?**: `string`
+> `optional` **method?**: `StringLiteralsOrString`\<`Method`\>
 
-Defined in: node\_modules/axios/index.d.ts:308
+Defined in: node\_modules/axios/index.d.ts:389
 
 #### Inherited from
 
-`AxiosRequestConfig.method`
+[`CreateClientOptions`](CreateClientOptions.md).[`method`](CreateClientOptions.md#method)
 
 ***
 
@@ -264,7 +442,7 @@ Defined in: node\_modules/axios/index.d.ts:308
 
 > `optional` **onDownloadProgress?**: (`progressEvent`) => `void`
 
-Defined in: node\_modules/axios/index.d.ts:326
+Defined in: node\_modules/axios/index.d.ts:410
 
 #### Parameters
 
@@ -286,7 +464,7 @@ Defined in: node\_modules/axios/index.d.ts:326
 
 > `optional` **onUploadProgress?**: (`progressEvent`) => `void`
 
-Defined in: node\_modules/axios/index.d.ts:325
+Defined in: node\_modules/axios/index.d.ts:409
 
 #### Parameters
 
@@ -308,7 +486,7 @@ Defined in: node\_modules/axios/index.d.ts:325
 
 > `optional` **params?**: `any`
 
-Defined in: node\_modules/axios/index.d.ts:313
+Defined in: node\_modules/axios/index.d.ts:395
 
 #### Inherited from
 
@@ -318,9 +496,9 @@ Defined in: node\_modules/axios/index.d.ts:313
 
 ### paramsSerializer?
 
-> `optional` **paramsSerializer?**: `ParamsSerializerOptions`
+> `optional` **paramsSerializer?**: `ParamsSerializerOptions`\<`Record`\<`string`, `any`\>\> \| `CustomParamsSerializer`\<`Record`\<`string`, `any`\>\>
 
-Defined in: node\_modules/axios/index.d.ts:314
+Defined in: node\_modules/axios/index.d.ts:396
 
 #### Inherited from
 
@@ -328,27 +506,75 @@ Defined in: node\_modules/axios/index.d.ts:314
 
 ***
 
+### parseReviver?
+
+> `optional` **parseReviver?**: (`this`, `key`, `value`, `context?`) => `any`
+
+Defined in: node\_modules/axios/index.d.ts:467
+
+#### Parameters
+
+##### this
+
+`any`
+
+##### key
+
+`string`
+
+##### value
+
+`any`
+
+##### context?
+
+###### source?
+
+`string`
+
+#### Returns
+
+`any`
+
+#### Inherited from
+
+`AxiosRequestConfig.parseReviver`
+
+***
+
 ### proxy?
 
 > `optional` **proxy?**: `false` \| `AxiosProxyConfig`
 
-Defined in: node\_modules/axios/index.d.ts:336
+Defined in: node\_modules/axios/index.d.ts:433
 
 #### Inherited from
 
-`AxiosRequestConfig.proxy`
+[`CreateClientOptions`](CreateClientOptions.md).[`proxy`](CreateClientOptions.md#proxy)
+
+***
+
+### redact?
+
+> `optional` **redact?**: `string`[]
+
+Defined in: node\_modules/axios/index.d.ts:474
+
+#### Inherited from
+
+[`CreateClientOptions`](CreateClientOptions.md).[`redact`](CreateClientOptions.md#redact)
 
 ***
 
 ### responseEncoding?
 
-> `optional` **responseEncoding?**: `string`
+> `optional` **responseEncoding?**: `StringLiteralsOrString`\<`responseEncoding`\>
 
-Defined in: node\_modules/axios/index.d.ts:322
+Defined in: node\_modules/axios/index.d.ts:406
 
 #### Inherited from
 
-`AxiosRequestConfig.responseEncoding`
+[`CreateClientOptions`](CreateClientOptions.md).[`responseEncoding`](CreateClientOptions.md#responseencoding)
 
 ***
 
@@ -356,11 +582,23 @@ Defined in: node\_modules/axios/index.d.ts:322
 
 > `optional` **responseType?**: `ResponseType`
 
-Defined in: node\_modules/axios/index.d.ts:321
+Defined in: node\_modules/axios/index.d.ts:405
 
 #### Inherited from
 
-`AxiosRequestConfig.responseType`
+[`CreateClientOptions`](CreateClientOptions.md).[`responseType`](CreateClientOptions.md#responsetype)
+
+***
+
+### sensitiveHeaders?
+
+> `optional` **sensitiveHeaders?**: `string`[]
+
+Defined in: node\_modules/axios/index.d.ts:475
+
+#### Inherited from
+
+[`CreateClientOptions`](CreateClientOptions.md).[`sensitiveHeaders`](CreateClientOptions.md#sensitiveheaders)
 
 ***
 
@@ -368,11 +606,11 @@ Defined in: node\_modules/axios/index.d.ts:321
 
 > `optional` **signal?**: `GenericAbortSignal`
 
-Defined in: node\_modules/axios/index.d.ts:340
+Defined in: node\_modules/axios/index.d.ts:437
 
 #### Inherited from
 
-`AxiosRequestConfig.signal`
+[`CreateClientOptions`](CreateClientOptions.md).[`signal`](CreateClientOptions.md#signal)
 
 ***
 
@@ -380,11 +618,11 @@ Defined in: node\_modules/axios/index.d.ts:340
 
 > `optional` **socketPath?**: `string` \| `null`
 
-Defined in: node\_modules/axios/index.d.ts:333
+Defined in: node\_modules/axios/index.d.ts:428
 
 #### Inherited from
 
-`AxiosRequestConfig.socketPath`
+[`CreateClientOptions`](CreateClientOptions.md).[`socketPath`](CreateClientOptions.md#socketpath)
 
 ***
 
@@ -392,11 +630,11 @@ Defined in: node\_modules/axios/index.d.ts:333
 
 > `optional` **timeout?**: `number`
 
-Defined in: node\_modules/axios/index.d.ts:316
+Defined in: node\_modules/axios/index.d.ts:400
 
 #### Inherited from
 
-`AxiosRequestConfig.timeout`
+[`CreateClientOptions`](CreateClientOptions.md).[`timeout`](CreateClientOptions.md#timeout)
 
 ***
 
@@ -404,11 +642,11 @@ Defined in: node\_modules/axios/index.d.ts:316
 
 > `optional` **timeoutErrorMessage?**: `string`
 
-Defined in: node\_modules/axios/index.d.ts:317
+Defined in: node\_modules/axios/index.d.ts:401
 
 #### Inherited from
 
-`AxiosRequestConfig.timeoutErrorMessage`
+[`CreateClientOptions`](CreateClientOptions.md).[`timeoutErrorMessage`](CreateClientOptions.md#timeouterrormessage)
 
 ***
 
@@ -416,11 +654,11 @@ Defined in: node\_modules/axios/index.d.ts:317
 
 > `optional` **transformRequest?**: `AxiosRequestTransformer` \| `AxiosRequestTransformer`[]
 
-Defined in: node\_modules/axios/index.d.ts:310
+Defined in: node\_modules/axios/index.d.ts:392
 
 #### Inherited from
 
-`AxiosRequestConfig.transformRequest`
+[`CreateClientOptions`](CreateClientOptions.md).[`transformRequest`](CreateClientOptions.md#transformrequest)
 
 ***
 
@@ -428,11 +666,11 @@ Defined in: node\_modules/axios/index.d.ts:310
 
 > `optional` **transformResponse?**: `AxiosResponseTransformer` \| `AxiosResponseTransformer`[]
 
-Defined in: node\_modules/axios/index.d.ts:311
+Defined in: node\_modules/axios/index.d.ts:393
 
 #### Inherited from
 
-`AxiosRequestConfig.transformResponse`
+[`CreateClientOptions`](CreateClientOptions.md).[`transformResponse`](CreateClientOptions.md#transformresponse)
 
 ***
 
@@ -440,11 +678,23 @@ Defined in: node\_modules/axios/index.d.ts:311
 
 > `optional` **transitional?**: `TransitionalOptions`
 
-Defined in: node\_modules/axios/index.d.ts:339
+Defined in: node\_modules/axios/index.d.ts:436
 
 #### Inherited from
 
-`AxiosRequestConfig.transitional`
+[`CreateClientOptions`](CreateClientOptions.md).[`transitional`](CreateClientOptions.md#transitional)
+
+***
+
+### transport?
+
+> `optional` **transport?**: `any`
+
+Defined in: node\_modules/axios/index.d.ts:430
+
+#### Inherited from
+
+[`CreateClientOptions`](CreateClientOptions.md).[`transport`](CreateClientOptions.md#transport)
 
 ***
 
@@ -452,11 +702,11 @@ Defined in: node\_modules/axios/index.d.ts:339
 
 > `optional` **url?**: `string`
 
-Defined in: node\_modules/axios/index.d.ts:307
+Defined in: node\_modules/axios/index.d.ts:388
 
 #### Inherited from
 
-`AxiosRequestConfig.url`
+[`CreateClientOptions`](CreateClientOptions.md).[`url`](CreateClientOptions.md#url)
 
 ***
 
@@ -464,7 +714,7 @@ Defined in: node\_modules/axios/index.d.ts:307
 
 > `optional` **validateStatus?**: ((`status`) => `boolean`) \| `null`
 
-Defined in: node\_modules/axios/index.d.ts:328
+Defined in: node\_modules/axios/index.d.ts:412
 
 #### Inherited from
 
@@ -476,11 +726,23 @@ Defined in: node\_modules/axios/index.d.ts:328
 
 > `optional` **withCredentials?**: `boolean`
 
-Defined in: node\_modules/axios/index.d.ts:318
+Defined in: node\_modules/axios/index.d.ts:402
 
 #### Inherited from
 
-`AxiosRequestConfig.withCredentials`
+[`CreateClientOptions`](CreateClientOptions.md).[`withCredentials`](CreateClientOptions.md#withcredentials)
+
+***
+
+### withXSRFToken?
+
+> `optional` **withXSRFToken?**: `boolean` \| ((`config`) => `boolean` \| `undefined`)
+
+Defined in: node\_modules/axios/index.d.ts:466
+
+#### Inherited from
+
+`AxiosRequestConfig.withXSRFToken`
 
 ***
 
@@ -488,11 +750,11 @@ Defined in: node\_modules/axios/index.d.ts:318
 
 > `optional` **xsrfCookieName?**: `string`
 
-Defined in: node\_modules/axios/index.d.ts:323
+Defined in: node\_modules/axios/index.d.ts:407
 
 #### Inherited from
 
-`AxiosRequestConfig.xsrfCookieName`
+[`CreateClientOptions`](CreateClientOptions.md).[`xsrfCookieName`](CreateClientOptions.md#xsrfcookiename)
 
 ***
 
@@ -500,8 +762,8 @@ Defined in: node\_modules/axios/index.d.ts:323
 
 > `optional` **xsrfHeaderName?**: `string`
 
-Defined in: node\_modules/axios/index.d.ts:324
+Defined in: node\_modules/axios/index.d.ts:408
 
 #### Inherited from
 
-`AxiosRequestConfig.xsrfHeaderName`
+[`CreateClientOptions`](CreateClientOptions.md).[`xsrfHeaderName`](CreateClientOptions.md#xsrfheadername)

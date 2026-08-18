@@ -35,6 +35,8 @@ interface SessionEntry {
 export class GrpcChannelRegistry {
   private static readonly _registry = new Map<string, SessionEntry[]>();
   private static readonly DEFAULT_MAX_SESSIONS = 2;
+  /** How often an idle session is pinged to prove it is still connected. */
+  static readonly KEEPALIVE_PING_MS = 30_000;
 
   /**
    * Returns (or creates) an open HTTP/2 session for the given address.
@@ -69,6 +71,23 @@ export class GrpcChannelRegistry {
         // Session errors are expected during network disruptions; the registry
         // will create a fresh one on the next call.
       });
+
+      // Detect half-open connections. A NAT or firewall silently dropping the
+      // socket leaves the session looking usable, so every call routed to it
+      // hangs until its own timeout — pings surface it instead.
+      const ping = setInterval(() => {
+        if (session.destroyed || session.closed) {
+          clearInterval(ping);
+          return;
+        }
+        try {
+          session.ping(() => undefined);
+        } catch {
+          session.destroy();
+        }
+      }, GrpcChannelRegistry.KEEPALIVE_PING_MS);
+      ping.unref?.();
+      session.once('close', () => clearInterval(ping));
 
       newEntries.push({ session, address: origin, createdAt: Date.now() });
     }

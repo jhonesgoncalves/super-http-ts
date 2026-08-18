@@ -5,6 +5,9 @@ import { CircuitBreaker } from '../circuit-breaker/circuit-break';
 import { Bulkhead } from '../bulkhead/bulkhead';
 import { RateLimiter } from '../rate-limiter/rate-limiter';
 import { RequestDedup } from '../dedup/request-dedup';
+import { MetricsCollector } from '../models/metrics';
+import { buildDedupKey, DEFAULT_DEDUP_METHODS } from '../dedup/request-dedup';
+import { Readable } from 'stream';
 import {
   FixedRetryStrategy,
   ExponentialRetryStrategy,
@@ -878,17 +881,116 @@ describe('Retry strategies — default constructor parameters', () => {
   });
 });
 
-// ─── CircuitBreaker — handleFailure reset path ───────────────────────────────
-describe('CircuitBreaker — handleFailure reset path', () => {
-  it('resets failure counter when gap between failures exceeds timeoutMs', () => {
+// ─── CircuitBreaker — consecutive failure counting ───────────────────────────
+describe('CircuitBreaker — consecutive failure counting', () => {
+  it('a success resets the failure streak', () => {
     const cb = new CircuitBreaker();
     cb.setConfig({ failureThreshold: 10, successThreshold: 1, timeoutMs: 500 });
-    // Simulate 3 prior failures 1s ago (> timeoutMs)
-    cb['lastFailureTime'] = Date.now() - 1_000;
     cb['failures'] = 3;
-    // Next failure should RESET counter to 1 (gap > timeoutMs)
+    cb['handleSuccess']();
+    expect(cb['failures']).toBe(0);
+  });
+
+  it('does not open when failures are interleaved with successes', () => {
+    // Assert on transitions, not the final state: a breaker that trips and is
+    // immediately closed again by the next success looks healthy at the end
+    // while having already rejected traffic.
+    const trips: number[] = [];
+    const cb = new CircuitBreaker();
+    cb.setConfig(
+      { failureThreshold: 3, successThreshold: 1, timeoutMs: 10_000 },
+      {
+        onCircuitStateChange: (e) => {
+          if (e.to === 'open') trips.push(e.failures);
+        },
+      },
+    );
+    // A healthy upstream with a low baseline error rate: never 3 in a row.
+    for (let i = 0; i < 20; i++) {
+      cb['handleFailure']();
+      cb['handleFailure']();
+      cb['handleSuccess']();
+    }
+    expect(trips).toEqual([]);
+    expect(cb.state).toBe('closed');
+  });
+
+  it('opens on failureThreshold consecutive failures regardless of elapsed time', () => {
+    const cb = new CircuitBreaker();
+    cb.setConfig({ failureThreshold: 3, successThreshold: 1, timeoutMs: 1 });
     cb['handleFailure']();
-    expect(cb['failures']).toBe(1);
+    // A gap longer than timeoutMs used to silently reset the streak.
+    cb['lastFailureTime'] = Date.now() - 60_000;
+    cb['handleFailure']();
+    cb['handleFailure']();
+    expect(cb.state).toBe('open');
+  });
+});
+
+// ─── CircuitBreaker — half-open behaviour ────────────────────────────────────
+describe('CircuitBreaker — half-open behaviour', () => {
+  it('admits only one probe at a time', async () => {
+    const cb = new CircuitBreaker();
+    cb.setConfig({ failureThreshold: 1, successThreshold: 1, timeoutMs: 0 });
+    cb['_state'] = 'half-open';
+
+    let admitted = 0;
+    let release!: () => void;
+    const gate = new Promise<void>((r) => {
+      release = r;
+    });
+    const probe = () => {
+      admitted++;
+      return gate.then(() => ({ status: 200 } as never));
+    };
+
+    const first = cb.execute(probe);
+    await expect(cb.execute(probe)).rejects.toThrow('Circuit breaker is open');
+    expect(admitted).toBe(1);
+
+    release();
+    await first;
+  });
+
+  it('honours successThreshold after re-opening', async () => {
+    const cb = new CircuitBreaker();
+    cb.setConfig({ failureThreshold: 1, successThreshold: 3, timeoutMs: 0 });
+    const ok = () => Promise.resolve({ status: 200 } as never);
+
+    // Accumulate successes while closed, then trip the circuit.
+    await cb.execute(ok);
+    await cb.execute(ok);
+    await cb.execute(ok);
+    await expect(cb.execute(() => Promise.reject(new Error('down')))).rejects.toThrow('down');
+    expect(cb.state).toBe('open');
+
+    // First probe must not close the circuit on its own.
+    await cb.execute(ok);
+    expect(cb.state).toBe('half-open');
+    await cb.execute(ok);
+    expect(cb.state).toBe('half-open');
+    await cb.execute(ok);
+    expect(cb.state).toBe('closed');
+  });
+
+  it('re-opens immediately when a probe fails', async () => {
+    const cb = new CircuitBreaker();
+    cb.setConfig({ failureThreshold: 5, successThreshold: 1, timeoutMs: 0 });
+    cb['_state'] = 'half-open';
+    await expect(cb.execute(() => Promise.reject(new Error('still down')))).rejects.toThrow('still down');
+    expect(cb.state).toBe('open');
+  });
+
+  it('reports the failure streak that caused the transition', async () => {
+    const events: Array<{ to: string; failures: number }> = [];
+    const cb = new CircuitBreaker();
+    cb.setConfig(
+      { failureThreshold: 2, successThreshold: 1, timeoutMs: 0 },
+      { onCircuitStateChange: (e) => events.push({ to: e.to, failures: e.failures }) },
+    );
+    await expect(cb.execute(() => Promise.reject(new Error('x')))).rejects.toThrow();
+    await expect(cb.execute(() => Promise.reject(new Error('x')))).rejects.toThrow();
+    expect(events.find((e) => e.to === 'open')?.failures).toBe(2);
   });
 });
 
@@ -935,5 +1037,540 @@ describe('Per-request policy — advanced', () => {
     const client = new HttpClient('https://api.example.com');
     const res = await client.request({ url: '/test', policy: { retry: { attempts: 2, delayMs: 0, retryOn: [503] } } });
     expect(res.status).toBe(200);
+  });
+});
+
+// ─── Per-request policy — circuit breaker isolation ──────────────────────────
+describe('Per-request policy — circuit breaker isolation', () => {
+  it('does not leak a per-request override into later requests', async () => {
+    const err = Object.assign(new Error('fail'), { code: 'ECONNRESET' });
+    mockAxiosInstance.request.mockRejectedValue(err);
+    const client = new HttpClient('https://api.example.com');
+    client.circuitBreak({ failureThreshold: 10, successThreshold: 1, timeoutMs: 60_000 });
+
+    // One request asks for a hair-trigger breaker and trips it.
+    await expect(client.request({ url: '/', policy: { circuitBreaker: { failureThreshold: 1 } } })).rejects.toThrow();
+
+    // Requests without a policy must still be on the client's threshold of 10,
+    // and must not inherit the tripped state of the override's breaker.
+    // The 10th failure is what opens it, so all ten still reach axios.
+    for (let i = 0; i < 10; i++) {
+      await expect(client.request({ url: '/' })).rejects.toMatchObject({ code: 'ECONNRESET' });
+    }
+    await expect(client.request({ url: '/' })).rejects.toThrow('Circuit breaker is open');
+  });
+
+  it('keeps failure counts separate across distinct policies', async () => {
+    const err = Object.assign(new Error('fail'), { code: 'ECONNRESET' });
+    mockAxiosInstance.request.mockRejectedValue(err);
+    const client = new HttpClient('https://api.example.com');
+    client.circuitBreak({ failureThreshold: 5, successThreshold: 1, timeoutMs: 60_000 });
+
+    // Two different overrides, each needing 2 consecutive failures of its own.
+    const a = { circuitBreaker: { failureThreshold: 2, timeoutMs: 60_000 } };
+    const b = { circuitBreaker: { failureThreshold: 2, timeoutMs: 30_000 } };
+    await expect(client.request({ url: '/', policy: a })).rejects.toMatchObject({ code: 'ECONNRESET' });
+    await expect(client.request({ url: '/', policy: b })).rejects.toMatchObject({ code: 'ECONNRESET' });
+    // a's second consecutive failure opens a's breaker (this call still reaches axios).
+    await expect(client.request({ url: '/', policy: a })).rejects.toMatchObject({ code: 'ECONNRESET' });
+    await expect(client.request({ url: '/', policy: a })).rejects.toThrow('Circuit breaker is open');
+
+    // b has seen only one failure, so its breaker must still be closed.
+    await expect(client.request({ url: '/', policy: b })).rejects.toMatchObject({ code: 'ECONNRESET' });
+
+    // And the client-level breaker (threshold 5) is untouched by both.
+    await expect(client.request({ url: '/' })).rejects.toMatchObject({ code: 'ECONNRESET' });
+  });
+});
+
+// ─── MetricsCollector — bounded latency window ───────────────────────────────
+describe('MetricsCollector — bounded latency window', () => {
+  it('keeps latency memory constant regardless of request volume', () => {
+    const m = new MetricsCollector();
+    for (let i = 0; i < 100_000; i++) m.recordSuccess(10);
+    expect(m['_latencies'].length).toBe(MetricsCollector.DEFAULT_LATENCY_WINDOW);
+    const snap = m.snapshot();
+    expect(snap.success).toBe(100_000);
+    expect(snap.p50Latency).toBe(10);
+  });
+
+  it('percentiles reflect only the most recent window', () => {
+    const m = new MetricsCollector(4);
+    for (const v of [1, 1, 1, 1]) m.recordSuccess(v);
+    expect(m.snapshot().p50Latency).toBe(1);
+
+    // Ring buffer wraps — the early samples must age out entirely.
+    for (const v of [100, 200, 300, 400]) m.recordSuccess(v);
+    const snap = m.snapshot();
+    expect(snap.p50Latency).toBe(200);
+    expect(snap.p99Latency).toBe(400);
+  });
+
+  it('avgLatency covers the full history, not just the window', () => {
+    const m = new MetricsCollector(2);
+    m.recordSuccess(10);
+    m.recordSuccess(20);
+    m.recordSuccess(30);
+    expect(m.snapshot().avgLatency).toBe(20);
+  });
+
+  it('handles a partially filled window', () => {
+    const m = new MetricsCollector(8);
+    m.recordSuccess(5);
+    m.recordSuccess(15);
+    const snap = m.snapshot();
+    expect(snap.p50Latency).toBe(5);
+    expect(snap.p99Latency).toBe(15);
+    expect(snap.avgLatency).toBe(10);
+  });
+
+  it('reports zeroed percentiles before any success', () => {
+    const snap = new MetricsCollector(4).snapshot();
+    expect(snap.p50Latency).toBe(0);
+    expect(snap.p95Latency).toBe(0);
+    expect(snap.avgLatency).toBe(0);
+  });
+
+  it('reset clears the window and restarts uptime', () => {
+    const m = new MetricsCollector(4);
+    m.recordRequest();
+    m.recordSuccess(50);
+    m.reset();
+    const snap = m.snapshot();
+    expect(snap.requests).toBe(0);
+    expect(snap.success).toBe(0);
+    expect(snap.p50Latency).toBe(0);
+    expect(snap.avgLatency).toBe(0);
+    expect(snap.uptime).toBeLessThan(1_000);
+  });
+});
+
+// ─── RateLimiter — token accounting on queue timeout ─────────────────────────
+describe('RateLimiter — token accounting on queue timeout', () => {
+  it('does not lose a token when a queued request times out', async () => {
+    jest.useFakeTimers();
+    const rl = new RateLimiter({
+      permitLimit: 2,
+      windowMs: 1_000,
+      queueRequests: true,
+      queueTimeoutMs: 100,
+    });
+    await rl.acquire();
+    await rl.acquire(); // both tokens consumed
+
+    const queued = rl.acquire();
+    jest.advanceTimersByTime(150);
+    await expect(queued).rejects.toThrow('Rate limit queue timeout');
+
+    // The drain that runs at the window boundary must not spend a token on the
+    // entry that already gave up, or throughput decays below permitLimit.
+    jest.advanceTimersByTime(1_000);
+    expect(rl.available).toBe(2);
+    jest.useRealTimers();
+  });
+});
+
+// ─── Dedup keying — request identity ─────────────────────────────────────────
+describe('buildDedupKey', () => {
+  const methods = new Set(DEFAULT_DEDUP_METHODS);
+
+  it('gives different bodies different keys', () => {
+    const a = buildDedupKey({ method: 'POST', url: '/o', data: { id: 'A' }, methods: new Set(['POST']) });
+    const b = buildDedupKey({ method: 'POST', url: '/o', data: { id: 'B' }, methods: new Set(['POST']) });
+    expect(a).toBeDefined();
+    expect(b).toBeDefined();
+    expect(a).not.toBe(b);
+  });
+
+  it('gives identical requests the same key', () => {
+    const a = buildDedupKey({ method: 'GET', url: '/u', params: { p: 1 }, methods });
+    const b = buildDedupKey({ method: 'GET', url: '/u', params: { p: 1 }, methods });
+    expect(a).toBe(b);
+  });
+
+  it('separates params from body', () => {
+    const a = buildDedupKey({ method: 'GET', url: '/u', params: { x: 1 }, methods });
+    const b = buildDedupKey({ method: 'GET', url: '/u', params: { x: 2 }, methods });
+    expect(a).not.toBe(b);
+  });
+
+  it('refuses methods outside the eligible set', () => {
+    expect(buildDedupKey({ method: 'POST', url: '/o', methods })).toBeUndefined();
+    expect(buildDedupKey({ method: 'DELETE', url: '/o', methods })).toBeUndefined();
+    expect(buildDedupKey({ method: 'GET', url: '/o', methods })).toBeDefined();
+  });
+
+  it('is case-insensitive about the method', () => {
+    expect(buildDedupKey({ method: 'get', url: '/u', methods })).toBe(
+      buildDedupKey({ method: 'GET', url: '/u', methods }),
+    );
+  });
+
+  it('defaults to GET when no method is given', () => {
+    expect(buildDedupKey({ url: '/u', methods })).toBeDefined();
+  });
+
+  it('refuses to key an opaque body rather than guessing', () => {
+    const stream = new Readable();
+    expect(buildDedupKey({ method: 'POST', url: '/o', data: stream, methods: new Set(['POST']) })).toBeUndefined();
+
+    class Custom {
+      constructor(public v = 1) {}
+    }
+    expect(
+      buildDedupKey({ method: 'POST', url: '/o', data: new Custom(), methods: new Set(['POST']) }),
+    ).toBeUndefined();
+  });
+
+  it('refuses a circular body instead of throwing', () => {
+    const circular: Record<string, unknown> = { a: 1 };
+    circular.self = circular;
+    expect(buildDedupKey({ method: 'POST', url: '/o', data: circular, methods: new Set(['POST']) })).toBeUndefined();
+  });
+
+  it('keys strings, buffers and URLSearchParams by content', () => {
+    const post = new Set(['POST']);
+    expect(buildDedupKey({ method: 'POST', url: '/o', data: 'x', methods: post })).not.toBe(
+      buildDedupKey({ method: 'POST', url: '/o', data: 'y', methods: post }),
+    );
+    expect(buildDedupKey({ method: 'POST', url: '/o', data: Buffer.from('x'), methods: post })).not.toBe(
+      buildDedupKey({ method: 'POST', url: '/o', data: Buffer.from('y'), methods: post }),
+    );
+    expect(buildDedupKey({ method: 'POST', url: '/o', data: new URLSearchParams('a=1'), methods: post })).not.toBe(
+      buildDedupKey({ method: 'POST', url: '/o', data: new URLSearchParams('a=2'), methods: post }),
+    );
+  });
+
+  it('treats a missing body as its own value, not as an error', () => {
+    expect(buildDedupKey({ method: 'GET', url: '/u', data: undefined, methods })).toBeDefined();
+    expect(buildDedupKey({ method: 'GET', url: '/u', data: null, methods })).toBeDefined();
+  });
+});
+
+// ─── Circuit breaker — shouldTrip predicate ──────────────────────────────────
+describe('CircuitBreaker — shouldTrip predicate', () => {
+  const reject = (err: unknown) => () => Promise.reject(err);
+
+  it('does not count errors the predicate rejects', async () => {
+    const cb = new CircuitBreaker();
+    cb.setConfig({
+      failureThreshold: 2,
+      successThreshold: 1,
+      timeoutMs: 60_000,
+      shouldTrip: () => false,
+    });
+    await expect(cb.execute(reject(new Error('x')))).rejects.toThrow('x');
+    await expect(cb.execute(reject(new Error('x')))).rejects.toThrow('x');
+    await expect(cb.execute(reject(new Error('x')))).rejects.toThrow('x');
+    expect(cb.state).toBe('closed');
+    expect(cb['failures']).toBe(0);
+  });
+
+  it('still counts errors the predicate accepts', async () => {
+    const cb = new CircuitBreaker();
+    cb.setConfig({ failureThreshold: 2, successThreshold: 1, timeoutMs: 60_000, shouldTrip: () => true });
+    await expect(cb.execute(reject(new Error('x')))).rejects.toThrow();
+    await expect(cb.execute(reject(new Error('x')))).rejects.toThrow();
+    expect(cb.state).toBe('open');
+  });
+
+  it('leaves the circuit half-open when a probe fails with an uncounted error', async () => {
+    const cb = new CircuitBreaker();
+    cb.setConfig({ failureThreshold: 1, successThreshold: 2, timeoutMs: 0, shouldTrip: () => false });
+    cb['_state'] = 'half-open';
+    await expect(cb.execute(reject(new Error('client error')))).rejects.toThrow();
+    expect(cb.state).toBe('half-open');
+  });
+
+  it('counts the failure when the predicate itself throws', async () => {
+    const cb = new CircuitBreaker();
+    cb.setConfig({
+      failureThreshold: 1,
+      successThreshold: 1,
+      timeoutMs: 60_000,
+      shouldTrip: () => {
+        throw new Error('bad predicate');
+      },
+    });
+    await expect(cb.execute(reject(new Error('x')))).rejects.toThrow('x');
+    expect(cb.state).toBe('open');
+  });
+});
+
+// ─── RetryAfterStrategy — the server's number is not the caller's budget ─────
+describe('RetryAfterStrategy — header clamping', () => {
+  it('caps a large Retry-After at maxDelayMs', () => {
+    const s = new RetryAfterStrategy(200, 5_000);
+    const delay = s.computeDelay(0, { response: { headers: { 'retry-after': '3600' } } });
+    expect(delay).toBe(5_000);
+  });
+
+  it('honours a Retry-After below the cap', () => {
+    const s = new RetryAfterStrategy(200, 60_000);
+    expect(s.computeDelay(0, { response: { headers: { 'retry-after': '2' } } })).toBe(2_000);
+  });
+
+  it('caps an HTTP-date Retry-After too', () => {
+    const s = new RetryAfterStrategy(200, 1_000);
+    const far = new Date(Date.now() + 3_600_000).toUTCString();
+    expect(s.computeDelay(0, { response: { headers: { 'retry-after': far } } })).toBe(1_000);
+  });
+});
+
+// ─── Per-request retry policy must not discard the client's strategy ─────────
+describe('policy.retry strategy inheritance', () => {
+  it('inherits the client strategy when no delayMs is given', async () => {
+    const err = Object.assign(new Error('fail'), { code: 'ECONNRESET' });
+    mockAxiosInstance.request.mockRejectedValueOnce(err).mockResolvedValue({ status: 200, data: 'ok' });
+
+    const client = new HttpClient('https://api.example.com');
+    const strategy = new FixedRetryStrategy(0);
+    const spy = jest.spyOn(strategy, 'computeDelay');
+    client.retry(1, strategy);
+
+    await client.request({ url: '/t', method: 'get', policy: { retry: { attempts: 2 } } });
+    // The override changed the attempt count, not the back-off shape.
+    expect(spy).toHaveBeenCalled();
+  });
+
+  it('uses a fixed delay when delayMs is explicit', async () => {
+    const err = Object.assign(new Error('fail'), { code: 'ECONNRESET' });
+    mockAxiosInstance.request.mockRejectedValueOnce(err).mockResolvedValue({ status: 200, data: 'ok' });
+
+    const client = new HttpClient('https://api.example.com');
+    const strategy = new FixedRetryStrategy(999);
+    const spy = jest.spyOn(strategy, 'computeDelay');
+    client.retry(1, strategy);
+
+    await client.request({ url: '/t', method: 'get', policy: { retry: { attempts: 2, delayMs: 0 } } });
+    expect(spy).not.toHaveBeenCalled();
+  });
+});
+
+// ─── Fail Fast — bad config must throw at wiring time ────────────────────────
+describe('config validation', () => {
+  const client = () => new HttpClient('https://api.example.com');
+
+  it('rejects a bulkhead that would deadlock', () => {
+    // maxConcurrent: 0 made `active < maxConcurrent` false forever, so every
+    // request queued and nothing ever dequeued — no error, just a dead client.
+    expect(() => new Bulkhead({ maxConcurrent: 0 })).toThrow(/maxConcurrent must be >= 1/);
+    expect(() => new Bulkhead({ maxConcurrent: -5 })).toThrow(/maxConcurrent/);
+    expect(() => new Bulkhead({ maxConcurrent: 1.5 })).toThrow(/integer/);
+    expect(() => new Bulkhead({ maxConcurrent: 10, maxQueue: -1 })).toThrow(/maxQueue/);
+  });
+
+  it('accepts a valid bulkhead, including an explicit infinite wait', () => {
+    expect(() => new Bulkhead({ maxConcurrent: 1 })).not.toThrow();
+    expect(() => new Bulkhead({ maxConcurrent: 1, queueTimeoutMs: Infinity })).not.toThrow();
+  });
+
+  it('rejects a rate limiter that would reject or hang everything', () => {
+    expect(() => new RateLimiter({ permitLimit: 0, windowMs: 1_000 })).toThrow(/permitLimit must be >= 1/);
+    // windowMs: 0 refilled on every acquire, making the limiter a silent no-op.
+    expect(() => new RateLimiter({ permitLimit: 10, windowMs: 0 })).toThrow(/windowMs must be >= 1/);
+    expect(() => new RateLimiter({ permitLimit: -1, windowMs: 1_000 })).toThrow(/permitLimit/);
+  });
+
+  it('rejects a circuit breaker that would trip permanently', () => {
+    const cb = new CircuitBreaker();
+    expect(() => cb.setConfig({ failureThreshold: 0, successThreshold: 1, timeoutMs: 1_000 })).toThrow(
+      /failureThreshold must be >= 1/,
+    );
+    expect(() => cb.setConfig({ failureThreshold: 1, successThreshold: 0, timeoutMs: 1_000 })).toThrow(
+      /successThreshold/,
+    );
+    expect(() => cb.setConfig({ failureThreshold: 1, successThreshold: 1, timeoutMs: -1 })).toThrow(/timeoutMs/);
+  });
+
+  it('rejects a negative retry delay that would retry with no back-off', () => {
+    expect(() => new FixedRetryStrategy(-1000)).toThrow(/delayMs must be >= 0/);
+    expect(() => client().retry(3, -1)).toThrow(/delayMs/);
+    expect(() => client().retry(-1, 100)).toThrow(/retries must be >= 0/);
+  });
+
+  it('rejects maxSockets: 0, which Node reads as unlimited', () => {
+    expect(() => new HttpClient('https://api.example.com', {}, undefined, { maxSockets: 0 })).toThrow(
+      /maxSockets must be >= 1/,
+    );
+  });
+
+  it('rejects a non-positive deadline', () => {
+    expect(() => client().deadline(0)).toThrow(/deadline must be >= 1/);
+    expect(() => client().deadline(-100)).toThrow(/deadline/);
+  });
+
+  it('names the library and the offending value in the message', () => {
+    expect(() => new Bulkhead({ maxConcurrent: 0 })).toThrow(/\[super-http\]/);
+    expect(() => new Bulkhead({ maxConcurrent: 0 })).toThrow(/received 0/);
+  });
+
+  it('still accepts every documented default', () => {
+    expect(() => {
+      const c = new HttpClient('https://api.example.com');
+      c.retry(3, 500)
+        .circuitBreak({ failureThreshold: 5, successThreshold: 2, timeoutMs: 10_000 })
+        .bulkhead({ maxConcurrent: 20, maxQueue: 100, queueTimeoutMs: 3_000 })
+        .rateLimit({ permitLimit: 200, windowMs: 60_000 })
+        .deadline(5_000)
+        .dedup();
+    }).not.toThrow();
+  });
+});
+
+// ─── Bulkhead — bounded and abortable waiting ────────────────────────────────
+describe('Bulkhead — bounded waiting', () => {
+  const never = () => new Promise<void>(() => undefined);
+
+  it('applies the default queue timeout instead of waiting forever', async () => {
+    jest.useFakeTimers();
+    const bh = new Bulkhead({ maxConcurrent: 1 });
+    void bh.execute(never);
+
+    const queued = bh.execute(() => Promise.resolve('x'));
+    jest.advanceTimersByTime(Bulkhead.DEFAULT_QUEUE_TIMEOUT_MS + 10);
+    await expect(queued).rejects.toThrow('Bulkhead queue timeout');
+    expect(bh.queuedCount).toBe(0);
+    jest.useRealTimers();
+  });
+
+  it('honours an explicit infinite wait', async () => {
+    jest.useFakeTimers();
+    const bh = new Bulkhead({ maxConcurrent: 1, queueTimeoutMs: Infinity });
+    void bh.execute(never);
+
+    let settled = false;
+    void bh
+      .execute(() => Promise.resolve('x'))
+      .then(
+        () => (settled = true),
+        () => (settled = true),
+      );
+    jest.advanceTimersByTime(60_000);
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    expect(bh.queuedCount).toBe(1);
+    jest.useRealTimers();
+  });
+
+  it('caps the wait at maxWaitMs when it is shorter than the config', async () => {
+    jest.useFakeTimers();
+    const bh = new Bulkhead({ maxConcurrent: 1, queueTimeoutMs: 60_000 });
+    void bh.execute(never);
+
+    const queued = bh.execute(() => Promise.resolve('x'), { maxWaitMs: 100 });
+    jest.advanceTimersByTime(150);
+    await expect(queued).rejects.toThrow('Bulkhead queue timeout');
+    jest.useRealTimers();
+  });
+
+  it('rejects a queued caller when its signal fires, and dequeues it', async () => {
+    const bh = new Bulkhead({ maxConcurrent: 1, queueTimeoutMs: 60_000 });
+    void bh.execute(never);
+
+    const controller = new AbortController();
+    const queued = bh.execute(() => Promise.resolve('x'), { signal: controller.signal });
+    expect(bh.queuedCount).toBe(1);
+    controller.abort(new Error('caller left'));
+
+    await expect(queued).rejects.toThrow('caller left');
+    expect(bh.queuedCount).toBe(0);
+  });
+
+  it('rejects immediately for an already-aborted signal', async () => {
+    const bh = new Bulkhead({ maxConcurrent: 1 });
+    void bh.execute(never);
+
+    const controller = new AbortController();
+    controller.abort();
+    await expect(bh.execute(() => Promise.resolve('x'), { signal: controller.signal })).rejects.toBeDefined();
+    expect(bh.queuedCount).toBe(0);
+  });
+
+  it('still rejects past maxQueue', async () => {
+    const bh = new Bulkhead({ maxConcurrent: 1, maxQueue: 1, queueTimeoutMs: 60_000 });
+    void bh.execute(never);
+    const first = bh.execute(() => Promise.resolve('x')).catch(() => 'gone');
+    await expect(bh.execute(() => Promise.resolve('y'))).rejects.toThrow('Bulkhead queue full');
+    void first;
+  });
+});
+
+// ─── RateLimiter — bounded queue and cancellation ────────────────────────────
+describe('RateLimiter — bounded queue', () => {
+  it('applies the default queue timeout', async () => {
+    jest.useFakeTimers();
+    const rl = new RateLimiter({ permitLimit: 1, windowMs: 600_000, queueRequests: true });
+    await rl.acquire();
+
+    const queued = rl.acquire();
+    jest.advanceTimersByTime(RateLimiter.DEFAULT_QUEUE_TIMEOUT_MS + 10);
+    await expect(queued).rejects.toThrow('Rate limit queue timeout');
+    expect(rl.queuedCount).toBe(0);
+    jest.useRealTimers();
+  });
+
+  it('rejects past maxQueue rather than growing without bound', async () => {
+    jest.useFakeTimers();
+    const rl = new RateLimiter({
+      permitLimit: 1,
+      windowMs: 600_000,
+      queueRequests: true,
+      queueTimeoutMs: 60_000,
+      maxQueue: 2,
+    });
+    await rl.acquire();
+
+    const a = rl.acquire().catch(() => 'gone');
+    const b = rl.acquire().catch(() => 'gone');
+    expect(rl.queuedCount).toBe(2);
+    await expect(rl.acquire()).rejects.toThrow('Rate limit queue full');
+
+    jest.advanceTimersByTime(60_010);
+    await Promise.all([a, b]);
+    jest.useRealTimers();
+  });
+
+  it('rejects a queued caller when its signal fires, and dequeues it', async () => {
+    const rl = new RateLimiter({ permitLimit: 1, windowMs: 600_000, queueRequests: true, queueTimeoutMs: 60_000 });
+    await rl.acquire();
+
+    const controller = new AbortController();
+    const queued = rl.acquire({ signal: controller.signal });
+    expect(rl.queuedCount).toBe(1);
+    controller.abort(new Error('caller left'));
+
+    await expect(queued).rejects.toThrow('caller left');
+    expect(rl.queuedCount).toBe(0);
+  });
+
+  it('rejects immediately for an already-aborted signal', async () => {
+    const rl = new RateLimiter({ permitLimit: 1, windowMs: 600_000, queueRequests: true });
+    await rl.acquire();
+
+    const controller = new AbortController();
+    controller.abort();
+    await expect(rl.acquire({ signal: controller.signal })).rejects.toBeDefined();
+    expect(rl.queuedCount).toBe(0);
+  });
+
+  it('caps the wait at maxWaitMs', async () => {
+    jest.useFakeTimers();
+    const rl = new RateLimiter({ permitLimit: 1, windowMs: 600_000, queueRequests: true, queueTimeoutMs: 60_000 });
+    await rl.acquire();
+
+    const queued = rl.acquire({ maxWaitMs: 100 });
+    jest.advanceTimersByTime(150);
+    await expect(queued).rejects.toThrow('Rate limit queue timeout');
+    jest.useRealTimers();
+  });
+
+  it('reports queue depth', async () => {
+    const rl = new RateLimiter({ permitLimit: 1, windowMs: 600_000, queueRequests: true, queueTimeoutMs: 60_000 });
+    expect(rl.queuedCount).toBe(0);
+    await rl.acquire();
+    const q = rl.acquire().catch(() => 'gone');
+    expect(rl.queuedCount).toBe(1);
+    void q;
   });
 });

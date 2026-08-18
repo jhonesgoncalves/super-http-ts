@@ -48,7 +48,15 @@ Calls are keyed by `METHOD:URL:params`. While a request is in-flight, any new ca
 Deduplication is designed for **GET** and **HEAD** requests. Do **not** use it for POST, PUT, PATCH, or DELETE — those are not idempotent and should never be coalesced.
 :::
 
-- POST/PUT/PATCH/DELETE are keyed differently (include `data` in the key), but the safest practice is to call `.dedup()` only on clients used exclusively for reads.
+- Only `GET` and `HEAD` are coalesced by default. Other methods pass straight through, untouched.
+- The request body **is** part of the key, so two concurrent writes with different payloads are never collapsed into one — but the method allowlist is the real protection, and you have to opt out of it deliberately:
+
+```typescript
+// Opt in at your own risk — only for an endpoint you know is idempotent
+client.dedup({ methods: ['GET', 'HEAD', 'POST'] })
+```
+
+- A body that cannot be compared byte-for-byte (a stream, a `FormData`, a circular object) is never deduplicated. Skipping the optimisation costs one extra request; getting it wrong would hand one caller another caller's response.
 
 ---
 

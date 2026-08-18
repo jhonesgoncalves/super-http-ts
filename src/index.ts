@@ -1,5 +1,12 @@
 // ─── Core ─────────────────────────────────────────────────────────────────────
-export { HttpClient, PoolConfig, RequestPolicy } from './http-client/http.client';
+export {
+  HttpClient,
+  PoolConfig,
+  RequestPolicy,
+  RetryOptions,
+  ClientState,
+  CorrelationOptions,
+} from './http-client/http.client';
 export { HttpClientFactory } from './http-client/http.factory';
 
 // ─── Factory + Presets ────────────────────────────────────────────────────────
@@ -15,7 +22,7 @@ export { Bulkhead, BulkheadConfig } from './bulkhead/bulkhead';
 export { RateLimiter, RateLimitConfig } from './rate-limiter/rate-limiter';
 
 // ─── Request deduplication ───────────────────────────────────────────────────
-export { RequestDedup } from './dedup/request-dedup';
+export { RequestDedup, DedupOptions, DEFAULT_DEDUP_METHODS } from './dedup/request-dedup';
 
 // ─── Retry strategies ─────────────────────────────────────────────────────────
 export {
@@ -27,7 +34,7 @@ export {
 } from './models/retry.strategy';
 
 // ─── Plugins ─────────────────────────────────────────────────────────────────
-export { SuperHttpPlugin, LoggerPlugin, MetricsReporterPlugin } from './plugins/index';
+export { SuperHttpPlugin, LoggerPlugin, LoggerPluginOptions, MetricsReporterPlugin } from './plugins/index';
 
 // ─── Observability / events ───────────────────────────────────────────────────
 export {
@@ -42,6 +49,9 @@ export {
 
 // ─── Metrics ─────────────────────────────────────────────────────────────────
 export { MetricsSnapshot } from './models/metrics';
+
+// ─── Deadlines and cancellation ──────────────────────────────────────────────
+export { DeadlineExceededError, RequestAbortedError, isCancellation } from './models/deadline';
 
 // ─── Models ──────────────────────────────────────────────────────────────────
 export { HttpClientRequestConfig } from './models/http.client.request.config';

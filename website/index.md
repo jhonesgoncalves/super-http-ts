@@ -4,7 +4,7 @@ layout: home
 hero:
   name: "super-http"
   text: "Built for production, not just requests."
-  tagline: Production-grade HTTP + gRPC client for Node.js and TypeScript. Circuit breaker, bulkhead, rate limiter, jitter retry, fallback, metrics, and plugins — all in one fluent API.
+  tagline: Production-grade HTTP + gRPC client for Node.js and TypeScript. Circuit breaker, bulkhead, rate limiter, jitter retry, total deadlines, fallback, metrics and plugins — all in one fluent API.
   image:
     src: /logo.svg
     alt: super-http
@@ -28,12 +28,12 @@ features:
     details: Shared http.Agent per base URL with TCP keep-alive. Zero handshake overhead. Prevents ECONNRESET from idle sockets. Auto-configured — no setup required.
 
   - icon: 🔄
-    title: Jitter Retry
-    details: Four pluggable strategies — fixed, exponential, full-jitter (AWS-recommended), and Retry-After-aware. Smart enough to never retry 4xx or open circuits.
+    title: Idempotency-aware Retry
+    details: Four pluggable strategies — fixed, exponential, full-jitter (AWS-recommended), and Retry-After-aware. Never retries 4xx or open circuits, and never re-sends a POST on an ambiguous error unless you ask it to.
 
   - icon: ⚡
     title: Circuit Breaker
-    details: Three-state machine that fails fast when upstream is down. 84% faster than waiting for timeouts. Recovers automatically after probe succeeds.
+    details: Three-state machine that fails fast when upstream is down. 84% faster than waiting for timeouts. Counts consecutive faults only — a burst of 404s will not trip it — and admits a single probe while recovering.
 
   - icon: 🧱
     title: Bulkhead
@@ -41,15 +41,19 @@ features:
 
   - icon: 🚦
     title: Rate Limiter
-    details: Token-bucket with optional queuing. Retry-After header support means you never accidentally DDoS an API that tells you to back off.
+    details: Fixed-window limiter with optional bounded queuing. Retry attempts take tokens too, so the limit bounds what actually leaves your process. Retry-After support means you never accidentally DDoS an API that told you to back off.
 
   - icon: 🛡️
     title: Fallback
     details: Last line of defence — serve cached data, a default, or call a secondary source when all policies are exhausted. Never propagate avoidable errors.
 
+  - icon: ⏱️
+    title: Total Deadlines
+    details: client.deadline(ms) bounds the whole call — queue waits, every attempt and every backoff — not just one attempt. Full AbortSignal support cancels work the caller no longer wants.
+
   - icon: 👁️
     title: Observability
-    details: Built-in metrics (req/success/failed/retries/p95/p99) via client.metrics(). Fire-and-forget hooks on every resilience event. Plugin system for Datadog, OTel, etc.
+    details: Built-in metrics (req/success/failed/retries/p95/p99) via client.metrics(), live component state via client.state(), and correlation ids on every resilience event. Plugin system for Datadog, OTel, etc.
 
   - icon: 🎛️
     title: Presets & Policy Engine

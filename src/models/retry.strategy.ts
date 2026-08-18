@@ -1,3 +1,5 @@
+import { assertDuration, assertIntAtLeast } from './validate';
+
 /**
  * A pluggable strategy for computing the delay before a retry attempt.
  *
@@ -27,7 +29,11 @@ export interface RetryStrategy {
  * Prefer {@link ExponentialJitterRetryStrategy} for distributed systems.
  */
 export class FixedRetryStrategy implements RetryStrategy {
-  constructor(private readonly delayMs: number) {}
+  constructor(private readonly delayMs: number) {
+    // A negative delay makes setTimeout fire immediately: a retry storm with no
+    // back-off at all.
+    assertDuration(delayMs, 'FixedRetryStrategy.delayMs');
+  }
   computeDelay(): number {
     return this.delayMs;
   }
@@ -45,7 +51,11 @@ export class ExponentialRetryStrategy implements RetryStrategy {
     private readonly initialDelayMs: number,
     private readonly maxDelayMs: number = 30_000,
     private readonly factor: number = 2,
-  ) {}
+  ) {
+    assertDuration(initialDelayMs, 'ExponentialRetryStrategy.initialDelayMs');
+    assertDuration(maxDelayMs, 'ExponentialRetryStrategy.maxDelayMs');
+    assertIntAtLeast(factor, 1, 'ExponentialRetryStrategy.factor');
+  }
 
   computeDelay(attempt: number): number {
     return Math.min(this.initialDelayMs * Math.pow(this.factor, attempt), this.maxDelayMs);
@@ -72,7 +82,11 @@ export class ExponentialJitterRetryStrategy implements RetryStrategy {
     private readonly initialDelayMs: number,
     private readonly maxDelayMs: number = 30_000,
     private readonly factor: number = 2,
-  ) {}
+  ) {
+    assertDuration(initialDelayMs, 'ExponentialJitterRetryStrategy.initialDelayMs');
+    assertDuration(maxDelayMs, 'ExponentialJitterRetryStrategy.maxDelayMs');
+    assertIntAtLeast(factor, 1, 'ExponentialJitterRetryStrategy.factor');
+  }
 
   computeDelay(attempt: number): number {
     const cap = Math.min(this.initialDelayMs * Math.pow(this.factor, attempt), this.maxDelayMs);
@@ -88,6 +102,9 @@ export class ExponentialJitterRetryStrategy implements RetryStrategy {
  * - A delta-seconds value: `"30"` → wait 30 s
  * - An HTTP-date value: `"Wed, 21 Oct 2025 07:28:00 GMT"`
  *
+ * The parsed delay is capped at `maxDelayMs` — an upstream asking for an hour
+ * must not hold the caller for an hour.
+ *
  * @example
  * ```ts
  * client.retry(5, new RetryAfterStrategy(200, 60_000))
@@ -95,15 +112,19 @@ export class ExponentialJitterRetryStrategy implements RetryStrategy {
  */
 export class RetryAfterStrategy implements RetryStrategy {
   private readonly fallback: ExponentialJitterRetryStrategy;
+  private readonly maxDelayMs: number;
 
   constructor(initialDelayMs: number = 200, maxDelayMs: number = 60_000, factor: number = 2) {
     this.fallback = new ExponentialJitterRetryStrategy(initialDelayMs, maxDelayMs, factor);
+    this.maxDelayMs = maxDelayMs;
   }
 
   computeDelay(attempt: number, error?: unknown): number {
     const header = this.extractRetryAfterHeader(error);
     if (header !== undefined) {
-      return this.parseRetryAfter(header);
+      // The header is the server's number, not ours: `Retry-After: 3600` would
+      // otherwise park the call for an hour, past any maxDelayMs the caller set.
+      return Math.min(this.parseRetryAfter(header), this.maxDelayMs);
     }
     return this.fallback.computeDelay(attempt);
   }

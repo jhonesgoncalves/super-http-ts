@@ -20,8 +20,8 @@ Controls the underlying `http.Agent` / `https.Agent`.
 
 | Option | Type | Default | Description |
 |---|---|---|---|
-| `maxSockets` | `number` | `50` | Max concurrent open sockets per host |
-| `maxFreeSockets` | `number` | `10` | Max idle keep-alive sockets per host |
+| `maxSockets` | `number` | `200` | Max concurrent open sockets per host (≥ 1) |
+| `maxFreeSockets` | `number` | `50` | Max idle keep-alive sockets per host |
 | `keepAlive` | `boolean` | `true` | Enable TCP keep-alive to prevent `ECONNRESET` |
 | `keepAliveMsecs` | `number` | `1000` | Delay between keep-alive probes (ms) |
 | `timeout` | `number` | `30000` | Request timeout (ms) |
@@ -44,7 +44,8 @@ const client = HttpClientFactory.create('https://api.example.com', {}, {
 |---|---|---|
 | `retries` | `number` | Maximum number of retry attempts |
 | `delayMs` | `number` | Fixed delay between attempts (ms) |
-| `retryOn` | `number[]` | Optional list of HTTP status codes to retry. When set, network errors are **not** retried unless their status appears here |
+| `retryOn` | `number[]` | Optional HTTP status codes to retry, **in addition to** the network-error rules (additive since 2.0) |
+| `retryNonIdempotent` | `boolean` | Retry `POST`/`PATCH` on ambiguous errors. `false` by default |
 
 ```typescript
 // Retry any network error or 5xx

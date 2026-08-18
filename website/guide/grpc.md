@@ -50,7 +50,7 @@ graph TD
     App["Your Application"] --> GC["GrpcClient&lt;TService&gt;"]
 
     subgraph Pipeline["Resilience Pipeline (same as HttpClient)"]
-        RD["RequestDedup"] --> RL["RateLimit"]
+        RD["RequestDedup (opt-in)"] --> RL["RateLimit"]
         RL --> BH["Bulkhead"]
         BH --> RT["Retry"]
         RT --> CB["CircuitBreaker"]
@@ -213,6 +213,13 @@ for await (const reply of client.chat(messages())) {
 
 ### Presets (zero-config)
 
+::: warning Changed in 2.0
+An unknown preset name now throws. It used to be silently ignored, producing a
+client with **no resilience configured at all** while the calling code read as
+though a preset were in force.
+:::
+
+
 Same preset names as the HTTP client:
 
 ```ts
@@ -268,6 +275,11 @@ const client = createGrpcClient(UserServiceDef, 'grpcs://api:443', {
     permitLimit: 500,
     windowMs:   1_000,
   },
+
+  // Coalesce concurrent unary calls with an identical payload into one RPC.
+  // Off by default: two identical concurrent mutations are not necessarily one
+  // mutation, and only the server knows whether its method is idempotent.
+  dedup: false,
 
   // Wire format
   encoding: 'json',      // or 'proto' (requires @bufbuild/protobuf)
@@ -344,6 +356,13 @@ import { getDecision } from 'super-http/grpc'
 const { retryable, tripCircuit } = getDecision('unavailable')
 // { retryable: true, tripCircuit: true }
 ```
+
+::: warning Fixed in 2.0
+The `Trips circuit` column above describes what this table always intended — but
+until 2.0 the function implementing it was never called. Every error counted
+toward the breaker, so a burst of `not_found` or `unauthenticated` would open the
+circuit on a perfectly healthy service. The decisions are now enforced.
+:::
 
 ---
 

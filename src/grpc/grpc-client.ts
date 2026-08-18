@@ -40,7 +40,7 @@ import type { GrpcClientConfig, GrpcCallOptions } from '../models/grpc.client.co
 import type { ServiceDefinition, ServiceMethods, GrpcClientAPI } from './service-definition';
 import { GrpcTransport } from '../transport/grpc-transport';
 import { applyGrpcPreset } from './grpc-presets';
-import { isGrpcRetryable } from './grpc-error-mapper';
+import { isGrpcRetryable, shouldTripCircuit } from './grpc-error-mapper';
 
 // ─── Public type ──────────────────────────────────────────────────────────────
 
@@ -100,12 +100,18 @@ class GrpcClientImpl {
     // Wire resilience components
     if (this.config.circuitBreaker) {
       this.circuitBreaker = new CircuitBreaker();
-      this.circuitBreaker.setConfig(this.config.circuitBreaker, {
-        onCircuitStateChange: (evt) => {
-          if (evt.to === 'open') this._metrics.recordCBTrip();
-          this.safeCall(() => this.resilienceEvents.onCircuitStateChange?.(evt));
+      // shouldTripCircuit honours the per-code decisions in grpc-error-mapper:
+      // not_found, invalid_argument and unauthenticated are the caller's problem,
+      // not an unhealthy upstream, so they must not count toward the threshold.
+      this.circuitBreaker.setConfig(
+        { shouldTrip: shouldTripCircuit, ...this.config.circuitBreaker },
+        {
+          onCircuitStateChange: (evt) => {
+            if (evt.to === 'open') this._metrics.recordCBTrip();
+            this.safeCall(() => this.resilienceEvents.onCircuitStateChange?.(evt));
+          },
         },
-      });
+      );
     }
 
     if (this.config.bulkhead) {
@@ -116,8 +122,11 @@ class GrpcClientImpl {
       this.rateLimiterInstance = new RateLimiter(this.config.rateLimit, this.resilienceEvents);
     }
 
-    // Enable dedup for unary calls by default
-    this.dedupInstance = new RequestDedup();
+    // Opt-in only: coalescing two concurrent identical unary calls silently turns
+    // two mutations into one, and whether that is safe is the server's call.
+    if (this.config.dedup) {
+      this.dedupInstance = new RequestDedup();
+    }
   }
 
   // ─── Management ─────────────────────────────────────────────────────────────
