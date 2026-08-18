@@ -1,5 +1,10 @@
+import { createRequire } from 'node:module'
 import { defineConfig } from 'vitepress'
 import { withMermaid } from 'vitepress-plugin-mermaid'
+
+// Read the version from package.json instead of hardcoding it — the nav label
+// sat at 1.4.7 through the whole 2.0 release because it was a literal.
+const { version } = createRequire(import.meta.url)('../../package.json') as { version: string }
 
 export default withMermaid(defineConfig({
   title: 'super-http',
@@ -58,7 +63,7 @@ export default withMermaid(defineConfig({
       { text: 'Benchmarks', link: '/guide/benchmarks' },
       { text: 'Author', link: '/about' },
       {
-        text: '1.4.7',
+        text: `v${version}`,
         items: [
           { text: 'Changelog', link: 'https://github.com/jhonesgoncalves/super-http-ts/blob/main/CHANGELOG.md' },
           { text: 'Contributing', link: 'https://github.com/jhonesgoncalves/super-http-ts/blob/main/CONTRIBUTING.md' },
