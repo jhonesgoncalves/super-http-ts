@@ -12,6 +12,9 @@ import { ResilienceEvents } from 'super-http'
 
 ```typescript
 interface ResilienceEvents {
+  onRequest?:            (config: AxiosRequestConfig)     => void
+  onResponse?:           (response: AxiosResponse)        => void
+  onError?:              (error: unknown)                 => void
   onRetry?:              (event: RetryEvent)              => void
   onCircuitStateChange?: (event: CircuitStateChangeEvent) => void
   onBulkheadReject?:     (event: BulkheadRejectEvent)     => void
@@ -19,6 +22,15 @@ interface ResilienceEvents {
   onRateLimitReject?:    (event: RateLimitRejectEvent)    => void
 }
 ```
+
+Handlers **accumulate**: calling `on()` twice for the same hook registers both, and
+all of them run. One throwing handler neither breaks the request nor stops the
+others.
+
+::: warning Changed in 2.0
+Registration used to be last-wins per key, so two plugins observing `onRetry` meant
+only the second one ever ran.
+:::
 
 ---
 
@@ -28,11 +40,17 @@ interface ResilienceEvents {
 
 ```typescript
 interface RetryEvent {
-  attempt: number   // 0-based
-  error:   unknown
-  delayMs: number
+  attempt:    number   // 0-based
+  error:      unknown
+  delayMs:    number
+  requestId?: string   // present when client.correlate() is enabled
 }
 ```
+
+`BulkheadRejectEvent`, `FallbackEvent` and `RateLimitRejectEvent` carry
+`requestId` too. Enable it with
+[`client.correlate()`](../guide/observability#correlation-ids) — without it the
+events are anonymous and a retry log line cannot be traced to its request.
 
 ### CircuitStateChangeEvent
 

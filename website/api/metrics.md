@@ -21,10 +21,10 @@ interface MetricsSnapshot {
   rateLimitRejects:     number  // requests rejected by rate limiter
   fallbacks:            number  // times fallback handler invoked
   avgLatency:           number  // average response time (ms, successful only)
-  p50Latency:           number  // median latency (ms)
-  p95Latency:           number  // 95th percentile latency (ms)
-  p99Latency:           number  // 99th percentile latency (ms)
-  uptime:               number  // ms since client was created
+  p50Latency:           number  // median latency (ms), recent-request window
+  p95Latency:           number  // 95th percentile (ms), recent-request window
+  p99Latency:           number  // 99th percentile (ms), recent-request window
+  uptime:               number  // ms since creation (or since resetMetrics())
 }
 ```
 

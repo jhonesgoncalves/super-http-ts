@@ -7,7 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [2.0.0] — Unreleased
+## [2.0.1] — 2026-08-18
+
+Documentation only — no runtime changes. The library code is byte-identical to
+2.0.0; this release exists so the corrected docs ship on npm, where a published
+version's README cannot be edited in place.
+
+### Fixed
+
+- **`website/api/*` still documented 1.x behaviour.** These hand-written reference
+  pages were missed in the 2.0.0 pass and contained two outright errors: the
+  execution order was given as `dedup → rate-limiter → bulkhead → retry → …`
+  (retry is outermost now), and the deduplication key was documented as
+  `METHOD:url:JSON(params)` — without the request body, which is the very bug 2.0.0
+  fixed. Also corrected: `queueTimeoutMs` defaults, the new `maxQueue`, `shouldTrip`,
+  `socketTimeoutMs`, the body-size limits, `requestId` on events, and the pool
+  defaults.
+- **`website/guide/why.md`** carried the same stale pipeline order.
+- **README** taught the 1.x workaround of `policy: { retry: false }` on a `POST`,
+  described the rate limiter as a "token bucket" after the guides had been corrected
+  to fixed-window, omitted total deadlines / cancellation / `close()` from the
+  feature table, and buried the 1.x → 2.0 migration guide in a table row.
+- Copyright year in the README and the VitePress footer stopped at 2024.
+- `LICENSE.md` carried a copyright notice from an unrelated name, inherited from
+  project scaffolding in the initial commit and never updated.
+
+---
+
+## [2.0.0] — 2026-08-18
 
 Hardening pass against the stability patterns in Michael Nygard's *Release It!*,
 plus four data-integrity bugs found along the way. See the

@@ -12,11 +12,14 @@ import { Bulkhead, BulkheadConfig } from 'super-http'
 
 ```typescript
 interface BulkheadConfig {
-  maxConcurrent: number
-  maxQueue?: number        // default: 50
-  queueTimeoutMs?: number  // default: undefined (wait forever)
+  maxConcurrent: number    // must be >= 1
+  maxQueue?: number         // default: 50
+  queueTimeoutMs?: number   // default: 10_000 — pass Infinity to wait forever
 }
 ```
+
+`maxConcurrent` is validated: `0` used to be accepted and then deadlock every
+request with no error, so it now throws at the call that sets it.
 
 ---
 
@@ -36,6 +39,16 @@ const bh = new Bulkhead({ maxConcurrent: 5, maxQueue: 20 })
 const result = await bh.execute(() => fetch('/api/data'))
 ```
 
+`execute` accepts a second argument so a queued caller can be cancelled or bounded
+by a caller's remaining budget:
+
+```typescript
+await bh.execute(fn, { signal: controller.signal, maxWaitMs: 500 })
+```
+
+The effective wait is the smaller of `queueTimeoutMs` and `maxWaitMs`. A queued
+entry that aborts or times out is removed from the queue.
+
 ---
 
 ## Properties
@@ -52,4 +65,7 @@ const result = await bh.execute(() => fetch('/api/data'))
 | Error message | When |
 |---|---|
 | `'Bulkhead queue full'` | `active >= maxConcurrent` AND `queue >= maxQueue` |
-| `'Bulkhead queue timeout'` | Queued request waited > `queueTimeoutMs` |
+| `'Bulkhead queue timeout'` | Queued request waited > the effective timeout |
+
+Neither error is retried — re-queueing a shed request is the load the bulkhead
+exists to refuse.

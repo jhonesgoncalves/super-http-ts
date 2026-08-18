@@ -106,7 +106,11 @@ Measured against a local Express server, Node.js 20 ([full results →](./benchm
 Think of super-http as a **pipeline** of resilience policies that wraps every HTTP call:
 
 ```
-rate-limiter → bulkhead → retry → circuit-breaker → axios → fallback
+retry → bulkhead → rate-limiter → circuit-breaker → axios → fallback
 ```
 
 Each layer is optional and independent. You configure exactly as much resilience as your use-case requires — from zero (a glorified axios instance) to the full stack for payment gateways.
+
+The order is deliberate: retry sits outside the limiters, so a request does not
+hold a concurrency slot while it sleeps through backoff, and every attempt — not
+just the first — takes a rate-limiter token.

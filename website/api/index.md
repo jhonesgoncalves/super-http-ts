@@ -79,7 +79,7 @@ import {
 | [`HttpClient`](./http-client) | All methods, fluent config, metrics, plugins |
 | [`CircuitBreaker`](./circuit-breaker) | Three-state circuit breaker |
 | [`Bulkhead`](./bulkhead) | Concurrency limiter |
-| [`RateLimiter`](./rate-limiter) | Token-bucket rate limiter |
+| [`RateLimiter`](./rate-limiter) | Fixed-window rate limiter |
 | [`Retry Strategies`](./retry-strategy) | Fixed · Exponential · Jitter · RetryAfter |
 | [`RequestDedup`](./request-dedup) | Request deduplication |
 | [`ResilienceEvents`](./resilience-events) | All observability hook interfaces |

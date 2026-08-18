@@ -8,6 +8,13 @@ interface RetryStrategy {
 }
 ```
 
+Delays are validated at construction: a negative delay used to make `setTimeout`
+fire immediately, producing a retry storm with no back-off at all.
+
+Whether an error is retried at all is decided separately from the delay — see
+[what gets retried](../guide/retry#what-gets-retried), which depends on the HTTP
+method.
+
 ---
 
 ## FixedRetryStrategy
@@ -80,11 +87,16 @@ new RetryAfterStrategy(
 
 Reads the `Retry-After` response header. Falls back to exponential jitter.
 
+The parsed header is **capped at `maxDelayMs`** — the header is the server's
+number, not your budget, so `Retry-After: 3600` must not park the caller for an
+hour.
+
 ```typescript
 import { RetryAfterStrategy } from 'super-http'
 client.retry(5, new RetryAfterStrategy())
-// Server: Retry-After: 30  → wait 30 000ms
-// Server: (no header)      → exponential jitter fallback
+// Server: Retry-After: 30    → wait 30 000ms
+// Server: Retry-After: 3600  → capped at maxDelayMs (60 s by default)
+// Server: (no header)        → exponential jitter fallback
 ```
 
 ---
