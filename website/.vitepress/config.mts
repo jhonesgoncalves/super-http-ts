@@ -88,7 +88,7 @@ export default withMermaid(defineConfig({
           text: 'Resilience Features',
           items: [
             { text: 'Connection Pooling', link: '/guide/connection-pool' },
-            { text: 'Connection Recovery (2.1)', link: '/guide/connection-recovery' },
+            { text: 'Connection Recovery', link: '/guide/connection-recovery' },
             { text: 'Retry Strategies', link: '/guide/retry' },
             { text: 'Deadlines & Cancellation', link: '/guide/deadlines' },
             { text: 'Circuit Breaker', link: '/guide/circuit-breaker' },
