@@ -33,6 +33,7 @@ export class HttpClientFactory {
    * @param baseURL - Base URL for all requests made by this client.
    * @param httpConfig - Default Axios request config (headers, auth, …).
    * @param poolConfig - Connection pool options. See {@link PoolConfig}.
+   * @param initialize - Optional setup, executed only for a newly created client, before caching.
    * @returns A configured {@link HttpClient}.
    *
    * @example
@@ -49,15 +50,42 @@ export class HttpClientFactory {
    * const { data } = await api.get('/users');
    * ```
    */
-  static create(baseURL: string, httpConfig?: HttpClientRequestConfig, poolConfig?: PoolConfig): HttpClient {
+  static create(
+    baseURL: string,
+    httpConfig?: HttpClientRequestConfig,
+    poolConfig?: PoolConfig,
+    initialize?: (client: HttpClient) => void,
+  ): HttpClient {
     const existing = HttpClientFactory.instances.get(baseURL);
     if (existing && !existing.isClosed) return existing;
 
     const circuitBreaker = new CircuitBreaker();
     const instance = new HttpClient(baseURL, httpConfig, circuitBreaker, poolConfig);
+    HttpClientFactory.initialize(instance, initialize);
     HttpClientFactory.instances.set(baseURL, instance);
 
     return instance;
+  }
+
+  /** Creates an uncached client with independent pool and resilience state. */
+  static createIsolated(
+    baseURL: string,
+    httpConfig?: HttpClientRequestConfig,
+    poolConfig?: PoolConfig,
+    initialize?: (client: HttpClient) => void,
+  ): HttpClient {
+    const instance = new HttpClient(baseURL, httpConfig, new CircuitBreaker(), poolConfig);
+    HttpClientFactory.initialize(instance, initialize);
+    return instance;
+  }
+
+  private static initialize(instance: HttpClient, initialize?: (client: HttpClient) => void): void {
+    try {
+      initialize?.(instance);
+    } catch (error) {
+      void instance.close().catch(() => undefined);
+      throw error;
+    }
   }
 
   /**
@@ -73,10 +101,6 @@ export class HttpClientFactory {
    * afterEach(() => HttpClientFactory.clear());
    * ```
    */
-  static createIsolated(baseURL: string, httpConfig?: HttpClientRequestConfig, poolConfig?: PoolConfig): HttpClient {
-    return new HttpClient(baseURL, httpConfig, new CircuitBreaker(), poolConfig);
-  }
-
   static clear(): void {
     for (const instance of HttpClientFactory.instances.values()) {
       void instance.close().catch(() => undefined);

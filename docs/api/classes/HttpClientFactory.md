@@ -1,4 +1,4 @@
-[**super-http v2.1.2**](../README.md)
+[**super-http v3.0.0**](../README.md)
 
 ***
 
@@ -6,7 +6,7 @@
 
 # Class: HttpClientFactory
 
-Defined in: [src/http-client/http.factory.ts:22](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/http-client/http.factory.ts#L22)
+Defined in: [src/http-client/http.factory.ts:22](https://github.com/jhonesgoncalves/super-http-ts/blob/v3.0.0/src/http-client/http.factory.ts#L22)
 
 Factory that creates and caches [HttpClient](HttpClient.md) instances keyed by
 `baseURL`.
@@ -41,19 +41,32 @@ console.log(client === same); // true
 
 > `static` **clear**(): `void`
 
-Defined in: [src/http-client/http.factory.ts:80](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/http-client/http.factory.ts#L80)
+Defined in: [src/http-client/http.factory.ts:104](https://github.com/jhonesgoncalves/super-http-ts/blob/v3.0.0/src/http-client/http.factory.ts#L104)
+
+Closes and removes all cached instances.
+
+Primarily useful in tests to ensure each test case starts with a fresh
+client and pool. Each client is closed before being dropped: emptying the
+map alone left every cached client's keep-alive sockets open, so the call
+advertised for test isolation was leaking a pool per invocation.
 
 #### Returns
 
 `void`
 
+#### Example
+
+```ts
+afterEach(() => HttpClientFactory.clear());
+```
+
 ***
 
 ### create()
 
-> `static` **create**(`baseURL`, `httpConfig?`, `poolConfig?`): [`HttpClient`](HttpClient.md)
+> `static` **create**(`baseURL`, `httpConfig?`, `poolConfig?`, `initialize?`): [`HttpClient`](HttpClient.md)
 
-Defined in: [src/http-client/http.factory.ts:52](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/http-client/http.factory.ts#L52)
+Defined in: [src/http-client/http.factory.ts:53](https://github.com/jhonesgoncalves/super-http-ts/blob/v3.0.0/src/http-client/http.factory.ts#L53)
 
 Returns the cached `HttpClient` for `baseURL`, or creates a new one.
 
@@ -82,6 +95,12 @@ Default Axios request config (headers, auth, …).
 
 Connection pool options. See [PoolConfig](../interfaces/PoolConfig.md).
 
+##### initialize?
+
+(`client`) => `void`
+
+Optional setup, executed only for a newly created client, before caching.
+
 #### Returns
 
 [`HttpClient`](HttpClient.md)
@@ -107,16 +126,11 @@ const { data } = await api.get('/users');
 
 ### createIsolated()
 
-> `static` **createIsolated**(`baseURL`, `httpConfig?`, `poolConfig?`): [`HttpClient`](HttpClient.md)
+> `static` **createIsolated**(`baseURL`, `httpConfig?`, `poolConfig?`, `initialize?`): [`HttpClient`](HttpClient.md)
 
-Defined in: [src/http-client/http.factory.ts:76](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/http-client/http.factory.ts#L76)
+Defined in: [src/http-client/http.factory.ts:71](https://github.com/jhonesgoncalves/super-http-ts/blob/v3.0.0/src/http-client/http.factory.ts#L71)
 
-Closes and removes all cached instances.
-
-Primarily useful in tests to ensure each test case starts with a fresh
-client and pool. Each client is closed before being dropped: emptying the
-map alone left every cached client's keep-alive sockets open, so the call
-advertised for test isolation was leaking a pool per invocation.
+Creates an uncached client with independent pool and resilience state.
 
 #### Parameters
 
@@ -132,12 +146,10 @@ advertised for test isolation was leaking a pool per invocation.
 
 [`PoolConfig`](../interfaces/PoolConfig.md)
 
+##### initialize?
+
+(`client`) => `void`
+
 #### Returns
 
 [`HttpClient`](HttpClient.md)
-
-#### Example
-
-```ts
-afterEach(() => HttpClientFactory.clear());
-```

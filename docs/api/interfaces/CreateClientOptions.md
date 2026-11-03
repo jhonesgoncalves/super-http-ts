@@ -1,4 +1,4 @@
-[**super-http v2.1.2**](../README.md)
+[**super-http v3.0.0**](../README.md)
 
 ***
 
@@ -6,9 +6,9 @@
 
 # Interface: CreateClientOptions
 
-Defined in: [src/presets/index.ts:20](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/presets/index.ts#L20)
+Defined in: [src/presets/index.ts:11](https://github.com/jhonesgoncalves/super-http-ts/blob/v3.0.0/src/presets/index.ts#L11)
 
-Options for [createClient](../functions/createClient.md).
+Options for [createClient](../functions/createClient.md). Also accepted by the NestJS module.
 
 ## Extends
 
@@ -68,9 +68,7 @@ Defined in: node\_modules/axios/index.d.ts:404
 
 > **baseURL**: `string`
 
-Defined in: [src/presets/index.ts:24](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/presets/index.ts#L24)
-
-Base URL prepended to every request.
+Defined in: [src/presets/index.ts:14](https://github.com/jhonesgoncalves/super-http-ts/blob/v3.0.0/src/presets/index.ts#L14)
 
 #### Overrides
 
@@ -136,6 +134,18 @@ Defined in: node\_modules/axios/index.d.ts:434
 
 ***
 
+### capacity?
+
+> `optional` **capacity?**: `number`
+
+Defined in: [src/presets/index.ts:22](https://github.com/jhonesgoncalves/super-http-ts/blob/v3.0.0/src/presets/index.ts#L22)
+
+Preset concurrency budget per client/process (not requests per minute).
+Derives pool size, idle reserve and bounded queue together. Requires a preset.
+An explicit pool.maxSockets caps the effective concurrency budget.
+
+***
+
 ### data?
 
 > `optional` **data?**: `any`
@@ -145,6 +155,16 @@ Defined in: node\_modules/axios/index.d.ts:399
 #### Inherited from
 
 [`HttpClientRequestConfig`](HttpClientRequestConfig.md).[`data`](HttpClientRequestConfig.md#data)
+
+***
+
+### deadlineMs?
+
+> `optional` **deadlineMs?**: `number`
+
+Defined in: [src/presets/index.ts:24](https://github.com/jhonesgoncalves/super-http-ts/blob/v3.0.0/src/presets/index.ts#L24)
+
+Total logical-call budget, including admission, retries and backoff. Must be >= 1 ms.
 
 ***
 
@@ -370,9 +390,9 @@ Defined in: node\_modules/axios/index.d.ts:438
 
 > `optional` **isolated?**: `boolean`
 
-Defined in: [src/presets/index.ts:22](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/presets/index.ts#L22)
+Defined in: [src/presets/index.ts:13](https://github.com/jhonesgoncalves/super-http-ts/blob/v3.0.0/src/presets/index.ts#L13)
 
-Create an independent client without reading or changing the shared registry.
+Independent client and resilience state, outside the shared URL registry.
 
 ***
 
@@ -556,7 +576,7 @@ Defined in: node\_modules/axios/index.d.ts:467
 
 > `optional` **policy?**: [`RequestPolicy`](RequestPolicy.md)
 
-Defined in: [src/models/http.client.request.config.ts:5](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/models/http.client.request.config.ts#L5)
+Defined in: [src/models/http.client.request.config.ts:5](https://github.com/jhonesgoncalves/super-http-ts/blob/v3.0.0/src/models/http.client.request.config.ts#L5)
 
 #### Inherited from
 
@@ -568,9 +588,9 @@ Defined in: [src/models/http.client.request.config.ts:5](https://github.com/jhon
 
 > `optional` **pool?**: [`PoolConfig`](PoolConfig.md)
 
-Defined in: [src/presets/index.ts:36](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/presets/index.ts#L36)
+Defined in: [src/presets/index.ts:26](https://github.com/jhonesgoncalves/super-http-ts/blob/v3.0.0/src/presets/index.ts#L26)
 
-Connection pool options (merged with preset defaults when preset is set).
+Advanced overrides, merged after preset defaults. Fluent methods override policies.
 
 ***
 
@@ -578,13 +598,9 @@ Connection pool options (merged with preset defaults when preset is set).
 
 > `optional` **preset?**: [`Preset`](../type-aliases/Preset.md)
 
-Defined in: [src/presets/index.ts:33](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/presets/index.ts#L33)
+Defined in: [src/presets/index.ts:16](https://github.com/jhonesgoncalves/super-http-ts/blob/v3.0.0/src/presets/index.ts#L16)
 
-Apply a built-in resilience preset.
-
-You can override any preset setting by passing additional options.
-Individual calls to `.retry()`, `.circuitBreak()` etc. always take
-precedence over the preset.
+Managed connection lifecycle, safe retry, deadline, circuit breaker and bulkhead.
 
 ***
 

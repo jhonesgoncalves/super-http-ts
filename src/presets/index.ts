@@ -2,132 +2,148 @@ import { HttpClientFactory } from '../http-client/http.factory';
 import { HttpClient, PoolConfig } from '../http-client/http.client';
 import { HttpClientRequestConfig } from '../models/http.client.request.config';
 import { ExponentialJitterRetryStrategy } from '../models/retry.strategy';
+import { assertIntAtLeast, assertOneOf } from '../models/validate';
 
-/**
- * Built-in configuration presets.
- *
- * | Preset | Best for |
- * |---|---|
- * | `high-throughput` | Internal services, small payloads, max req/s |
- * | `resilient-api` | External APIs, payment gateways, critical paths |
- * | `low-latency` | Real-time features, sub-10ms p99 requirements |
- */
+/** HTTP resilience profiles. No preset is applied unless explicitly selected. */
 export type Preset = 'high-throughput' | 'resilient-api' | 'low-latency';
 
-/**
- * Options for {@link createClient}.
- */
+/** Options for {@link createClient}. Also accepted by the NestJS module. */
 export interface CreateClientOptions extends HttpClientRequestConfig {
-  /** Create an independent client without reading or changing the shared registry. */
+  /** Independent client and resilience state, outside the shared URL registry. */
   isolated?: boolean;
-  /** Base URL prepended to every request. */
   baseURL: string;
-
-  /**
-   * Apply a built-in resilience preset.
-   *
-   * You can override any preset setting by passing additional options.
-   * Individual calls to `.retry()`, `.circuitBreak()` etc. always take
-   * precedence over the preset.
-   */
+  /** Managed connection lifecycle, safe retry, deadline, circuit breaker and bulkhead. */
   preset?: Preset;
-
-  /** Connection pool options (merged with preset defaults when preset is set). */
+  /**
+   * Preset concurrency budget per client/process (not requests per minute).
+   * Derives pool size, idle reserve and bounded queue together. Requires a preset.
+   * An explicit pool.maxSockets caps the effective concurrency budget.
+   */
+  capacity?: number;
+  /** Total logical-call budget, including admission, retries and backoff. Must be >= 1 ms. */
+  deadlineMs?: number;
+  /** Advanced overrides, merged after preset defaults. Fluent methods override policies. */
   pool?: PoolConfig;
 }
 
-type PresetDefinition = {
-  pool: PoolConfig;
-  apply: (client: HttpClient) => void;
-};
+interface PresetDefinition {
+  capacity: number;
+  timeout: number;
+  deadlineMs: number;
+  retries: number;
+  retryBaseMs: number;
+  retryCapMs: number;
+  queueTimeoutMs: number;
+  circuitTimeoutMs: number;
+}
 
 const PRESETS: Record<Preset, PresetDefinition> = {
-  /**
-   * Maximum throughput for internal services.
-   * - Large connection pool (200 sockets)
-   * - Tight timeout (5 s) to fail fast
-   * - 1 retry with quick jitter (no thundering herd)
-   * - No circuit breaker (internal services should always be up)
-   */
-  'high-throughput': {
-    pool: { maxSockets: 200, maxFreeSockets: 50, keepAlive: true, keepAliveMsecs: 500, timeout: 5_000 },
-    apply(client) {
-      client.retry(1, new ExponentialJitterRetryStrategy(50, 500));
-    },
-  },
-
-  /**
-   * Full resilience for external or critical APIs.
-   * - Circuit breaker (trip after 10 failures, recover after 10 s)
-   * - Exponential jitter retry (3 attempts)
-   * - Bulkhead (50 concurrent, 200 queued)
-   * - Generous timeout (15 s)
-   */
   'resilient-api': {
-    pool: { maxSockets: 100, maxFreeSockets: 20, keepAlive: true, keepAliveMsecs: 1000, timeout: 15_000 },
-    apply(client) {
-      client
-        .circuitBreak({ failureThreshold: 10, successThreshold: 3, timeoutMs: 10_000 })
-        .retry(3, new ExponentialJitterRetryStrategy(100, 10_000))
-        .bulkhead({ maxConcurrent: 50, maxQueue: 200, queueTimeoutMs: 5_000 });
-    },
+    capacity: 32,
+    timeout: 1_500,
+    deadlineMs: 3_000,
+    retries: 1,
+    retryBaseMs: 100,
+    retryCapMs: 150,
+    queueTimeoutMs: 200,
+    circuitTimeoutMs: 5_000,
   },
-
-  /**
-   * Minimum latency — pure throughput, no safety nets.
-   * - Huge pool (500 sockets)
-   * - Aggressive timeout (2 s)
-   * - No retry, no circuit breaker
-   * Use for real-time features where stale data is worse than no data.
-   */
+  'high-throughput': {
+    capacity: 128,
+    timeout: 2_000,
+    deadlineMs: 5_000,
+    retries: 1,
+    retryBaseMs: 50,
+    retryCapMs: 100,
+    queueTimeoutMs: 100,
+    circuitTimeoutMs: 5_000,
+  },
   'low-latency': {
-    pool: { maxSockets: 500, maxFreeSockets: 100, keepAlive: true, keepAliveMsecs: 200, timeout: 2_000 },
-    // eslint-disable-next-line @typescript-eslint/no-empty-function
-    apply() {},
+    capacity: 32,
+    timeout: 500,
+    deadlineMs: 1_000,
+    retries: 0,
+    retryBaseMs: 0,
+    retryCapMs: 0,
+    queueTimeoutMs: 25,
+    circuitTimeoutMs: 2_000,
   },
 };
 
 /**
- * Creates a new `HttpClient` with optional preset configuration.
+ * Create an HTTP client with an optional managed resilience profile.
  *
- * Equivalent to `HttpClientFactory.create()` with the added convenience
- * of preset-based defaults. Individual calls to `.retry()`, `.circuitBreak()`,
- * etc. always override preset settings.
+ * Presets retire idle sockets, honour upstream keep-alive hints and bound every
+ * logical call. Retries preserve method/body safety; ambiguous POST/PATCH errors
+ * are not replayed. Circuit breakers use the client's HTTP failure classifier.
+ * Capacity is local concurrency, not a distributed traffic limit or autoscaling.
+ *
+ * The shared factory remains first-configuration-wins. Use `isolated: true` for
+ * independent policies against the same URL. Requests without a preset keep
+ * their existing manual configuration behaviour.
  *
  * @example
  * ```ts
- * // Resilient external API client
- * const payments = createClient({
- *   baseURL: 'https://payments.internal',
+ * const members = createClient({
+ *   baseURL: 'https://members.example',
  *   preset: 'resilient-api',
- *   headers: { 'X-API-Key': process.env.PAYMENTS_KEY },
+ *   isolated: true,
  * })
- *
- * // High-throughput internal service
+ * // Optional: scale all admission/pool limits using one budget.
  * const catalog = createClient({
- *   baseURL: 'https://catalog.internal',
+ *   baseURL: 'https://catalog.example',
  *   preset: 'high-throughput',
- *   pool: { maxSockets: 300 },  // override pool
+ *   capacity: 64,
+ *   deadlineMs: 2_000,
  * })
- *
- * // No preset — manual config
- * const custom = createClient({ baseURL: 'https://api.example.com' })
- *   .retry(3, new ExponentialJitterRetryStrategy(100, 5_000))
  * ```
  */
 export function createClient(options: CreateClientOptions): HttpClient {
-  const { baseURL, preset, pool, isolated = false, ...httpConfig } = options;
+  const { baseURL, preset, pool, isolated = false, capacity, deadlineMs, ...httpConfig } = options;
+  if (preset !== undefined) assertOneOf(preset, Object.keys(PRESETS), 'HTTP preset');
+  if (capacity !== undefined) {
+    assertIntAtLeast(capacity, 1, 'capacity');
+    if (!preset) throw new RangeError('[super-http] capacity requires a preset');
+  }
+  if (deadlineMs !== undefined) assertIntAtLeast(deadlineMs, 1, 'deadlineMs');
+  if (pool?.maxSockets !== undefined) assertIntAtLeast(pool.maxSockets, 1, 'pool.maxSockets');
+  if (pool?.maxFreeSockets !== undefined) assertIntAtLeast(pool.maxFreeSockets, 0, 'pool.maxFreeSockets');
 
-  const presetDef = preset ? PRESETS[preset] : undefined;
-  const mergedPool: PoolConfig = { ...(presetDef?.pool ?? {}), ...(pool ?? {}) };
-
-  const client = isolated
-    ? HttpClientFactory.createIsolated(baseURL, httpConfig, mergedPool)
-    : HttpClientFactory.create(baseURL, httpConfig, mergedPool);
-
-  if (presetDef) {
-    presetDef.apply(client);
+  const profile = preset ? PRESETS[preset] : undefined;
+  const concurrent = profile ? Math.min(capacity ?? profile.capacity, pool?.maxSockets ?? Infinity) : 0;
+  const mergedPool: PoolConfig = profile
+    ? {
+        keepAlive: true,
+        scheduling: 'lifo',
+        maxSockets: concurrent,
+        maxFreeSockets: Math.max(1, Math.ceil(concurrent / 4)),
+        freeSocketTimeoutMs: 4_000,
+        keepAliveTimeoutBufferMs: 1_000,
+        maxSocketAgeMs: 60_000,
+        ...pool,
+      }
+    : { ...pool };
+  if (profile) {
+    // Keep the idle reserve coherent when an advanced override shrinks the pool.
+    mergedPool.maxFreeSockets = Math.min(mergedPool.maxFreeSockets!, mergedPool.maxSockets!);
+    httpConfig.timeout = httpConfig.timeout ?? profile.timeout;
   }
 
-  return client;
+  const initialize = (client: HttpClient): void => {
+    if (profile) {
+      client
+        .retry(profile.retries, new ExponentialJitterRetryStrategy(profile.retryBaseMs, profile.retryCapMs), {
+          recoverReusedSocket: true,
+          retryNonIdempotent: false,
+        })
+        .deadline(deadlineMs ?? profile.deadlineMs)
+        .circuitBreak({ failureThreshold: 10, successThreshold: 1, timeoutMs: profile.circuitTimeoutMs })
+        .bulkhead({ maxConcurrent: concurrent, maxQueue: concurrent * 2, queueTimeoutMs: profile.queueTimeoutMs });
+    } else if (deadlineMs !== undefined) {
+      client.deadline(deadlineMs);
+    }
+  };
+  return isolated
+    ? HttpClientFactory.createIsolated(baseURL, httpConfig, mergedPool, initialize)
+    : HttpClientFactory.create(baseURL, httpConfig, mergedPool, initialize);
 }

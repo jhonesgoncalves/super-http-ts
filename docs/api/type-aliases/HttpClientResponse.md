@@ -1,4 +1,4 @@
-[**super-http v2.1.2**](../README.md)
+[**super-http v3.0.0**](../README.md)
 
 ***
 
@@ -8,7 +8,7 @@
 
 > **HttpClientResponse**\<`T`\> = `AxiosResponse`\<`T`\>
 
-Defined in: [src/models/http.client.response.ts:3](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/models/http.client.response.ts#L3)
+Defined in: [src/models/http.client.response.ts:3](https://github.com/jhonesgoncalves/super-http-ts/blob/v3.0.0/src/models/http.client.response.ts#L3)
 
 ## Type Parameters
 

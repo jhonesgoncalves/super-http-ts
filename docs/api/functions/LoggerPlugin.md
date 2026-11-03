@@ -1,4 +1,4 @@
-[**super-http v2.1.2**](../README.md)
+[**super-http v3.0.0**](../README.md)
 
 ***
 
@@ -8,7 +8,7 @@
 
 > **LoggerPlugin**(`options?`): [`SuperHttpPlugin`](../interfaces/SuperHttpPlugin.md)
 
-Defined in: [src/plugins/index.ts:63](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/plugins/index.ts#L63)
+Defined in: [src/plugins/index.ts:63](https://github.com/jhonesgoncalves/super-http-ts/blob/v3.0.0/src/plugins/index.ts#L63)
 
 Structured console logger plugin.
 

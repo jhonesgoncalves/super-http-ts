@@ -1,4 +1,4 @@
-[**super-http v2.1.2**](../README.md)
+[**super-http v3.0.0**](../README.md)
 
 ***
 
@@ -8,13 +8,18 @@
 
 > **createClient**(`options`): [`HttpClient`](../classes/HttpClient.md)
 
-Defined in: [src/presets/index.ts:118](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/presets/index.ts#L118)
+Defined in: [src/presets/index.ts:101](https://github.com/jhonesgoncalves/super-http-ts/blob/v3.0.0/src/presets/index.ts#L101)
 
-Creates a new `HttpClient` with optional preset configuration.
+Create an HTTP client with an optional managed resilience profile.
 
-Equivalent to `HttpClientFactory.create()` with the added convenience
-of preset-based defaults. Individual calls to `.retry()`, `.circuitBreak()`,
-etc. always override preset settings.
+Presets retire idle sockets, honour upstream keep-alive hints and bound every
+logical call. Retries preserve method/body safety; ambiguous POST/PATCH errors
+are not replayed. Circuit breakers use the client's HTTP failure classifier.
+Capacity is local concurrency, not a distributed traffic limit or autoscaling.
+
+The shared factory remains first-configuration-wins. Use `isolated: true` for
+independent policies against the same URL. Requests without a preset keep
+their existing manual configuration behaviour.
 
 ## Parameters
 
@@ -29,21 +34,16 @@ etc. always override preset settings.
 ## Example
 
 ```ts
-// Resilient external API client
-const payments = createClient({
-  baseURL: 'https://payments.internal',
+const members = createClient({
+  baseURL: 'https://members.example',
   preset: 'resilient-api',
-  headers: { 'X-API-Key': process.env.PAYMENTS_KEY },
+  isolated: true,
 })
-
-// High-throughput internal service
+// Optional: scale all admission/pool limits using one budget.
 const catalog = createClient({
-  baseURL: 'https://catalog.internal',
+  baseURL: 'https://catalog.example',
   preset: 'high-throughput',
-  pool: { maxSockets: 300 },  // override pool
+  capacity: 64,
+  deadlineMs: 2_000,
 })
-
-// No preset — manual config
-const custom = createClient({ baseURL: 'https://api.example.com' })
-  .retry(3, new ExponentialJitterRetryStrategy(100, 5_000))
 ```

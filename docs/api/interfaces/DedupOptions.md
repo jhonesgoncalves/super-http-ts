@@ -1,4 +1,4 @@
-[**super-http v2.1.2**](../README.md)
+[**super-http v3.0.0**](../README.md)
 
 ***
 
@@ -6,7 +6,7 @@
 
 # Interface: DedupOptions
 
-Defined in: [src/dedup/request-dedup.ts:77](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/dedup/request-dedup.ts#L77)
+Defined in: [src/dedup/request-dedup.ts:77](https://github.com/jhonesgoncalves/super-http-ts/blob/v3.0.0/src/dedup/request-dedup.ts#L77)
 
 Options for [RequestDedup](../classes/RequestDedup.md) keying, set via `client.dedup(...)`.
 
@@ -16,7 +16,7 @@ Options for [RequestDedup](../classes/RequestDedup.md) keying, set via `client.d
 
 > `optional` **methods?**: `string`[]
 
-Defined in: [src/dedup/request-dedup.ts:82](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/dedup/request-dedup.ts#L82)
+Defined in: [src/dedup/request-dedup.ts:82](https://github.com/jhonesgoncalves/super-http-ts/blob/v3.0.0/src/dedup/request-dedup.ts#L82)
 
 HTTP methods eligible for coalescing, upper- or lower-case.
 

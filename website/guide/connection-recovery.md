@@ -26,26 +26,14 @@ a connection under its own HTTP idle policy.
 ## Example: up to 4,000 calls per minute
 
 ```typescript
-import { createClient, ExponentialJitterRetryStrategy } from 'super-http'
+import { createClient } from 'super-http'
 
+// Managed HTTP profile in 3.0; see the presets migration guide.
 const members = createClient({
   baseURL: 'https://member-manager.example',
   isolated: true,
-  timeout: 1_500,
-  pool: {
-    maxSockets: 32,
-    maxFreeSockets: 8,
-    scheduling: 'lifo',
-    socketTimeoutMs: 4_000,
-    freeSocketTimeoutMs: 4_000,
-    keepAliveTimeoutBufferMs: 1_000,
-    maxSocketAgeMs: 60_000,
-  },
+  preset: 'resilient-api',
 })
-  .retry(1, new ExponentialJitterRetryStrategy(100, 150))
-  .deadline(3_000)
-  .bulkhead({ maxConcurrent: 32, maxQueue: 64, queueTimeoutMs: 200 })
-  .correlate()
 
 members.on({
   onAttemptError: ({ code, reusedSocket, attempt }) => {
@@ -62,7 +50,8 @@ const { data } = await members.get('/api/members/synthetic-member')
 await members.close()
 ```
 
-These are starting values for load testing, not universal production defaults.
+The managed profile supplies the starting values documented in [Presets](./presets).
+Validate them with load testing; they are not universal performance guarantees.
 4,000/min is about 67/s; at 200 ms average duration this is about 14 concurrent
 calls before accounting for bursts and retries. All pool/bulkhead limits are per
 client/process/destination; replica counts multiply the possible concurrency.

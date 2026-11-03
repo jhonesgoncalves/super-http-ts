@@ -1,4 +1,4 @@
-[**super-http v2.1.2**](../README.md)
+[**super-http v3.0.0**](../README.md)
 
 ***
 
@@ -6,7 +6,7 @@
 
 # Class: RequestDedup
 
-Defined in: [src/dedup/request-dedup.ts:27](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/dedup/request-dedup.ts#L27)
+Defined in: [src/dedup/request-dedup.ts:27](https://github.com/jhonesgoncalves/super-http-ts/blob/v3.0.0/src/dedup/request-dedup.ts#L27)
 
 Coalesces identical in-flight requests into a single network call.
 
@@ -38,7 +38,7 @@ const [a, b, c] = await Promise.all([
 
 > **new RequestDedup**(`ttlMs?`): `RequestDedup`
 
-Defined in: [src/dedup/request-dedup.ts:38](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/dedup/request-dedup.ts#L38)
+Defined in: [src/dedup/request-dedup.ts:38](https://github.com/jhonesgoncalves/super-http-ts/blob/v3.0.0/src/dedup/request-dedup.ts#L38)
 
 #### Parameters
 
@@ -60,7 +60,7 @@ Age after which an in-flight entry stops being joinable.
 
 > `readonly` `static` **DEFAULT\_TTL\_MS**: `30000` = `30_000`
 
-Defined in: [src/dedup/request-dedup.ts:29](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/dedup/request-dedup.ts#L29)
+Defined in: [src/dedup/request-dedup.ts:29](https://github.com/jhonesgoncalves/super-http-ts/blob/v3.0.0/src/dedup/request-dedup.ts#L29)
 
 How long an in-flight entry may be joined before it is considered stale.
 
@@ -72,7 +72,7 @@ How long an in-flight entry may be joined before it is considered stale.
 
 > **get** **size**(): `number`
 
-Defined in: [src/dedup/request-dedup.ts:62](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/dedup/request-dedup.ts#L62)
+Defined in: [src/dedup/request-dedup.ts:62](https://github.com/jhonesgoncalves/super-http-ts/blob/v3.0.0/src/dedup/request-dedup.ts#L62)
 
 Number of in-flight deduplicated requests.
 
@@ -86,7 +86,7 @@ Number of in-flight deduplicated requests.
 
 > **execute**\<`T`\>(`key`, `fn`): `Promise`\<`T`\>
 
-Defined in: [src/dedup/request-dedup.ts:46](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/dedup/request-dedup.ts#L46)
+Defined in: [src/dedup/request-dedup.ts:46](https://github.com/jhonesgoncalves/super-http-ts/blob/v3.0.0/src/dedup/request-dedup.ts#L46)
 
 Executes `fn`, coalescing concurrent calls with the same `key`.
 

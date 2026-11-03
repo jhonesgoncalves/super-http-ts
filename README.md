@@ -96,20 +96,22 @@ npm install super-http
 
 ## Quick start — production setup in seconds
 
-```typescript
-import { createClient, ExponentialJitterRetryStrategy, LoggerPlugin } from 'super-http'
+> New in 3.0: managed HTTP presets include a total deadline and coordinated
+> pool/bulkhead limits. Upgrading from 2.x? Read the
+> [migration guide](https://jhonesgoncalves.github.io/super-http-ts/guide/migration-3).
 
-// One line — circuit breaker + retry + bulkhead, all pre-configured
+```typescript
+import { createClient, LoggerPlugin } from 'super-http'
+
+// Managed pool + deadline + safe retry + circuit breaker + bulkhead
 const api = createClient({
   baseURL: 'https://api.example.com',
   preset: 'resilient-api',
   headers: { Authorization: `Bearer ${token}` },
 })
 
-// Bound the whole call — queue waits, every attempt and every backoff — then
-// add observability
+// The preset already bounds the whole call; add your observability.
 api
-  .deadline(3_000)
   .use(LoggerPlugin({ prefix: '[checkout]' }))
   .on({
     onCircuitStateChange: ({ to, failures }) =>

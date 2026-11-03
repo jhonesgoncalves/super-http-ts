@@ -16,7 +16,8 @@ See [createClient vs HttpClientFactory](../guide/configuration#createclient-vs-h
 static create(
   baseURL: string,
   httpConfig?: HttpClientRequestConfig,
-  poolConfig?: PoolConfig
+  poolConfig?: PoolConfig,
+  initialize?: (client: HttpClient) => void
 ): HttpClient
 ```
 
@@ -31,6 +32,7 @@ Returns the cached `HttpClient` for `baseURL`, or creates a new one.
 | `baseURL` | `string` | Base URL for all requests |
 | `httpConfig` | `HttpClientRequestConfig` | Default Axios config (headers, auth, timeout…) |
 | `poolConfig` | `PoolConfig` | Connection pool options |
+| `initialize` | `(client: HttpClient) => void` | Synchronous initialization only for newly created clients, before caching; throws close the new client |
 
 ### Example
 

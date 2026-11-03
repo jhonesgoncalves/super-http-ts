@@ -1,4 +1,4 @@
-[**super-http v2.1.2**](../README.md)
+[**super-http v3.0.0**](../README.md)
 
 ***
 
@@ -6,7 +6,7 @@
 
 # Interface: BulkheadRejectEvent
 
-Defined in: [src/models/resilience.events.ts:60](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/models/resilience.events.ts#L60)
+Defined in: [src/models/resilience.events.ts:60](https://github.com/jhonesgoncalves/super-http-ts/blob/v3.0.0/src/models/resilience.events.ts#L60)
 
 Context passed to `onBulkheadReject`.
 
@@ -16,7 +16,7 @@ Context passed to `onBulkheadReject`.
 
 > **active**: `number`
 
-Defined in: [src/models/resilience.events.ts:62](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/models/resilience.events.ts#L62)
+Defined in: [src/models/resilience.events.ts:62](https://github.com/jhonesgoncalves/super-http-ts/blob/v3.0.0/src/models/resilience.events.ts#L62)
 
 Number of currently active requests at rejection time.
 
@@ -26,7 +26,7 @@ Number of currently active requests at rejection time.
 
 > **queued**: `number`
 
-Defined in: [src/models/resilience.events.ts:64](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/models/resilience.events.ts#L64)
+Defined in: [src/models/resilience.events.ts:64](https://github.com/jhonesgoncalves/super-http-ts/blob/v3.0.0/src/models/resilience.events.ts#L64)
 
 Number of requests waiting in the queue at rejection time.
 
@@ -36,6 +36,6 @@ Number of requests waiting in the queue at rejection time.
 
 > `optional` **requestId?**: `string`
 
-Defined in: [src/models/resilience.events.ts:66](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/models/resilience.events.ts#L66)
+Defined in: [src/models/resilience.events.ts:66](https://github.com/jhonesgoncalves/super-http-ts/blob/v3.0.0/src/models/resilience.events.ts#L66)
 
 Correlation id of the request this event belongs to.

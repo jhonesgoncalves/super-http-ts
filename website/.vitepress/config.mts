@@ -81,6 +81,7 @@ export default withMermaid(defineConfig({
             { text: 'Why super-http?', link: '/guide/why' },
             { text: 'Migrating from Axios', link: '/guide/migration' },
             { text: 'Upgrading 1.x → 2.0', link: '/guide/migration-2' },
+            { text: 'Upgrading 2.x → 3.0', link: '/guide/migration-3' },
           ],
         },
         {

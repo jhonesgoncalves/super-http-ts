@@ -91,10 +91,9 @@ import { SuperHttpModule } from 'super-http/nestjs'
         headers: {
           Authorization: `Bearer ${config.getOrThrow('API_TOKEN')}`,
         },
-        pool: {
-          maxSockets: Number(config.get('API_MAX_SOCKETS') ?? 100),
-          timeout:    Number(config.get('API_TIMEOUT_MS')  ?? 15_000),
-        },
+        capacity: Number(config.get('API_CAPACITY') ?? 32),
+        timeout: Number(config.get('API_TIMEOUT_MS') ?? 1_500),
+        deadlineMs: Number(config.get('API_DEADLINE_MS') ?? 3_000),
       }),
       inject: [ConfigService],
     }),

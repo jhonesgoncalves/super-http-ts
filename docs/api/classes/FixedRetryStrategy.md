@@ -1,4 +1,4 @@
-[**super-http v2.1.2**](../README.md)
+[**super-http v3.0.0**](../README.md)
 
 ***
 
@@ -6,7 +6,7 @@
 
 # Class: FixedRetryStrategy
 
-Defined in: [src/models/retry.strategy.ts:31](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/models/retry.strategy.ts#L31)
+Defined in: [src/models/retry.strategy.ts:31](https://github.com/jhonesgoncalves/super-http-ts/blob/v3.0.0/src/models/retry.strategy.ts#L31)
 
 Fixed-delay retry strategy — every retry waits the same `delayMs`.
 
@@ -23,7 +23,7 @@ Prefer [ExponentialJitterRetryStrategy](ExponentialJitterRetryStrategy.md) for d
 
 > **new FixedRetryStrategy**(`delayMs`): `FixedRetryStrategy`
 
-Defined in: [src/models/retry.strategy.ts:32](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/models/retry.strategy.ts#L32)
+Defined in: [src/models/retry.strategy.ts:32](https://github.com/jhonesgoncalves/super-http-ts/blob/v3.0.0/src/models/retry.strategy.ts#L32)
 
 #### Parameters
 
@@ -41,7 +41,7 @@ Defined in: [src/models/retry.strategy.ts:32](https://github.com/jhonesgoncalves
 
 > **computeDelay**(): `number`
 
-Defined in: [src/models/retry.strategy.ts:37](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/models/retry.strategy.ts#L37)
+Defined in: [src/models/retry.strategy.ts:37](https://github.com/jhonesgoncalves/super-http-ts/blob/v3.0.0/src/models/retry.strategy.ts#L37)
 
 Computes the delay (ms) before attempt number `attempt` (0-based).
 

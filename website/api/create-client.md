@@ -13,11 +13,11 @@ import { createClient } from 'super-http'
 `createClient` is built on top of `HttpClientFactory`:
 
 ```
-createClient({ baseURL, preset?, pool?, ...httpConfig })
+createClient({ baseURL, preset?, capacity?, deadlineMs?, pool?, ...httpConfig })
     ↓
 HttpClientFactory.create(baseURL, httpConfig, mergedPool)
     ↓
-  applies preset defaults (if any)
+  initializes preset once, before caching (if any)
     ↓
 returns HttpClient (singleton per baseURL)
 ```
@@ -35,6 +35,8 @@ interface CreateClientOptions extends HttpClientRequestConfig {
   baseURL: string
   isolated?: boolean // default false
   preset?: 'high-throughput' | 'resilient-api' | 'low-latency'
+  capacity?: number // positive integer; requires preset; per-client concurrency
+  deadlineMs?: number // positive integer; total logical-call budget
   pool?: PoolConfig
 }
 ```
@@ -44,6 +46,8 @@ interface CreateClientOptions extends HttpClientRequestConfig {
 | `baseURL` | `string` | **Required.** Base URL for all requests |
 | `isolated` | `boolean` | Bypass the global cache; the caller owns shutdown |
 | `preset` | `Preset` | Optional resilience preset — see [Presets](../guide/presets) |
+| `capacity` | `number` | Coordinates pool and bulkhead concurrency, idle reserve and queue |
+| `deadlineMs` | `number` | Total call budget including admission, attempts and backoff |
 | `pool` | `PoolConfig` | Pool options, merged with preset defaults |
 | `headers` | `Record<string,string>` | Default headers on every request |
 | `timeout` | `number` | Default timeout in ms (overridden by `pool.timeout` if set) |
@@ -69,14 +73,14 @@ const payments = createClient({
   preset: 'resilient-api',
   headers: { Authorization: `Bearer ${KEY}` },
 })
-// Includes: circuit breaker + retry + bulkhead, all pre-configured
+// Includes: managed pool + deadline + safe retry + circuit breaker + bulkhead
 ```
 
-```typescript [Pool override]
+```typescript [Capacity override]
 const catalog = createClient({
   baseURL: 'https://catalog.internal',
   preset: 'high-throughput',
-  pool: { maxSockets: 300 },  // override one pool value, keep rest
+  capacity: 64,  // derive pool and admission limits together
 })
 ```
 
@@ -96,11 +100,15 @@ api
 
 ## Preset defaults
 
-| Preset | maxSockets | timeout | retry | circuit breaker | bulkhead |
-|---|---|---|---|---|---|
-| `high-throughput` | 200 | 5 s | 1× jitter (50–500ms) | — | — |
-| `resilient-api` | 100 | 15 s | 3× jitter (100–10s) | fail@10, recover@10s | 50c / queue 200 |
-| `low-latency` | 500 | 2 s | — | — | — |
+| Preset | Capacity | Attempt timeout | Total deadline | Additional retries | Breaker open period | Bulkhead queue / wait |
+|---|---:|---:|---:|---:|---:|---|
+| `high-throughput` | 128 | 2 s | 5 s | 1 | 5 s | 256 / 100 ms |
+| `resilient-api` | 32 | 1.5 s | 3 s | 1 | 5 s | 64 / 200 ms |
+| `low-latency` | 32 | 500 ms | 1 s | 0 | 2 s | 64 / 25 ms |
+
+All profiles use bounded admission and a breaker with 10 consecutive counted
+failures / one successful probe. See [Presets](../guide/presets) for lifecycle
+settings, sizing and retry safety, and [Migration](../guide/migration-3) for 2.x.
 
 ::: tip
 Preset settings can always be overridden — call `.retry()`, `.circuitBreak()`, etc. after `createClient()`. Manual method calls always take precedence over the preset.
@@ -111,8 +119,8 @@ Preset settings can always be overridden — call `.retry()`, `.circuitBreak()`,
 ## Singleton behaviour
 
 Unless `isolated: true`, repeated calls with the same URL share the open instance.
-Pool/header configuration is first-call-wins; an explicitly supplied preset is
-reapplied to the shared instance. Use isolated clients for different policies:
+Pool, headers and resilience policies are first-call-wins. A later preset does
+not reset an existing breaker, replace admission queues or change fluent settings. Use isolated clients for different policies:
 
 ```typescript
 const a = createClient({ baseURL: 'https://api.example.com', preset: 'resilient-api' })

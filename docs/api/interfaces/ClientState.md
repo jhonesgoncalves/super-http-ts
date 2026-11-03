@@ -1,4 +1,4 @@
-[**super-http v2.1.2**](../README.md)
+[**super-http v3.0.0**](../README.md)
 
 ***
 
@@ -6,7 +6,7 @@
 
 # Interface: ClientState
 
-Defined in: [src/http-client/http.client.ts:125](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/http-client/http.client.ts#L125)
+Defined in: [src/http-client/http.client.ts:125](https://github.com/jhonesgoncalves/super-http-ts/blob/v3.0.0/src/http-client/http.client.ts#L125)
 
 Live state of a client's resilience components — what is true *now*, as
 opposed to the cumulative counters in [MetricsSnapshot](MetricsSnapshot.md).
@@ -21,7 +21,7 @@ actually asks.
 
 > `optional` **bulkhead?**: `object`
 
-Defined in: [src/http-client/http.client.ts:136](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/http-client/http.client.ts#L136)
+Defined in: [src/http-client/http.client.ts:136](https://github.com/jhonesgoncalves/super-http-ts/blob/v3.0.0/src/http-client/http.client.ts#L136)
 
 In-flight and queued counts, if a bulkhead is configured.
 
@@ -39,7 +39,7 @@ In-flight and queued counts, if a bulkhead is configured.
 
 > `optional` **circuit?**: `object`
 
-Defined in: [src/http-client/http.client.ts:132](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/http-client/http.client.ts#L132)
+Defined in: [src/http-client/http.client.ts:132](https://github.com/jhonesgoncalves/super-http-ts/blob/v3.0.0/src/http-client/http.client.ts#L132)
 
 Client-level circuit, if one is configured.
 
@@ -57,7 +57,7 @@ Client-level circuit, if one is configured.
 
 > `optional` **dedup?**: `object`
 
-Defined in: [src/http-client/http.client.ts:140](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/http-client/http.client.ts#L140)
+Defined in: [src/http-client/http.client.ts:140](https://github.com/jhonesgoncalves/super-http-ts/blob/v3.0.0/src/http-client/http.client.ts#L140)
 
 Number of in-flight coalesced requests, if dedup is enabled.
 
@@ -71,7 +71,7 @@ Number of in-flight coalesced requests, if dedup is enabled.
 
 > **policyCircuits**: `Record`\<`string`, \{ `open`: `boolean`; `state`: [`CircuitState`](../type-aliases/CircuitState.md); \}\>
 
-Defined in: [src/http-client/http.client.ts:134](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/http-client/http.client.ts#L134)
+Defined in: [src/http-client/http.client.ts:134](https://github.com/jhonesgoncalves/super-http-ts/blob/v3.0.0/src/http-client/http.client.ts#L134)
 
 Circuits created for per-request policy overrides, keyed by config.
 
@@ -81,7 +81,7 @@ Circuits created for per-request policy overrides, keyed by config.
 
 > **pool**: `object`
 
-Defined in: [src/http-client/http.client.ts:127](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/http-client/http.client.ts#L127)
+Defined in: [src/http-client/http.client.ts:127](https://github.com/jhonesgoncalves/super-http-ts/blob/v3.0.0/src/http-client/http.client.ts#L127)
 
 Pool counts per protocol, for this client/process.
 
@@ -123,7 +123,7 @@ Pool counts per protocol, for this client/process.
 
 > `optional` **rateLimit?**: `object`
 
-Defined in: [src/http-client/http.client.ts:138](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/http-client/http.client.ts#L138)
+Defined in: [src/http-client/http.client.ts:138](https://github.com/jhonesgoncalves/super-http-ts/blob/v3.0.0/src/http-client/http.client.ts#L138)
 
 Tokens left in the current window and queue depth, if configured.
 

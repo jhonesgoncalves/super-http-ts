@@ -1,4 +1,4 @@
-[**super-http v2.1.2**](../README.md)
+[**super-http v3.0.0**](../README.md)
 
 ***
 
@@ -6,7 +6,7 @@
 
 # Interface: RateLimitConfig
 
-Defined in: [src/rate-limiter/rate-limiter.ts:14](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/rate-limiter/rate-limiter.ts#L14)
+Defined in: [src/rate-limiter/rate-limiter.ts:14](https://github.com/jhonesgoncalves/super-http-ts/blob/v3.0.0/src/rate-limiter/rate-limiter.ts#L14)
 
 Configuration for the [RateLimiter](../classes/RateLimiter.md) (fixed-window token bucket).
 
@@ -23,7 +23,7 @@ client.rateLimit({ permitLimit: 100, windowMs: 60_000, queueRequests: true, queu
 
 > `optional` **maxQueue?**: `number`
 
-Defined in: [src/rate-limiter/rate-limiter.ts:56](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/rate-limiter/rate-limiter.ts#L56)
+Defined in: [src/rate-limiter/rate-limiter.ts:56](https://github.com/jhonesgoncalves/super-http-ts/blob/v3.0.0/src/rate-limiter/rate-limiter.ts#L56)
 
 Max number of requests allowed to wait for a token. Beyond this, callers are
 rejected immediately with `Error('Rate limit queue full')`.
@@ -43,7 +43,7 @@ memory leak plus latency nobody can put a number on.
 
 > **permitLimit**: `number`
 
-Defined in: [src/rate-limiter/rate-limiter.ts:18](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/rate-limiter/rate-limiter.ts#L18)
+Defined in: [src/rate-limiter/rate-limiter.ts:18](https://github.com/jhonesgoncalves/super-http-ts/blob/v3.0.0/src/rate-limiter/rate-limiter.ts#L18)
 
 Maximum number of requests allowed in each `windowMs` period.
 
@@ -53,7 +53,7 @@ Maximum number of requests allowed in each `windowMs` period.
 
 > `optional` **queueRequests?**: `boolean`
 
-Defined in: [src/rate-limiter/rate-limiter.ts:32](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/rate-limiter/rate-limiter.ts#L32)
+Defined in: [src/rate-limiter/rate-limiter.ts:32](https://github.com/jhonesgoncalves/super-http-ts/blob/v3.0.0/src/rate-limiter/rate-limiter.ts#L32)
 
 When `true`, requests that exceed the limit are queued until the next
 window opens (or until `queueTimeoutMs` elapses).
@@ -71,7 +71,7 @@ false
 
 > `optional` **queueTimeoutMs?**: `number`
 
-Defined in: [src/rate-limiter/rate-limiter.ts:45](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/rate-limiter/rate-limiter.ts#L45)
+Defined in: [src/rate-limiter/rate-limiter.ts:45](https://github.com/jhonesgoncalves/super-http-ts/blob/v3.0.0/src/rate-limiter/rate-limiter.ts#L45)
 
 Max time (ms) a queued request will wait for a token before being
 rejected with `Error('Rate limit queue timeout')`.
@@ -93,7 +93,7 @@ for deliberately rather than being what you get by omission.
 
 > **windowMs**: `number`
 
-Defined in: [src/rate-limiter/rate-limiter.ts:24](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/rate-limiter/rate-limiter.ts#L24)
+Defined in: [src/rate-limiter/rate-limiter.ts:24](https://github.com/jhonesgoncalves/super-http-ts/blob/v3.0.0/src/rate-limiter/rate-limiter.ts#L24)
 
 Length of the rate-limit window in milliseconds.
 

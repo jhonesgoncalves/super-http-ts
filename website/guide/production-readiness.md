@@ -50,16 +50,20 @@ unlimited, so before 2.0 a runaway upstream could exhaust the client's memory.
 
 ## Total deadlines
 
-Set one. `timeout` bounds a single attempt, so with retries and queueing a call has
-no upper bound you can state:
+Managed HTTP presets include a total deadline (3 s for `resilient-api`).
+For manually configured clients, set one explicitly: `timeout` bounds only a
+single attempt. Choose the total budget from the caller's latency requirements.
 
 ```typescript
-const api = createClient({ baseURL: '...', preset: 'resilient-api' })
-api.deadline(5_000)   // queue waits + all attempts + all backoff, combined
+const api = createClient({
+  baseURL: 'https://api.example.com',
+  preset: 'resilient-api',
+  deadlineMs: 5_000, // optional override; includes queues, retries and backoff
+})
 ```
 
-Without a deadline, the `resilient-api` preset admits a worst case of roughly 76 s
-for one `await`. See [Deadlines & Cancellation](./deadlines).
+The previous npm 2.1.2 profiles did not include a deadline. Audit existing budgets
+when upgrading; see [Managed presets](./presets) and [Deadlines](./deadlines).
 
 ---
 

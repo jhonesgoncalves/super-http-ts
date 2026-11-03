@@ -1,4 +1,4 @@
-[**super-http v2.1.2**](../README.md)
+[**super-http v3.0.0**](../README.md)
 
 ***
 
@@ -6,7 +6,7 @@
 
 # Interface: PoolConfig
 
-Defined in: [src/http-client/http.client.ts:160](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/http-client/http.client.ts#L160)
+Defined in: [src/http-client/http.client.ts:160](https://github.com/jhonesgoncalves/super-http-ts/blob/v3.0.0/src/http-client/http.client.ts#L160)
 
 Options for the underlying Node.js HTTP/HTTPS connection pool.
 
@@ -16,7 +16,7 @@ Options for the underlying Node.js HTTP/HTTPS connection pool.
 
 > `optional` **freeSocketTimeoutMs?**: `number`
 
-Defined in: [src/http-client/http.client.ts:172](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/http-client/http.client.ts#L172)
+Defined in: [src/http-client/http.client.ts:172](https://github.com/jhonesgoncalves/super-http-ts/blob/v3.0.0/src/http-client/http.client.ts#L172)
 
 Retire free sockets after this idle period; 0 disables this additional cap.
 
@@ -26,7 +26,7 @@ Retire free sockets after this idle period; 0 disables this additional cap.
 
 > `optional` **keepAlive?**: `boolean`
 
-Defined in: [src/http-client/http.client.ts:182](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/http-client/http.client.ts#L182)
+Defined in: [src/http-client/http.client.ts:182](https://github.com/jhonesgoncalves/super-http-ts/blob/v3.0.0/src/http-client/http.client.ts#L182)
 
 Enable TCP keep-alive.
 
@@ -42,7 +42,7 @@ true
 
 > `optional` **keepAliveMsecs?**: `number`
 
-Defined in: [src/http-client/http.client.ts:184](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/http-client/http.client.ts#L184)
+Defined in: [src/http-client/http.client.ts:184](https://github.com/jhonesgoncalves/super-http-ts/blob/v3.0.0/src/http-client/http.client.ts#L184)
 
 Initial delay before TCP keep-alive probes (not an HTTP idle TTL).
 
@@ -58,7 +58,7 @@ Initial delay before TCP keep-alive probes (not an HTTP idle TTL).
 
 > `optional` **keepAliveTimeoutBufferMs?**: `number`
 
-Defined in: [src/http-client/http.client.ts:176](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/http-client/http.client.ts#L176)
+Defined in: [src/http-client/http.client.ts:176](https://github.com/jhonesgoncalves/super-http-ts/blob/v3.0.0/src/http-client/http.client.ts#L176)
 
 Margin subtracted from the server's keep-alive timeout hint. Default 1000 ms.
 
@@ -68,7 +68,7 @@ Margin subtracted from the server's keep-alive timeout hint. Default 1000 ms.
 
 > `optional` **maxBodyLength?**: `number`
 
-Defined in: [src/http-client/http.client.ts:214](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/http-client/http.client.ts#L214)
+Defined in: [src/http-client/http.client.ts:214](https://github.com/jhonesgoncalves/super-http-ts/blob/v3.0.0/src/http-client/http.client.ts#L214)
 
 Max request body sent, in bytes.
 
@@ -84,7 +84,7 @@ Max request body sent, in bytes.
 
 > `optional` **maxContentLength?**: `number`
 
-Defined in: [src/http-client/http.client.ts:209](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/http-client/http.client.ts#L209)
+Defined in: [src/http-client/http.client.ts:209](https://github.com/jhonesgoncalves/super-http-ts/blob/v3.0.0/src/http-client/http.client.ts#L209)
 
 Max response body accepted, in bytes. Axios defaults to unlimited, so a
 runaway upstream can exhaust the client's memory.
@@ -101,7 +101,7 @@ runaway upstream can exhaust the client's memory.
 
 > `optional` **maxFreeSockets?**: `number`
 
-Defined in: [src/http-client/http.client.ts:180](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/http-client/http.client.ts#L180)
+Defined in: [src/http-client/http.client.ts:180](https://github.com/jhonesgoncalves/super-http-ts/blob/v3.0.0/src/http-client/http.client.ts#L180)
 
 Max idle keep-alive sockets per host.
 
@@ -117,7 +117,7 @@ Max idle keep-alive sockets per host.
 
 > `optional` **maxSocketAgeMs?**: `number`
 
-Defined in: [src/http-client/http.client.ts:174](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/http-client/http.client.ts#L174)
+Defined in: [src/http-client/http.client.ts:174](https://github.com/jhonesgoncalves/super-http-ts/blob/v3.0.0/src/http-client/http.client.ts#L174)
 
 Retire aged sockets when they become idle, never during an active call.
 
@@ -127,7 +127,7 @@ Retire aged sockets when they become idle, never during an active call.
 
 > `optional` **maxSockets?**: `number`
 
-Defined in: [src/http-client/http.client.ts:170](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/http-client/http.client.ts#L170)
+Defined in: [src/http-client/http.client.ts:170](https://github.com/jhonesgoncalves/super-http-ts/blob/v3.0.0/src/http-client/http.client.ts#L170)
 
 Max concurrent sockets per host.
 
@@ -147,7 +147,7 @@ upstream latency degrades.
 
 > `optional` **scheduling?**: `"lifo"` \| `"fifo"`
 
-Defined in: [src/http-client/http.client.ts:178](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/http-client/http.client.ts#L178)
+Defined in: [src/http-client/http.client.ts:178](https://github.com/jhonesgoncalves/super-http-ts/blob/v3.0.0/src/http-client/http.client.ts#L178)
 
 Socket selection strategy. Default lifo.
 
@@ -157,7 +157,7 @@ Socket selection strategy. Default lifo.
 
 > `optional` **socketTimeoutMs?**: `number`
 
-Defined in: [src/http-client/http.client.ts:202](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/http-client/http.client.ts#L202)
+Defined in: [src/http-client/http.client.ts:202](https://github.com/jhonesgoncalves/super-http-ts/blob/v3.0.0/src/http-client/http.client.ts#L202)
 
 Socket inactivity timeout (ms) applied to the agent itself.
 
@@ -173,7 +173,7 @@ Defaults to [PoolConfig.timeout](#timeout).
 
 > `optional` **timeout?**: `number`
 
-Defined in: [src/http-client/http.client.ts:192](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/http-client/http.client.ts#L192)
+Defined in: [src/http-client/http.client.ts:192](https://github.com/jhonesgoncalves/super-http-ts/blob/v3.0.0/src/http-client/http.client.ts#L192)
 
 Response timeout (ms) — how long to wait for the upstream to answer a
 request. This is the axios-level timeout; it does not bound how long a

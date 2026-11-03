@@ -1,4 +1,4 @@
-[**super-http v2.1.2**](../README.md)
+[**super-http v3.0.0**](../README.md)
 
 ***
 
@@ -8,12 +8,6 @@
 
 > **Preset** = `"high-throughput"` \| `"resilient-api"` \| `"low-latency"`
 
-Defined in: [src/presets/index.ts:15](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/presets/index.ts#L15)
+Defined in: [src/presets/index.ts:8](https://github.com/jhonesgoncalves/super-http-ts/blob/v3.0.0/src/presets/index.ts#L8)
 
-Built-in configuration presets.
-
-| Preset | Best for |
-|---|---|
-| `high-throughput` | Internal services, small payloads, max req/s |
-| `resilient-api` | External APIs, payment gateways, critical paths |
-| `low-latency` | Real-time features, sub-10ms p99 requirements |
+HTTP resilience profiles. No preset is applied unless explicitly selected.

@@ -1,4 +1,4 @@
-[**super-http v2.1.2**](../README.md)
+[**super-http v3.0.0**](../README.md)
 
 ***
 
@@ -6,7 +6,7 @@
 
 # Interface: RecoveredEvent
 
-Defined in: [src/models/resilience.events.ts:16](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/models/resilience.events.ts#L16)
+Defined in: [src/models/resilience.events.ts:16](https://github.com/jhonesgoncalves/super-http-ts/blob/v3.0.0/src/models/resilience.events.ts#L16)
 
 ## Properties
 
@@ -14,7 +14,7 @@ Defined in: [src/models/resilience.events.ts:16](https://github.com/jhonesgoncal
 
 > **attempts**: `number`
 
-Defined in: [src/models/resilience.events.ts:18](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/models/resilience.events.ts#L18)
+Defined in: [src/models/resilience.events.ts:18](https://github.com/jhonesgoncalves/super-http-ts/blob/v3.0.0/src/models/resilience.events.ts#L18)
 
 ***
 
@@ -22,7 +22,7 @@ Defined in: [src/models/resilience.events.ts:18](https://github.com/jhonesgoncal
 
 > **elapsedMs**: `number`
 
-Defined in: [src/models/resilience.events.ts:19](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/models/resilience.events.ts#L19)
+Defined in: [src/models/resilience.events.ts:19](https://github.com/jhonesgoncalves/super-http-ts/blob/v3.0.0/src/models/resilience.events.ts#L19)
 
 ***
 
@@ -30,4 +30,4 @@ Defined in: [src/models/resilience.events.ts:19](https://github.com/jhonesgoncal
 
 > `optional` **requestId?**: `string`
 
-Defined in: [src/models/resilience.events.ts:17](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/models/resilience.events.ts#L17)
+Defined in: [src/models/resilience.events.ts:17](https://github.com/jhonesgoncalves/super-http-ts/blob/v3.0.0/src/models/resilience.events.ts#L17)

@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.0.0] — 2026-11-03
+
+### Added
+
+- Managed HTTP presets: coordinated pool, idle socket retirement, deadline, safe
+  retry, circuit breaker and bounded bulkhead with a single preset selection.
+- `capacity` sizes preset concurrency, socket pool, idle reserve and queue together;
+  `deadlineMs` sets the total call budget directly, also without a preset.
+- Behavioural and real-socket regression coverage for managed presets.
+
+### Changed
+
+- **Preset migration required:** `resilient-api` now uses 32 concurrent attempts,
+  a 1.5 s attempt timeout, 3 s deadline and one additional retry. `high-throughput`
+  uses 128 concurrency, 2 s timeout and 5 s deadline. `low-latency` uses 32
+  concurrency, 500 ms timeout, 1 s deadline and no retries. All HTTP profiles
+  include a breaker and bounded admission; see [the 3.0 migration guide](https://jhonesgoncalves.github.io/super-http-ts/guide/migration-3).
+- Explicit top-level timeout is no longer shadowed by a preset's pool timeout.
+- Shared-client cache hits preserve existing resilience state and fluent overrides;
+  presets are initialized once, before registration. Manual clients cached first
+  keep their manual policies. No-preset and gRPC defaults are unchanged.
+
 ## [2.1.2] — 2026-11-03
 
 Includes all 2.1 connection lifecycle/recovery changes and portable integration

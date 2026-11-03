@@ -1,5 +1,7 @@
 # Configuration Reference
 
+See [Managed presets](./presets) for coordinated defaults, capacity and migration.
+
 ## createClient vs HttpClientFactory
 
 Both APIs create and cache `HttpClient` instances. Choose based on your needs:
@@ -21,7 +23,8 @@ const api = createClient({
   baseURL: 'https://api.example.com',
   preset: 'resilient-api',            // preset applies circuit breaker + retry + bulkhead
   headers: { 'X-Service': 'checkout' },
-  pool: { maxSockets: 150 },          // override one pool setting
+  capacity: 64,                     // coordinate pool + bulkhead
+  deadlineMs: 3_000,                 // optional total-budget override
 })
 ```
 
