@@ -1,6 +1,12 @@
 name: Publish to npm
 
 on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Version tag to publish (e.g. v2.1.1)
+        required: true
+        type: string
   push:
     tags: ['v[0-9]*']
   release:
@@ -8,7 +14,7 @@ on:
 
 # Serialize tag/release events for the same version; publication is idempotent.
 concurrency:
-  group: npm-${{ github.event.release.tag_name || github.ref_name }}
+  group: npm-${{ inputs.tag || github.event.release.tag_name || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
@@ -17,6 +23,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.event.release.tag_name || github.ref_name }}
       - uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -32,6 +40,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.event.release.tag_name || github.ref_name }}
       - uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -42,7 +52,7 @@ jobs:
       - name: Validate release tag and check registry
         id: package
         env:
-          RELEASE_TAG: ${{ github.event.release.tag_name || github.ref_name }}
+          RELEASE_TAG: ${{ inputs.tag || github.event.release.tag_name || github.ref_name }}
         run: |
           VERSION=$(node -p 'require("./package.json").version')
           test "$RELEASE_TAG" = "v$VERSION"
@@ -50,6 +60,15 @@ jobs:
             echo "published=true" >> "$GITHUB_OUTPUT"
           else
             echo "published=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Verify npm credential
+        if: steps.package.outputs.published != 'true'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -z "$NODE_AUTH_TOKEN" ]; then
+            echo '::error::Configure the repository Actions secret NPM_TOKEN with npm publish permission.'
+            exit 1
           fi
       - run: npm publish
         if: steps.package.outputs.published != 'true'

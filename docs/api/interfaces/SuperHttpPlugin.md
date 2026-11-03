@@ -1,4 +1,4 @@
-[**super-http v2.1.0**](../README.md)
+[**super-http v2.1.1**](../README.md)
 
 ***
 
@@ -6,7 +6,7 @@
 
 # Interface: SuperHttpPlugin
 
-Defined in: [src/plugins/index.ts:24](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/plugins/index.ts#L24)
+Defined in: [src/plugins/index.ts:24](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.1/src/plugins/index.ts#L24)
 
 A super-http plugin.
 
@@ -35,7 +35,7 @@ client.use(MyPlugin);
 
 > **name**: `string`
 
-Defined in: [src/plugins/index.ts:26](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/plugins/index.ts#L26)
+Defined in: [src/plugins/index.ts:26](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.1/src/plugins/index.ts#L26)
 
 Unique name — prevents the same plugin being installed twice.
 
@@ -45,7 +45,7 @@ Unique name — prevents the same plugin being installed twice.
 
 > **install**(`client`): `void`
 
-Defined in: [src/plugins/index.ts:28](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/plugins/index.ts#L28)
+Defined in: [src/plugins/index.ts:28](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.1/src/plugins/index.ts#L28)
 
 Called once when the plugin is installed on a client.
 
@@ -65,7 +65,7 @@ Called once when the plugin is installed on a client.
 
 > `optional` **uninstall**(`client`): `void`
 
-Defined in: [src/plugins/index.ts:34](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/plugins/index.ts#L34)
+Defined in: [src/plugins/index.ts:34](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.1/src/plugins/index.ts#L34)
 
 Called by [HttpClient.close](../classes/HttpClient.md#close) — release timers, sockets and listeners
 here. A plugin that arms an interval and never clears it keeps working after

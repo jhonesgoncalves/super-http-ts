@@ -1,4 +1,4 @@
-[**super-http v2.1.0**](../README.md)
+[**super-http v2.1.1**](../README.md)
 
 ***
 
@@ -6,7 +6,7 @@
 
 # Class: DeadlineExceededError
 
-Defined in: [src/models/deadline.ts:16](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/models/deadline.ts#L16)
+Defined in: [src/models/deadline.ts:16](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.1/src/models/deadline.ts#L16)
 
 Thrown when the total time budget for a call is exhausted.
 
@@ -20,7 +20,7 @@ Thrown when the total time budget for a call is exhausted.
 
 > **new DeadlineExceededError**(`deadlineMs`): `DeadlineExceededError`
 
-Defined in: [src/models/deadline.ts:18](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/models/deadline.ts#L18)
+Defined in: [src/models/deadline.ts:18](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.1/src/models/deadline.ts#L18)
 
 #### Parameters
 
@@ -54,7 +54,7 @@ Defined in: node\_modules/typescript/lib/lib.es2022.error.d.ts:24
 
 > `readonly` **code**: `"DEADLINE_EXCEEDED"` = `'DEADLINE_EXCEEDED'`
 
-Defined in: [src/models/deadline.ts:17](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/models/deadline.ts#L17)
+Defined in: [src/models/deadline.ts:17](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.1/src/models/deadline.ts#L17)
 
 ***
 

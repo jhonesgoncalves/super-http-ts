@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.1.1] — 2026-11-03
+
+Includes the connection lifecycle and recovery improvements described in 2.1.0.
+The 2.1.0 source tag was not published to npm because registry authentication was
+unavailable; this version supersedes it.
+
+### Fixed
+
+- Make the real-socket recovery regression deterministic across Linux/macOS and
+  Node 20/22/24: explicitly reset a reused socket, while accepting timely FIN
+  detection as a successful outcome in the separate natural-race test.
+- Fail publication early with a clear message if the npm publishing credential
+  is missing. Manual workflow dispatch can retry a tagged publication after the
+  secret is configured.
+
+---
+
 ## [2.1.0] — 2026-11-03
 
 ### Added

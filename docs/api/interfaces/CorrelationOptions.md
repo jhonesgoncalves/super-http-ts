@@ -1,4 +1,4 @@
-[**super-http v2.1.0**](../README.md)
+[**super-http v2.1.1**](../README.md)
 
 ***
 
@@ -6,7 +6,7 @@
 
 # Interface: CorrelationOptions
 
-Defined in: [src/http-client/http.client.ts:144](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/http-client/http.client.ts#L144)
+Defined in: [src/http-client/http.client.ts:144](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.1/src/http-client/http.client.ts#L144)
 
 Options for correlation-id injection.
 
@@ -16,7 +16,7 @@ Options for correlation-id injection.
 
 > `optional` **generate?**: () => `string`
 
-Defined in: [src/http-client/http.client.ts:154](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/http-client/http.client.ts#L154)
+Defined in: [src/http-client/http.client.ts:154](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.1/src/http-client/http.client.ts#L154)
 
 Generates the id.
 
@@ -34,7 +34,7 @@ Generates the id.
 
 > `optional` **header?**: `string`
 
-Defined in: [src/http-client/http.client.ts:149](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/http-client/http.client.ts#L149)
+Defined in: [src/http-client/http.client.ts:149](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.1/src/http-client/http.client.ts#L149)
 
 Header carrying the id.
 

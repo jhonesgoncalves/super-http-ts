@@ -1,4 +1,4 @@
-[**super-http v2.1.0**](../README.md)
+[**super-http v2.1.1**](../README.md)
 
 ***
 
@@ -6,7 +6,7 @@
 
 # Class: RetryAfterStrategy
 
-Defined in: [src/models/retry.strategy.ts:113](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/models/retry.strategy.ts#L113)
+Defined in: [src/models/retry.strategy.ts:113](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.1/src/models/retry.strategy.ts#L113)
 
 Retry strategy that honours the server's `Retry-After` response header
 (sent on HTTP 429 and 503), with an exponential-jitter fallback.
@@ -34,7 +34,7 @@ client.retry(5, new RetryAfterStrategy(200, 60_000))
 
 > **new RetryAfterStrategy**(`initialDelayMs?`, `maxDelayMs?`, `factor?`): `RetryAfterStrategy`
 
-Defined in: [src/models/retry.strategy.ts:117](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/models/retry.strategy.ts#L117)
+Defined in: [src/models/retry.strategy.ts:117](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.1/src/models/retry.strategy.ts#L117)
 
 #### Parameters
 
@@ -60,7 +60,7 @@ Defined in: [src/models/retry.strategy.ts:117](https://github.com/jhonesgoncalve
 
 > **computeDelay**(`attempt`, `error?`): `number`
 
-Defined in: [src/models/retry.strategy.ts:122](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/models/retry.strategy.ts#L122)
+Defined in: [src/models/retry.strategy.ts:122](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.1/src/models/retry.strategy.ts#L122)
 
 Computes the delay (ms) before attempt number `attempt` (0-based).
 

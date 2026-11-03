@@ -1,4 +1,4 @@
-[**super-http v2.1.0**](../README.md)
+[**super-http v2.1.1**](../README.md)
 
 ***
 
@@ -6,7 +6,7 @@
 
 # Class: RequestAbortedError
 
-Defined in: [src/models/deadline.ts:25](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/models/deadline.ts#L25)
+Defined in: [src/models/deadline.ts:25](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.1/src/models/deadline.ts#L25)
 
 Thrown when the caller's `AbortSignal` fires.
 
@@ -20,7 +20,7 @@ Thrown when the caller's `AbortSignal` fires.
 
 > **new RequestAbortedError**(`message?`): `RequestAbortedError`
 
-Defined in: [src/models/deadline.ts:27](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/models/deadline.ts#L27)
+Defined in: [src/models/deadline.ts:27](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.1/src/models/deadline.ts#L27)
 
 #### Parameters
 
@@ -54,7 +54,7 @@ Defined in: node\_modules/typescript/lib/lib.es2022.error.d.ts:24
 
 > `readonly` **code**: `"ABORT_ERR"` = `'ABORT_ERR'`
 
-Defined in: [src/models/deadline.ts:26](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/models/deadline.ts#L26)
+Defined in: [src/models/deadline.ts:26](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.1/src/models/deadline.ts#L26)
 
 ***
 

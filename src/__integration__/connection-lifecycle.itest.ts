@@ -6,11 +6,18 @@ import { HttpClient } from '../http-client/http.client';
 let server: http.Server;
 let url: string;
 let connections = 0;
+const requestsPerSocket = new WeakMap<Socket, number>();
 const sockets = new Set<Socket>();
 const clients: HttpClient[] = [];
 const timers = new Set<ReturnType<typeof setTimeout>>();
 beforeAll(async () => {
   server = http.createServer((req, res) => {
+    const socketRequests = (requestsPerSocket.get(req.socket) ?? 0) + 1;
+    requestsPerSocket.set(req.socket, socketRequests);
+    if (req.url === '/reset-reused' && socketRequests > 1) {
+      req.socket.destroy();
+      return;
+    }
     if (req.url === '/never') return;
     if (req.url === '/reset') {
       req.socket.destroy();
@@ -63,7 +70,7 @@ it('expires free connections without aborting a longer active request', async ()
   await c.get('/ok');
   expect(connections).toBe(before + 1);
 });
-it('recovers a FIN/reuse race before opening the breaker, within its retry budget', async () => {
+it('handles a FIN/reuse race or timely peer-close detection without final errors', async () => {
   const c = client().retry(1, 0).circuitBreak({ failureThreshold: 1, successThreshold: 1, timeoutMs: 10000 });
   const onError = jest.fn();
   c.on({ onError });
@@ -71,8 +78,8 @@ it('recovers a FIN/reuse race before opening the breaker, within its retry budge
     await c.get('/fin');
     await expect(c.get('/ok')).resolves.toHaveProperty('status', 200);
   }
-  expect(c.metrics().reusedSocketResets).toBeGreaterThan(0);
-  expect(c.metrics().recovered).toBeGreaterThan(0);
+  // Whether FIN is observed before reuse depends on the OS/event-loop order.
+  expect(c.metrics().recovered).toBe(c.metrics().reusedSocketResets);
   expect(c.metrics().retries).toBeLessThanOrEqual(10);
   expect(c.metrics().circuitBreakerTrips).toBe(0);
   expect(onError).not.toHaveBeenCalled();
@@ -106,4 +113,19 @@ it('bounds timeout=0 with the total deadline', async () => {
   const started = Date.now();
   await expect(c.get('/never', { timeout: 0, policy: { deadlineMs: 60 } })).rejects.toBeDefined();
   expect(Date.now() - started).toBeLessThan(800);
+});
+
+it('deterministically recovers a reset on a real reused socket before opening the breaker', async () => {
+  const c = client().retry(1, 0).circuitBreak({ failureThreshold: 1, successThreshold: 1, timeoutMs: 10000 });
+  await c.get('/ok');
+  const before = connections;
+  await expect(c.get('/reset-reused')).resolves.toHaveProperty('status', 200);
+  expect(connections).toBe(before + 1);
+  expect(c.metrics()).toMatchObject({
+    reusedSocketResets: 1,
+    recovered: 1,
+    retries: 1,
+    circuitBreakerTrips: 0,
+    failed: 0,
+  });
 });

@@ -1,4 +1,4 @@
-[**super-http v2.1.0**](../README.md)
+[**super-http v2.1.1**](../README.md)
 
 ***
 
@@ -6,7 +6,7 @@
 
 # Class: HttpClientFactory
 
-Defined in: [src/http-client/http.factory.ts:22](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/http-client/http.factory.ts#L22)
+Defined in: [src/http-client/http.factory.ts:22](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.1/src/http-client/http.factory.ts#L22)
 
 Factory that creates and caches [HttpClient](HttpClient.md) instances keyed by
 `baseURL`.
@@ -41,7 +41,7 @@ console.log(client === same); // true
 
 > `static` **clear**(): `void`
 
-Defined in: [src/http-client/http.factory.ts:80](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/http-client/http.factory.ts#L80)
+Defined in: [src/http-client/http.factory.ts:80](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.1/src/http-client/http.factory.ts#L80)
 
 #### Returns
 
@@ -53,7 +53,7 @@ Defined in: [src/http-client/http.factory.ts:80](https://github.com/jhonesgoncal
 
 > `static` **create**(`baseURL`, `httpConfig?`, `poolConfig?`): [`HttpClient`](HttpClient.md)
 
-Defined in: [src/http-client/http.factory.ts:52](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/http-client/http.factory.ts#L52)
+Defined in: [src/http-client/http.factory.ts:52](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.1/src/http-client/http.factory.ts#L52)
 
 Returns the cached `HttpClient` for `baseURL`, or creates a new one.
 
@@ -109,7 +109,7 @@ const { data } = await api.get('/users');
 
 > `static` **createIsolated**(`baseURL`, `httpConfig?`, `poolConfig?`): [`HttpClient`](HttpClient.md)
 
-Defined in: [src/http-client/http.factory.ts:76](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/http-client/http.factory.ts#L76)
+Defined in: [src/http-client/http.factory.ts:76](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.1/src/http-client/http.factory.ts#L76)
 
 Closes and removes all cached instances.
 

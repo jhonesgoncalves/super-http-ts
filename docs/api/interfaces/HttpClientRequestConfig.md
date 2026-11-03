@@ -1,4 +1,4 @@
-[**super-http v2.1.0**](../README.md)
+[**super-http v2.1.1**](../README.md)
 
 ***
 
@@ -6,7 +6,7 @@
 
 # Interface: HttpClientRequestConfig
 
-Defined in: [src/models/http.client.request.config.ts:4](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/models/http.client.request.config.ts#L4)
+Defined in: [src/models/http.client.request.config.ts:4](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.1/src/models/http.client.request.config.ts#L4)
 
 ## Extends
 
@@ -546,7 +546,7 @@ Defined in: node\_modules/axios/index.d.ts:467
 
 > `optional` **policy?**: [`RequestPolicy`](RequestPolicy.md)
 
-Defined in: [src/models/http.client.request.config.ts:5](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/models/http.client.request.config.ts#L5)
+Defined in: [src/models/http.client.request.config.ts:5](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.1/src/models/http.client.request.config.ts#L5)
 
 ***
 

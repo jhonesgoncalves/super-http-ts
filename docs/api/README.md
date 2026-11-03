@@ -1,8 +1,8 @@
-**super-http v2.1.0**
+**super-http v2.1.1**
 
 ***
 
-# super-http v2.1.0
+# super-http v2.1.1
 
 ## Classes
 

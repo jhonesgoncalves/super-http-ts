@@ -1,4 +1,4 @@
-[**super-http v2.1.0**](../README.md)
+[**super-http v2.1.1**](../README.md)
 
 ***
 
@@ -6,7 +6,7 @@
 
 # Interface: CreateClientOptions
 
-Defined in: [src/presets/index.ts:20](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/presets/index.ts#L20)
+Defined in: [src/presets/index.ts:20](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.1/src/presets/index.ts#L20)
 
 Options for [createClient](../functions/createClient.md).
 
@@ -68,7 +68,7 @@ Defined in: node\_modules/axios/index.d.ts:404
 
 > **baseURL**: `string`
 
-Defined in: [src/presets/index.ts:24](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/presets/index.ts#L24)
+Defined in: [src/presets/index.ts:24](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.1/src/presets/index.ts#L24)
 
 Base URL prepended to every request.
 
@@ -370,7 +370,7 @@ Defined in: node\_modules/axios/index.d.ts:438
 
 > `optional` **isolated?**: `boolean`
 
-Defined in: [src/presets/index.ts:22](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/presets/index.ts#L22)
+Defined in: [src/presets/index.ts:22](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.1/src/presets/index.ts#L22)
 
 Create an independent client without reading or changing the shared registry.
 
@@ -556,7 +556,7 @@ Defined in: node\_modules/axios/index.d.ts:467
 
 > `optional` **policy?**: [`RequestPolicy`](RequestPolicy.md)
 
-Defined in: [src/models/http.client.request.config.ts:5](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/models/http.client.request.config.ts#L5)
+Defined in: [src/models/http.client.request.config.ts:5](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.1/src/models/http.client.request.config.ts#L5)
 
 #### Inherited from
 
@@ -568,7 +568,7 @@ Defined in: [src/models/http.client.request.config.ts:5](https://github.com/jhon
 
 > `optional` **pool?**: [`PoolConfig`](PoolConfig.md)
 
-Defined in: [src/presets/index.ts:36](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/presets/index.ts#L36)
+Defined in: [src/presets/index.ts:36](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.1/src/presets/index.ts#L36)
 
 Connection pool options (merged with preset defaults when preset is set).
 
@@ -578,7 +578,7 @@ Connection pool options (merged with preset defaults when preset is set).
 
 > `optional` **preset?**: [`Preset`](../type-aliases/Preset.md)
 
-Defined in: [src/presets/index.ts:33](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/presets/index.ts#L33)
+Defined in: [src/presets/index.ts:33](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.1/src/presets/index.ts#L33)
 
 Apply a built-in resilience preset.
 

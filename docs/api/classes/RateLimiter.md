@@ -1,4 +1,4 @@
-[**super-http v2.1.0**](../README.md)
+[**super-http v2.1.1**](../README.md)
 
 ***
 
@@ -6,7 +6,7 @@
 
 # Class: RateLimiter
 
-Defined in: [src/rate-limiter/rate-limiter.ts:72](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/rate-limiter/rate-limiter.ts#L72)
+Defined in: [src/rate-limiter/rate-limiter.ts:72](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.1/src/rate-limiter/rate-limiter.ts#L72)
 
 Fixed-window token-bucket rate limiter.
 
@@ -27,7 +27,7 @@ await rl.acquire(); // blocks until a token is available
 
 > **new RateLimiter**(`config`, `events?`): `RateLimiter`
 
-Defined in: [src/rate-limiter/rate-limiter.ts:92](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/rate-limiter/rate-limiter.ts#L92)
+Defined in: [src/rate-limiter/rate-limiter.ts:92](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.1/src/rate-limiter/rate-limiter.ts#L92)
 
 #### Parameters
 
@@ -49,7 +49,7 @@ Defined in: [src/rate-limiter/rate-limiter.ts:92](https://github.com/jhonesgonca
 
 > `readonly` `static` **DEFAULT\_MAX\_QUEUE**: `1000` = `1000`
 
-Defined in: [src/rate-limiter/rate-limiter.ts:76](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/rate-limiter/rate-limiter.ts#L76)
+Defined in: [src/rate-limiter/rate-limiter.ts:76](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.1/src/rate-limiter/rate-limiter.ts#L76)
 
 Wait-queue ceiling applied when `maxQueue` is omitted.
 
@@ -59,7 +59,7 @@ Wait-queue ceiling applied when `maxQueue` is omitted.
 
 > `readonly` `static` **DEFAULT\_QUEUE\_TIMEOUT\_MS**: `10000` = `10_000`
 
-Defined in: [src/rate-limiter/rate-limiter.ts:74](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/rate-limiter/rate-limiter.ts#L74)
+Defined in: [src/rate-limiter/rate-limiter.ts:74](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.1/src/rate-limiter/rate-limiter.ts#L74)
 
 Queue wait applied when `queueTimeoutMs` is omitted.
 
@@ -71,7 +71,7 @@ Queue wait applied when `queueTimeoutMs` is omitted.
 
 > **get** **available**(): `number`
 
-Defined in: [src/rate-limiter/rate-limiter.ts:186](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/rate-limiter/rate-limiter.ts#L186)
+Defined in: [src/rate-limiter/rate-limiter.ts:186](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.1/src/rate-limiter/rate-limiter.ts#L186)
 
 Number of tokens remaining in the current window.
 
@@ -87,7 +87,7 @@ Number of tokens remaining in the current window.
 
 > **get** **queuedCount**(): `number`
 
-Defined in: [src/rate-limiter/rate-limiter.ts:192](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/rate-limiter/rate-limiter.ts#L192)
+Defined in: [src/rate-limiter/rate-limiter.ts:192](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.1/src/rate-limiter/rate-limiter.ts#L192)
 
 Number of requests currently waiting for a token.
 
@@ -101,7 +101,7 @@ Number of requests currently waiting for a token.
 
 > **acquire**(`opts?`): `Promise`\<`void`\>
 
-Defined in: [src/rate-limiter/rate-limiter.ts:120](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/rate-limiter/rate-limiter.ts#L120)
+Defined in: [src/rate-limiter/rate-limiter.ts:120](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.1/src/rate-limiter/rate-limiter.ts#L120)
 
 Acquires a token, blocking if `queueRequests` is enabled.
 
