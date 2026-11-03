@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.1.2] — 2026-11-03
+
+Includes all 2.1 connection lifecycle/recovery changes and portable integration
+validation. Earlier 2.1 source tags were not published because token-based npm
+authentication was unavailable.
+
+### Fixed
+
+- Publish through the configured npm Trusted Publisher (`npm-publish.yml`) using
+  GitHub Actions OIDC, scoped `id-token: write`, Node 24 and npm 11.
+- Remove the mandatory `NPM_TOKEN` check and token-based publish environment.
+  Keep registry/version guards and automatic provenance from trusted publishing.
+
+---
+
 ## [2.1.1] — 2026-11-03
 
 Includes the connection lifecycle and recovery improvements described in 2.1.0.

@@ -1,4 +1,4 @@
-[**super-http v2.1.1**](../README.md)
+[**super-http v2.1.2**](../README.md)
 
 ***
 
@@ -6,7 +6,7 @@
 
 # Interface: AttemptErrorEvent
 
-Defined in: [src/models/resilience.events.ts:4](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.1/src/models/resilience.events.ts#L4)
+Defined in: [src/models/resilience.events.ts:4](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/models/resilience.events.ts#L4)
 
 One failed transport attempt, which may still be recovered.
 
@@ -16,7 +16,7 @@ One failed transport attempt, which may still be recovered.
 
 > **attempt**: `number`
 
-Defined in: [src/models/resilience.events.ts:11](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.1/src/models/resilience.events.ts#L11)
+Defined in: [src/models/resilience.events.ts:11](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/models/resilience.events.ts#L11)
 
 One-based transport attempt number.
 
@@ -26,7 +26,7 @@ One-based transport attempt number.
 
 > `optional` **code?**: `string`
 
-Defined in: [src/models/resilience.events.ts:6](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.1/src/models/resilience.events.ts#L6)
+Defined in: [src/models/resilience.events.ts:6](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/models/resilience.events.ts#L6)
 
 ***
 
@@ -34,7 +34,7 @@ Defined in: [src/models/resilience.events.ts:6](https://github.com/jhonesgoncalv
 
 > **elapsedMs**: `number`
 
-Defined in: [src/models/resilience.events.ts:12](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.1/src/models/resilience.events.ts#L12)
+Defined in: [src/models/resilience.events.ts:12](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/models/resilience.events.ts#L12)
 
 ***
 
@@ -42,7 +42,7 @@ Defined in: [src/models/resilience.events.ts:12](https://github.com/jhonesgoncal
 
 > **error**: `unknown`
 
-Defined in: [src/models/resilience.events.ts:5](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.1/src/models/resilience.events.ts#L5)
+Defined in: [src/models/resilience.events.ts:5](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/models/resilience.events.ts#L5)
 
 ***
 
@@ -50,7 +50,7 @@ Defined in: [src/models/resilience.events.ts:5](https://github.com/jhonesgoncalv
 
 > **remainingDeadlineMs**: `number`
 
-Defined in: [src/models/resilience.events.ts:13](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.1/src/models/resilience.events.ts#L13)
+Defined in: [src/models/resilience.events.ts:13](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/models/resilience.events.ts#L13)
 
 ***
 
@@ -58,7 +58,7 @@ Defined in: [src/models/resilience.events.ts:13](https://github.com/jhonesgoncal
 
 > `optional` **requestId?**: `string`
 
-Defined in: [src/models/resilience.events.ts:9](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.1/src/models/resilience.events.ts#L9)
+Defined in: [src/models/resilience.events.ts:9](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/models/resilience.events.ts#L9)
 
 ***
 
@@ -66,7 +66,7 @@ Defined in: [src/models/resilience.events.ts:9](https://github.com/jhonesgoncalv
 
 > `optional` **reusedSocket?**: `boolean`
 
-Defined in: [src/models/resilience.events.ts:8](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.1/src/models/resilience.events.ts#L8)
+Defined in: [src/models/resilience.events.ts:8](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/models/resilience.events.ts#L8)
 
 ***
 
@@ -74,4 +74,4 @@ Defined in: [src/models/resilience.events.ts:8](https://github.com/jhonesgoncalv
 
 > `optional` **status?**: `number`
 
-Defined in: [src/models/resilience.events.ts:7](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.1/src/models/resilience.events.ts#L7)
+Defined in: [src/models/resilience.events.ts:7](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/models/resilience.events.ts#L7)

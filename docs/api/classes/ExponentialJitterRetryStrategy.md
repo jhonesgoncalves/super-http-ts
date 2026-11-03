@@ -1,4 +1,4 @@
-[**super-http v2.1.1**](../README.md)
+[**super-http v2.1.2**](../README.md)
 
 ***
 
@@ -6,7 +6,7 @@
 
 # Class: ExponentialJitterRetryStrategy
 
-Defined in: [src/models/retry.strategy.ts:80](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.1/src/models/retry.strategy.ts#L80)
+Defined in: [src/models/retry.strategy.ts:80](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/models/retry.strategy.ts#L80)
 
 Exponential back-off with **full jitter** (AWS-recommended).
 
@@ -35,7 +35,7 @@ client.retry(4, new ExponentialJitterRetryStrategy(100, 10_000))
 
 > **new ExponentialJitterRetryStrategy**(`initialDelayMs`, `maxDelayMs?`, `factor?`): `ExponentialJitterRetryStrategy`
 
-Defined in: [src/models/retry.strategy.ts:81](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.1/src/models/retry.strategy.ts#L81)
+Defined in: [src/models/retry.strategy.ts:81](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/models/retry.strategy.ts#L81)
 
 #### Parameters
 
@@ -61,7 +61,7 @@ Defined in: [src/models/retry.strategy.ts:81](https://github.com/jhonesgoncalves
 
 > **computeDelay**(`attempt`): `number`
 
-Defined in: [src/models/retry.strategy.ts:91](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.1/src/models/retry.strategy.ts#L91)
+Defined in: [src/models/retry.strategy.ts:91](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/models/retry.strategy.ts#L91)
 
 Computes the delay (ms) before attempt number `attempt` (0-based).
 

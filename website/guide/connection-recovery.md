@@ -135,3 +135,13 @@ shared Agents (temporary one-shot recovery Agents are not included).
 - `close()` is idempotent; calls on a closed client reject. A factory lookup
   replaces a previously closed cached instance. `clear()` closes only cached
   clients, not independently created clients.
+
+## Publishing this library
+
+The `npm-publish.yml` GitHub Actions workflow uses npm Trusted Publishing (OIDC).
+The npm package must trust `jhonesgoncalves/super-http-ts` and the exact workflow
+filename `npm-publish.yml`. Publication uses a GitHub-hosted runner, Node 24, npm
+11 and job-scoped `id-token: write`; no `NPM_TOKEN` secret is required. A first
+successful publish validates the pending trusted-publisher configuration and
+automatically generates provenance. Tagged releases and manual workflow dispatch
+retain the version/tag check and skip already-published versions.

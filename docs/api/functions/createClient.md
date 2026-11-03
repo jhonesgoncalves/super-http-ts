@@ -1,4 +1,4 @@
-[**super-http v2.1.1**](../README.md)
+[**super-http v2.1.2**](../README.md)
 
 ***
 
@@ -8,7 +8,7 @@
 
 > **createClient**(`options`): [`HttpClient`](../classes/HttpClient.md)
 
-Defined in: [src/presets/index.ts:118](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.1/src/presets/index.ts#L118)
+Defined in: [src/presets/index.ts:118](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/presets/index.ts#L118)
 
 Creates a new `HttpClient` with optional preset configuration.
 

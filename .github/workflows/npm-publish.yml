@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Version tag to publish (e.g. v2.1.1)
+        description: Version tag to publish (e.g. v2.1.2)
         required: true
         type: string
   push:
@@ -36,6 +36,9 @@ jobs:
 
   publish:
     name: Publish to npm
+    permissions:
+      contents: read
+      id-token: write
     needs: test
     runs-on: ubuntu-latest
     steps:
@@ -44,9 +47,10 @@ jobs:
           ref: ${{ inputs.tag || github.event.release.tag_name || github.ref_name }}
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           registry-url: https://registry.npmjs.org/
-          cache: npm
+      - name: Install npm CLI with trusted publishing support
+        run: npm install --global npm@11
       - run: npm ci
       - run: npm run build
       - name: Validate release tag and check registry
@@ -61,16 +65,12 @@ jobs:
           else
             echo "published=false" >> "$GITHUB_OUTPUT"
           fi
-      - name: Verify npm credential
+      - name: Verify OIDC publishing environment
         if: steps.package.outputs.published != 'true'
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          if [ -z "$NODE_AUTH_TOKEN" ]; then
-            echo '::error::Configure the repository Actions secret NPM_TOKEN with npm publish permission.'
-            exit 1
-          fi
-      - run: npm publish
+          test -n "$ACTIONS_ID_TOKEN_REQUEST_URL"
+          node --version
+          npm --version
+      - name: Publish with npm trusted publishing
         if: steps.package.outputs.published != 'true'
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --access public

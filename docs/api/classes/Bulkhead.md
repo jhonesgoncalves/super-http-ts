@@ -1,4 +1,4 @@
-[**super-http v2.1.1**](../README.md)
+[**super-http v2.1.2**](../README.md)
 
 ***
 
@@ -6,7 +6,7 @@
 
 # Class: Bulkhead
 
-Defined in: [src/bulkhead/bulkhead.ts:56](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.1/src/bulkhead/bulkhead.ts#L56)
+Defined in: [src/bulkhead/bulkhead.ts:56](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/bulkhead/bulkhead.ts#L56)
 
 Bulkhead isolation — limits concurrent access to a resource.
 
@@ -26,7 +26,7 @@ const result = await bh.execute(() => fetch('/api/data'));
 
 > **new Bulkhead**(`config`, `events?`): `Bulkhead`
 
-Defined in: [src/bulkhead/bulkhead.ts:68](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.1/src/bulkhead/bulkhead.ts#L68)
+Defined in: [src/bulkhead/bulkhead.ts:68](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/bulkhead/bulkhead.ts#L68)
 
 #### Parameters
 
@@ -48,7 +48,7 @@ Defined in: [src/bulkhead/bulkhead.ts:68](https://github.com/jhonesgoncalves/sup
 
 > `readonly` `static` **DEFAULT\_QUEUE\_TIMEOUT\_MS**: `10000` = `10_000`
 
-Defined in: [src/bulkhead/bulkhead.ts:58](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.1/src/bulkhead/bulkhead.ts#L58)
+Defined in: [src/bulkhead/bulkhead.ts:58](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/bulkhead/bulkhead.ts#L58)
 
 Queue wait applied when `queueTimeoutMs` is omitted.
 
@@ -60,7 +60,7 @@ Queue wait applied when `queueTimeoutMs` is omitted.
 
 > **get** **activeCount**(): `number`
 
-Defined in: [src/bulkhead/bulkhead.ts:80](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.1/src/bulkhead/bulkhead.ts#L80)
+Defined in: [src/bulkhead/bulkhead.ts:80](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/bulkhead/bulkhead.ts#L80)
 
 Current number of active (in-flight) requests.
 
@@ -76,7 +76,7 @@ Current number of active (in-flight) requests.
 
 > **get** **queuedCount**(): `number`
 
-Defined in: [src/bulkhead/bulkhead.ts:85](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.1/src/bulkhead/bulkhead.ts#L85)
+Defined in: [src/bulkhead/bulkhead.ts:85](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/bulkhead/bulkhead.ts#L85)
 
 Current number of requests waiting in the queue.
 
@@ -90,7 +90,7 @@ Current number of requests waiting in the queue.
 
 > **execute**\<`T`\>(`fn`, `opts?`): `Promise`\<`T`\>
 
-Defined in: [src/bulkhead/bulkhead.ts:97](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.1/src/bulkhead/bulkhead.ts#L97)
+Defined in: [src/bulkhead/bulkhead.ts:97](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/bulkhead/bulkhead.ts#L97)
 
 Executes `fn` within the bulkhead.
 

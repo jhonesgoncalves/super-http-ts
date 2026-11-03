@@ -1,4 +1,4 @@
-[**super-http v2.1.1**](../README.md)
+[**super-http v2.1.2**](../README.md)
 
 ***
 
@@ -8,7 +8,7 @@
 
 > **Preset** = `"high-throughput"` \| `"resilient-api"` \| `"low-latency"`
 
-Defined in: [src/presets/index.ts:15](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.1/src/presets/index.ts#L15)
+Defined in: [src/presets/index.ts:15](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/presets/index.ts#L15)
 
 Built-in configuration presets.
 

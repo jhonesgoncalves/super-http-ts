@@ -1,4 +1,4 @@
-[**super-http v2.1.1**](../README.md)
+[**super-http v2.1.2**](../README.md)
 
 ***
 
@@ -6,7 +6,7 @@
 
 # Interface: BulkheadConfig
 
-Defined in: [src/bulkhead/bulkhead.ts:17](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.1/src/bulkhead/bulkhead.ts#L17)
+Defined in: [src/bulkhead/bulkhead.ts:17](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/bulkhead/bulkhead.ts#L17)
 
 Configuration for the [Bulkhead](../classes/Bulkhead.md) isolation pattern.
 
@@ -26,7 +26,7 @@ client.bulkhead({ maxConcurrent: 10, maxQueue: 50, queueTimeoutMs: 2000 })
 
 > **maxConcurrent**: `number`
 
-Defined in: [src/bulkhead/bulkhead.ts:22](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.1/src/bulkhead/bulkhead.ts#L22)
+Defined in: [src/bulkhead/bulkhead.ts:22](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/bulkhead/bulkhead.ts#L22)
 
 Maximum number of in-flight (active) requests at any moment.
 
@@ -42,7 +42,7 @@ Maximum number of in-flight (active) requests at any moment.
 
 > `optional` **maxQueue?**: `number`
 
-Defined in: [src/bulkhead/bulkhead.ts:29](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.1/src/bulkhead/bulkhead.ts#L29)
+Defined in: [src/bulkhead/bulkhead.ts:29](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/bulkhead/bulkhead.ts#L29)
 
 Maximum number of requests waiting in the queue for a slot.
 When the queue is full, new requests are rejected immediately.
@@ -59,7 +59,7 @@ When the queue is full, new requests are rejected immediately.
 
 > `optional` **queueTimeoutMs?**: `number`
 
-Defined in: [src/bulkhead/bulkhead.ts:41](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.1/src/bulkhead/bulkhead.ts#L41)
+Defined in: [src/bulkhead/bulkhead.ts:41](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/bulkhead/bulkhead.ts#L41)
 
 How long (ms) a queued request may wait before being rejected.
 

@@ -1,4 +1,4 @@
-[**super-http v2.1.1**](../README.md)
+[**super-http v2.1.2**](../README.md)
 
 ***
 
@@ -6,7 +6,7 @@
 
 # Interface: RetryStrategy
 
-Defined in: [src/models/retry.strategy.ts:16](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.1/src/models/retry.strategy.ts#L16)
+Defined in: [src/models/retry.strategy.ts:16](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/models/retry.strategy.ts#L16)
 
 A pluggable strategy for computing the delay before a retry attempt.
 
@@ -27,7 +27,7 @@ client.retry(3, new ExponentialJitterRetryStrategy(100, 10_000))
 
 > **computeDelay**(`attempt`, `error?`): `number`
 
-Defined in: [src/models/retry.strategy.ts:22](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.1/src/models/retry.strategy.ts#L22)
+Defined in: [src/models/retry.strategy.ts:22](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/models/retry.strategy.ts#L22)
 
 Computes the delay (ms) before attempt number `attempt` (0-based).
 

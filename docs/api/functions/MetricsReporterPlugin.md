@@ -1,4 +1,4 @@
-[**super-http v2.1.1**](../README.md)
+[**super-http v2.1.2**](../README.md)
 
 ***
 
@@ -8,7 +8,7 @@
 
 > **MetricsReporterPlugin**(`options?`): [`SuperHttpPlugin`](../interfaces/SuperHttpPlugin.md)
 
-Defined in: [src/plugins/index.ts:112](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.1/src/plugins/index.ts#L112)
+Defined in: [src/plugins/index.ts:112](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.2/src/plugins/index.ts#L112)
 
 Metrics reporter plugin — logs a metrics summary on a configurable interval.
 
