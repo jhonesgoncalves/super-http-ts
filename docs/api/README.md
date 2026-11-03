@@ -1,8 +1,8 @@
-**super-http v2.0.0**
+**super-http v2.1.0**
 
 ***
 
-# super-http v2.0.0
+# super-http v2.1.0
 
 ## Classes
 
@@ -21,6 +21,7 @@
 
 ## Interfaces
 
+- [AttemptErrorEvent](interfaces/AttemptErrorEvent.md)
 - [BulkheadConfig](interfaces/BulkheadConfig.md)
 - [BulkheadRejectEvent](interfaces/BulkheadRejectEvent.md)
 - [CircuitBreakerConfig](interfaces/CircuitBreakerConfig.md)
@@ -36,6 +37,7 @@
 - [PoolConfig](interfaces/PoolConfig.md)
 - [RateLimitConfig](interfaces/RateLimitConfig.md)
 - [RateLimitRejectEvent](interfaces/RateLimitRejectEvent.md)
+- [RecoveredEvent](interfaces/RecoveredEvent.md)
 - [RequestPolicy](interfaces/RequestPolicy.md)
 - [ResilienceEvents](interfaces/ResilienceEvents.md)
 - [RetryEvent](interfaces/RetryEvent.md)

@@ -51,7 +51,7 @@ export class HttpClientFactory {
    */
   static create(baseURL: string, httpConfig?: HttpClientRequestConfig, poolConfig?: PoolConfig): HttpClient {
     const existing = HttpClientFactory.instances.get(baseURL);
-    if (existing) return existing;
+    if (existing && !existing.isClosed) return existing;
 
     const circuitBreaker = new CircuitBreaker();
     const instance = new HttpClient(baseURL, httpConfig, circuitBreaker, poolConfig);
@@ -73,6 +73,10 @@ export class HttpClientFactory {
    * afterEach(() => HttpClientFactory.clear());
    * ```
    */
+  static createIsolated(baseURL: string, httpConfig?: HttpClientRequestConfig, poolConfig?: PoolConfig): HttpClient {
+    return new HttpClient(baseURL, httpConfig, new CircuitBreaker(), poolConfig);
+  }
+
   static clear(): void {
     for (const instance of HttpClientFactory.instances.values()) {
       void instance.close().catch(() => undefined);

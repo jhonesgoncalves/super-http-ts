@@ -73,6 +73,17 @@ Measured against a local Express server, Node.js 20 · [full report →](https:/
 
 ---
 
+## Connection recovery in 2.1
+
+Bound idle socket lifetime with `pool.freeSocketTimeoutMs`, observe transport
+attempts with `onAttemptError`, and alert on final failures with `onError`.
+Eligible reused-socket resets use a fresh connection within the existing retry
+budget; ambiguous POST/PATCH requests remain protected. Named Nest clients no
+longer close other clients during registration.
+
+See the [connection lifecycle guide](https://jhonesgoncalves.github.io/super-http-ts/guide/connection-recovery)
+for configuration, upgrade notes and a 4,000 calls/min example.
+
 ## Installation
 
 ```bash

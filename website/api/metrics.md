@@ -12,6 +12,12 @@ import type { MetricsSnapshot } from 'super-http'
 
 ```typescript
 interface MetricsSnapshot {
+  recovered:            number  // successful logical calls after retry
+  attemptErrors:        number  // transport attempts that failed
+  reusedSocketResets:   number  // ECONNRESET on a known reused socket
+  newSocketResets:      number  // ECONNRESET on a known new socket
+  unknownSocketResets:  number  // ECONNRESET with no reuse information
+  avgFailedLatency:     number  // average duration of rejected logical calls
   requests:             number  // total logical requests dispatched
   success:              number  // completed successfully
   failed:               number  // failed after all retry attempts
@@ -61,3 +67,5 @@ console.log(`
 ```typescript
 client.resetMetrics()  // clears all counters and latency history
 ```
+
+Pool counts are available through `client.state().pool.http` and `.https`: `active`, `idle`, and `queued`.

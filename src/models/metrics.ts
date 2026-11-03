@@ -6,6 +6,12 @@
  * {@link HttpClient.resetMetrics | client.resetMetrics()} call).
  */
 export interface MetricsSnapshot {
+  recovered: number;
+  attemptErrors: number;
+  reusedSocketResets: number;
+  newSocketResets: number;
+  unknownSocketResets: number;
+  avgFailedLatency: number;
   /** Total logical requests dispatched (retried attempts are counted in `retries`). */
   requests: number;
   /** Requests that completed with a 2xx / non-error response. */
@@ -60,6 +66,12 @@ export class MetricsCollector {
   /** Default number of recent latencies retained (~35 s of traffic at 58 rps). */
   static readonly DEFAULT_LATENCY_WINDOW = 2048;
 
+  private _recovered = 0;
+  private _attemptErrors = 0;
+  private _reusedSocketResets = 0;
+  private _newSocketResets = 0;
+  private _unknownSocketResets = 0;
+  private _failedLatency = 0;
   private _requests = 0;
   private _success = 0;
   private _failed = 0;
@@ -92,8 +104,20 @@ export class MetricsCollector {
     this._latencySum += latencyMs;
     this._latencies[this._writes++ % this.latencyWindow] = latencyMs;
   }
-  recordFailure(): void {
+  recordFailure(latencyMs = 0): void {
     this._failed++;
+    this._failedLatency += latencyMs;
+  }
+  recordRecovered(): void {
+    this._recovered++;
+  }
+  recordAttemptError(code?: string, reused?: boolean): void {
+    this._attemptErrors++;
+    if (code === 'ECONNRESET') {
+      if (reused) this._reusedSocketResets++;
+      else if (reused === false) this._newSocketResets++;
+      else this._unknownSocketResets++;
+    }
   }
   recordRetry(): void {
     this._retries++;
@@ -118,6 +142,12 @@ export class MetricsCollector {
     const sorted = this._latencies.slice(0, filled).sort();
     const avg = this._success ? this._latencySum / this._success : 0;
     return {
+      recovered: this._recovered,
+      attemptErrors: this._attemptErrors,
+      reusedSocketResets: this._reusedSocketResets,
+      newSocketResets: this._newSocketResets,
+      unknownSocketResets: this._unknownSocketResets,
+      avgFailedLatency: this._failed ? this._failedLatency / this._failed : 0,
       requests: this._requests,
       success: this._success,
       failed: this._failed,
@@ -136,6 +166,12 @@ export class MetricsCollector {
 
   /** Resets all counters, latency history and uptime. */
   reset(): void {
+    this._recovered = 0;
+    this._attemptErrors = 0;
+    this._reusedSocketResets = 0;
+    this._newSocketResets = 0;
+    this._unknownSocketResets = 0;
+    this._failedLatency = 0;
     this._requests = 0;
     this._success = 0;
     this._failed = 0;

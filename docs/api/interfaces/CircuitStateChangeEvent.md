@@ -1,4 +1,4 @@
-[**super-http v2.0.0**](../README.md)
+[**super-http v2.1.0**](../README.md)
 
 ***
 
@@ -6,7 +6,7 @@
 
 # Interface: CircuitStateChangeEvent
 
-Defined in: [src/models/resilience.events.ts:29](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/models/resilience.events.ts#L29)
+Defined in: [src/models/resilience.events.ts:50](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/models/resilience.events.ts#L50)
 
 Context passed to `onCircuitStateChange`.
 
@@ -16,7 +16,7 @@ Context passed to `onCircuitStateChange`.
 
 > **failures**: `number`
 
-Defined in: [src/models/resilience.events.ts:33](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/models/resilience.events.ts#L33)
+Defined in: [src/models/resilience.events.ts:54](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/models/resilience.events.ts#L54)
 
 Total failures at the time of the transition.
 
@@ -26,7 +26,7 @@ Total failures at the time of the transition.
 
 > **from**: [`CircuitState`](../type-aliases/CircuitState.md)
 
-Defined in: [src/models/resilience.events.ts:30](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/models/resilience.events.ts#L30)
+Defined in: [src/models/resilience.events.ts:51](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/models/resilience.events.ts#L51)
 
 ***
 
@@ -34,4 +34,4 @@ Defined in: [src/models/resilience.events.ts:30](https://github.com/jhonesgoncal
 
 > **to**: [`CircuitState`](../type-aliases/CircuitState.md)
 
-Defined in: [src/models/resilience.events.ts:31](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/models/resilience.events.ts#L31)
+Defined in: [src/models/resilience.events.ts:52](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/models/resilience.events.ts#L52)

@@ -33,10 +33,10 @@ Servers often close idle connections after a timeout (e.g. 60 s on nginx). If yo
 Error: socket hang up (ECONNRESET)
 ```
 
-super-http solves this two ways:
-1. `keepAliveMsecs` sends TCP keep-alive probes to detect dead connections early
-2. Retry on `ECONNRESET` — even if a stale socket slips through, the request is retried transparently for idempotent methods (see [Retry](./retry#what-gets-retried))
-3. `socketTimeoutMs` bounds how long a socket may sit inactive before the agent gives up on it
+super-http reduces the risk with bounded free-socket lifetime and can recover
+eligible reused-socket resets within the configured retry budget. TCP keep-alive
+probes do not prevent HTTP idle closure. See [Connection lifecycle and recovery](./connection-recovery)
+for the 2.1 policy, circuit-breaker behaviour, diagnostics and a 4,000 calls/min example.
 
 ---
 
@@ -47,7 +47,7 @@ const client = HttpClientFactory.create('https://api.example.com', {}, {
   maxSockets: 200,          // max concurrent open sockets per host
   maxFreeSockets: 50,       // max idle sockets to keep open
   keepAlive: true,          // enable TCP keep-alive
-  keepAliveMsecs: 1000,     // probe interval (ms)
+  keepAliveMsecs: 1000,     // initial TCP probe delay (ms)
   timeout: 30_000,          // response timeout (ms)
   socketTimeoutMs: 30_000,  // socket inactivity timeout on the agent
 })
@@ -57,9 +57,9 @@ const client = HttpClientFactory.create('https://api.example.com', {}, {
 
 `timeout` is the axios response timeout — how long to wait for an answer.
 `socketTimeoutMs` goes to the `http.Agent` itself and bounds **socket
-inactivity**, which is what catches a connection silently dropped by a NAT or a
-firewall. Node's agent exposes no separate connect timeout, so inactivity covers
-a stuck connect too.
+inactivity**. This is not a standalone guarantee for every connection phase;
+Axios timeout and the total deadline also participate. Use `freeSocketTimeoutMs`
+for an explicit idle-only cap and a deadline for the whole operation.
 
 ::: warning Fixed in 2.0
 Before 2.0, `timeout` was read out of the pool config and used **only** as the
@@ -126,3 +126,11 @@ export const api = HttpClientFactory.create('https://api.example.com')
 import { HttpClientFactory } from 'super-http'
 const api = HttpClientFactory.create('https://api.example.com')
 ```
+
+## Isolated ownership
+
+Use `createClient({ baseURL, isolated: true })` or
+`HttpClientFactory.createIsolated(baseURL, config, pool)` when headers, policies
+or lifecycle must not be shared. Nest named clients are isolated.
+`HttpClientFactory.clear()` closes every cached client; do not use it to create
+a new independent client.

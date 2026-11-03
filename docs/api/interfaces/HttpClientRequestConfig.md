@@ -1,4 +1,4 @@
-[**super-http v2.0.0**](../README.md)
+[**super-http v2.1.0**](../README.md)
 
 ***
 
@@ -6,7 +6,7 @@
 
 # Interface: HttpClientRequestConfig
 
-Defined in: [src/models/http.client.request.config.ts:4](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/models/http.client.request.config.ts#L4)
+Defined in: [src/models/http.client.request.config.ts:4](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/models/http.client.request.config.ts#L4)
 
 ## Extends
 
@@ -344,7 +344,7 @@ Defined in: node\_modules/axios/index.d.ts:432
 
 ### httpVersion?
 
-> `optional` **httpVersion?**: `1` \| `2`
+> `optional` **httpVersion?**: `2` \| `1`
 
 Defined in: node\_modules/axios/index.d.ts:469
 
@@ -539,6 +539,14 @@ Defined in: node\_modules/axios/index.d.ts:467
 #### Inherited from
 
 `AxiosRequestConfig.parseReviver`
+
+***
+
+### policy?
+
+> `optional` **policy?**: [`RequestPolicy`](RequestPolicy.md)
+
+Defined in: [src/models/http.client.request.config.ts:5](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/models/http.client.request.config.ts#L5)
 
 ***
 

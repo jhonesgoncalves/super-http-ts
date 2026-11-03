@@ -39,6 +39,8 @@ export { SuperHttpPlugin, LoggerPlugin, LoggerPluginOptions, MetricsReporterPlug
 // ─── Observability / events ───────────────────────────────────────────────────
 export {
   ResilienceEvents,
+  AttemptErrorEvent,
+  RecoveredEvent,
   RetryEvent,
   CircuitStateChangeEvent,
   CircuitState,

@@ -33,6 +33,7 @@ function createClient(options: CreateClientOptions): HttpClient
 
 interface CreateClientOptions extends HttpClientRequestConfig {
   baseURL: string
+  isolated?: boolean // default false
   preset?: 'high-throughput' | 'resilient-api' | 'low-latency'
   pool?: PoolConfig
 }
@@ -41,6 +42,7 @@ interface CreateClientOptions extends HttpClientRequestConfig {
 | Field | Type | Description |
 |---|---|---|
 | `baseURL` | `string` | **Required.** Base URL for all requests |
+| `isolated` | `boolean` | Bypass the global cache; the caller owns shutdown |
 | `preset` | `Preset` | Optional resilience preset — see [Presets](../guide/presets) |
 | `pool` | `PoolConfig` | Pool options, merged with preset defaults |
 | `headers` | `Record<string,string>` | Default headers on every request |
@@ -108,11 +110,13 @@ Preset settings can always be overridden — call `.retry()`, `.circuitBreak()`,
 
 ## Singleton behaviour
 
-Calling `createClient` multiple times with the same `baseURL` returns the **same instance**. Options passed on subsequent calls are ignored:
+Unless `isolated: true`, repeated calls with the same URL share the open instance.
+Pool/header configuration is first-call-wins; an explicitly supplied preset is
+reapplied to the shared instance. Use isolated clients for different policies:
 
 ```typescript
 const a = createClient({ baseURL: 'https://api.example.com', preset: 'resilient-api' })
-const b = createClient({ baseURL: 'https://api.example.com', preset: 'low-latency' }) // ignored!
+const b = createClient({ baseURL: 'https://api.example.com' })
 
 console.log(a === b) // true
 ```
@@ -124,3 +128,5 @@ import { HttpClientFactory } from 'super-http'
 
 afterEach(() => HttpClientFactory.clear())
 ```
+
+For independent ownership, use `createClient({ baseURL, isolated: true })` and close it at shutdown.

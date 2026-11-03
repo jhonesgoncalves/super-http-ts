@@ -1,5 +1,4 @@
 import { Module, DynamicModule, Provider, Global } from '@nestjs/common';
-import { HttpClientFactory } from '../http-client/http.factory';
 import { createClient } from '../presets/index';
 import { createGrpcClient } from '../grpc/grpc-client';
 import { SuperHttpService } from './super-http.service';
@@ -149,8 +148,7 @@ export class SuperHttpModule {
           return createGrpcClient(opts.service, opts.address, opts);
         }
         // HTTP client — each named client gets its own isolated instance
-        HttpClientFactory.clear();
-        return createClient(opts as SuperHttpFeatureOptions);
+        return createClient({ ...(opts as SuperHttpFeatureOptions), isolated: true });
       },
     }));
 

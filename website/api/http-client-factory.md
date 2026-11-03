@@ -22,7 +22,7 @@ static create(
 
 Returns the cached `HttpClient` for `baseURL`, or creates a new one.
 
-**Subsequent calls with the same URL return the same instance** — `httpConfig` and `poolConfig` are **ignored** on cache hits. If you need a fresh client for the same URL, call `HttpClientFactory.clear()` first.
+**Subsequent calls with the same URL return the same instance** — `httpConfig` and `poolConfig` are **ignored** on cache hits. For an independent client at the same URL, use `HttpClientFactory.createIsolated()`; do not close unrelated clients with `clear()`.
 
 ### Parameters
 
@@ -58,7 +58,7 @@ const { data } = await api.get('/users')
 static clear(): void
 ```
 
-Removes **all** cached instances from the shared cache.
+Closes **all** cached clients and removes them from the shared cache. Isolated clients are not affected.
 
 This affects both `HttpClientFactory.create()` and `createClient()` — they share the same cache.
 
@@ -89,3 +89,10 @@ console.log(a === b) // true — same instance
 // Either API resets the shared cache
 HttpClientFactory.clear()
 ```
+
+## `HttpClientFactory.createIsolated()` (2.1)
+
+Same arguments as `create()`, but always constructs a new client without reading
+or modifying the global cache. The owner must call `close()` at shutdown.
+`createClient({ baseURL, isolated: true })` provides the equivalent preset-aware API.
+A cached client that was closed is replaced on the next `create()` call.

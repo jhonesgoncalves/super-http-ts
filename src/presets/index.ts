@@ -18,6 +18,8 @@ export type Preset = 'high-throughput' | 'resilient-api' | 'low-latency';
  * Options for {@link createClient}.
  */
 export interface CreateClientOptions extends HttpClientRequestConfig {
+  /** Create an independent client without reading or changing the shared registry. */
+  isolated?: boolean;
   /** Base URL prepended to every request. */
   baseURL: string;
 
@@ -114,12 +116,14 @@ const PRESETS: Record<Preset, PresetDefinition> = {
  * ```
  */
 export function createClient(options: CreateClientOptions): HttpClient {
-  const { baseURL, preset, pool, ...httpConfig } = options;
+  const { baseURL, preset, pool, isolated = false, ...httpConfig } = options;
 
   const presetDef = preset ? PRESETS[preset] : undefined;
   const mergedPool: PoolConfig = { ...(presetDef?.pool ?? {}), ...(pool ?? {}) };
 
-  const client = HttpClientFactory.create(baseURL, httpConfig, mergedPool);
+  const client = isolated
+    ? HttpClientFactory.createIsolated(baseURL, httpConfig, mergedPool)
+    : HttpClientFactory.create(baseURL, httpConfig, mergedPool);
 
   if (presetDef) {
     presetDef.apply(client);

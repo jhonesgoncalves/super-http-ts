@@ -1,4 +1,4 @@
-[**super-http v2.0.0**](../README.md)
+[**super-http v2.1.0**](../README.md)
 
 ***
 
@@ -6,7 +6,7 @@
 
 # Class: HttpClient
 
-Defined in: [src/http-client/http.client.ts:303](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/http-client/http.client.ts#L303)
+Defined in: [src/http-client/http.client.ts:337](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/http-client/http.client.ts#L337)
 
 Production-grade HTTP client for Node.js and TypeScript.
 
@@ -44,7 +44,7 @@ const m = api.metrics() // { requests, success, p95Latency, … }
 
 > **new HttpClient**(`baseURL`, `httpClientRequestConfig?`, `circuitBreaker?`, `poolConfig?`): `HttpClient`
 
-Defined in: [src/http-client/http.client.ts:336](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/http-client/http.client.ts#L336)
+Defined in: [src/http-client/http.client.ts:372](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/http-client/http.client.ts#L372)
 
 #### Parameters
 
@@ -74,9 +74,30 @@ Defined in: [src/http-client/http.client.ts:336](https://github.com/jhonesgoncal
 
 > `readonly` `static` **DEFAULT\_MAX\_BODY\_BYTES**: `number`
 
-Defined in: [src/http-client/http.client.ts:312](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/http-client/http.client.ts#L312)
+Defined in: [src/http-client/http.client.ts:346](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/http-client/http.client.ts#L346)
 
 Body-size ceiling applied to both directions unless overridden.
+
+## Accessors
+
+### isClosed
+
+#### Get Signature
+
+> **get** **isClosed**(): `boolean`
+
+Defined in: [src/http-client/http.client.ts:552](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/http-client/http.client.ts#L552)
+
+Releases everything this client owns: keep-alive sockets on both agents and
+any plugin timers.
+
+Dropping the reference is not enough — the agents keep their sockets open
+until the remote or the OS closes them, which is why
+`HttpClientFactory.clear()` used to leak a socket per cached client.
+
+##### Returns
+
+`boolean`
 
 ## Methods
 
@@ -84,7 +105,7 @@ Body-size ceiling applied to both directions unless overridden.
 
 > **bulkhead**(`config`): `this`
 
-Defined in: [src/http-client/http.client.ts:611](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/http-client/http.client.ts#L611)
+Defined in: [src/http-client/http.client.ts:673](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/http-client/http.client.ts#L673)
 
 Enables bulkhead isolation — limits concurrent in-flight requests.
 
@@ -110,7 +131,7 @@ client.bulkhead({ maxConcurrent: 20, maxQueue: 100, queueTimeoutMs: 3_000 })
 
 > **circuitBreak**(`config`): `this`
 
-Defined in: [src/http-client/http.client.ts:594](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/http-client/http.client.ts#L594)
+Defined in: [src/http-client/http.client.ts:656](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/http-client/http.client.ts#L656)
 
 Enables the three-state circuit breaker.
 
@@ -136,14 +157,7 @@ client.circuitBreak({ failureThreshold: 5, successThreshold: 2, timeoutMs: 10_00
 
 > **close**(): `Promise`\<`void`\>
 
-Defined in: [src/http-client/http.client.ts:504](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/http-client/http.client.ts#L504)
-
-Releases everything this client owns: keep-alive sockets on both agents and
-any plugin timers.
-
-Dropping the reference is not enough — the agents keep their sockets open
-until the remote or the OS closes them, which is why
-`HttpClientFactory.clear()` used to leak a socket per cached client.
+Defined in: [src/http-client/http.client.ts:561](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/http-client/http.client.ts#L561)
 
 #### Returns
 
@@ -155,7 +169,7 @@ until the remote or the OS closes them, which is why
 
 > **correlate**(`options?`): `this`
 
-Defined in: [src/http-client/http.client.ts:458](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/http-client/http.client.ts#L458)
+Defined in: [src/http-client/http.client.ts:505](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/http-client/http.client.ts#L505)
 
 Enables correlation-id injection.
 
@@ -186,7 +200,7 @@ client.correlate({ header: 'x-trace-id' })
 
 > **deadline**(`ms`): `this`
 
-Defined in: [src/http-client/http.client.ts:642](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/http-client/http.client.ts#L642)
+Defined in: [src/http-client/http.client.ts:704](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/http-client/http.client.ts#L704)
 
 Sets a total time budget (ms) for every request: queue waits, all attempts
 and all backoff sleeps combined.
@@ -217,7 +231,7 @@ client.deadline(2_000) // nothing takes longer than 2 s, retries included
 
 > **dedup**(`options?`): `this`
 
-Defined in: [src/http-client/http.client.ts:661](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/http-client/http.client.ts#L661)
+Defined in: [src/http-client/http.client.ts:723](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/http-client/http.client.ts#L723)
 
 Enables request deduplication for idempotent calls.
 
@@ -248,7 +262,7 @@ client.dedup({ methods: ['GET', 'HEAD', 'POST'] })  // opt in, at your risk
 
 > **delete**\<`T`\>(`url`, `config?`): `Promise`\<[`HttpClientResponse`](../type-aliases/HttpClientResponse.md)\<`T`\>\>
 
-Defined in: [src/http-client/http.client.ts:704](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/http-client/http.client.ts#L704)
+Defined in: [src/http-client/http.client.ts:766](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/http-client/http.client.ts#L766)
 
 HTTP DELETE
 
@@ -278,7 +292,7 @@ HTTP DELETE
 
 > **fallback**\<`T`\>(`fn`): `this`
 
-Defined in: [src/http-client/http.client.ts:676](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/http-client/http.client.ts#L676)
+Defined in: [src/http-client/http.client.ts:738](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/http-client/http.client.ts#L738)
 
 Registers a fallback handler invoked when all policies are exhausted.
 
@@ -311,7 +325,7 @@ client.fallback(async () => cache.get('last-known-good'))
 
 > **get**\<`T`\>(`url`, `config?`): `Promise`\<[`HttpClientResponse`](../type-aliases/HttpClientResponse.md)\<`T`\>\>
 
-Defined in: [src/http-client/http.client.ts:684](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/http-client/http.client.ts#L684)
+Defined in: [src/http-client/http.client.ts:746](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/http-client/http.client.ts#L746)
 
 HTTP GET
 
@@ -341,7 +355,7 @@ HTTP GET
 
 > **metrics**(): [`MetricsSnapshot`](../interfaces/MetricsSnapshot.md)
 
-Defined in: [src/http-client/http.client.ts:523](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/http-client/http.client.ts#L523)
+Defined in: [src/http-client/http.client.ts:584](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/http-client/http.client.ts#L584)
 
 Returns a point-in-time snapshot of runtime metrics for this client.
 
@@ -362,7 +376,7 @@ console.log(`p99=${m.p99Latency}ms  retries=${m.retries}  cbTrips=${m.circuitBre
 
 > **on**(`events`): `this`
 
-Defined in: [src/http-client/http.client.ts:420](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/http-client/http.client.ts#L420)
+Defined in: [src/http-client/http.client.ts:467](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/http-client/http.client.ts#L467)
 
 Registers observability hooks. Multiple calls merge handlers (last wins per key).
 
@@ -388,11 +402,25 @@ client.on({
 
 ***
 
+### onModuleDestroy()
+
+> **onModuleDestroy**(): `Promise`\<`void`\>
+
+Defined in: [src/http-client/http.client.ts:557](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/http-client/http.client.ts#L557)
+
+NestJS invokes this for injected client providers at application shutdown.
+
+#### Returns
+
+`Promise`\<`void`\>
+
+***
+
 ### patch()
 
 > **patch**\<`T`\>(`url`, `data?`, `config?`): `Promise`\<[`HttpClientResponse`](../type-aliases/HttpClientResponse.md)\<`T`\>\>
 
-Defined in: [src/http-client/http.client.ts:699](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/http-client/http.client.ts#L699)
+Defined in: [src/http-client/http.client.ts:761](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/http-client/http.client.ts#L761)
 
 HTTP PATCH
 
@@ -426,7 +454,7 @@ HTTP PATCH
 
 > **post**\<`T`\>(`url`, `data?`, `config?`): `Promise`\<[`HttpClientResponse`](../type-aliases/HttpClientResponse.md)\<`T`\>\>
 
-Defined in: [src/http-client/http.client.ts:689](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/http-client/http.client.ts#L689)
+Defined in: [src/http-client/http.client.ts:751](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/http-client/http.client.ts#L751)
 
 HTTP POST
 
@@ -460,7 +488,7 @@ HTTP POST
 
 > **put**\<`T`\>(`url`, `data?`, `config?`): `Promise`\<[`HttpClientResponse`](../type-aliases/HttpClientResponse.md)\<`T`\>\>
 
-Defined in: [src/http-client/http.client.ts:694](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/http-client/http.client.ts#L694)
+Defined in: [src/http-client/http.client.ts:756](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/http-client/http.client.ts#L756)
 
 HTTP PUT
 
@@ -494,7 +522,7 @@ HTTP PUT
 
 > **rateLimit**(`config`): `this`
 
-Defined in: [src/http-client/http.client.ts:624](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/http-client/http.client.ts#L624)
+Defined in: [src/http-client/http.client.ts:686](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/http-client/http.client.ts#L686)
 
 Enables token-bucket rate limiting.
 
@@ -520,7 +548,7 @@ client.rateLimit({ permitLimit: 200, windowMs: 60_000 })
 
 > **request**\<`T`\>(`config`): `Promise`\<[`HttpClientResponse`](../type-aliases/HttpClientResponse.md)\<`T`\>\>
 
-Defined in: [src/http-client/http.client.ts:722](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/http-client/http.client.ts#L722)
+Defined in: [src/http-client/http.client.ts:784](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/http-client/http.client.ts#L784)
 
 Sends a raw request. Accepts an optional `policy` field to override
 client-level resilience config for this single request.
@@ -558,7 +586,7 @@ await client.request({
 
 > **resetMetrics**(): `this`
 
-Defined in: [src/http-client/http.client.ts:530](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/http-client/http.client.ts#L530)
+Defined in: [src/http-client/http.client.ts:591](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/http-client/http.client.ts#L591)
 
 Resets all accumulated metrics counters and latency history.
 
@@ -572,7 +600,7 @@ Resets all accumulated metrics counters and latency history.
 
 > **retry**(`retries`, `strategy`, `options?`): `this`
 
-Defined in: [src/http-client/http.client.ts:573](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/http-client/http.client.ts#L573)
+Defined in: [src/http-client/http.client.ts:634](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/http-client/http.client.ts#L634)
 
 Enables automatic retry with a pluggable back-off strategy.
 
@@ -618,7 +646,7 @@ client.retry(3, 500, { retryNonIdempotent: true })  // allow POST retries
 
 > **state**(): [`ClientState`](../interfaces/ClientState.md)
 
-Defined in: [src/http-client/http.client.ts:474](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/http-client/http.client.ts#L474)
+Defined in: [src/http-client/http.client.ts:521](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/http-client/http.client.ts#L521)
 
 Returns the **current** state of every configured resilience component.
 
@@ -638,7 +666,7 @@ if (client.state().circuit?.open) skipTheCall()
 
 > **use**(`plugin`): `this`
 
-Defined in: [src/http-client/http.client.ts:545](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/http-client/http.client.ts#L545)
+Defined in: [src/http-client/http.client.ts:606](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/http-client/http.client.ts#L606)
 
 Installs a plugin. Each plugin is installed at most once (deduplicated by name).
 

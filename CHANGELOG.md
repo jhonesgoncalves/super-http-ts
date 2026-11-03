@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.1.0] — 2026-11-03
+
+### Added
+
+- Idle-only connection retirement (`freeSocketTimeoutMs`), maximum socket age
+  retired on idle, server timeout-hint margins and explicit FIFO/LIFO scheduling.
+- Eligible reused-socket reset recovery on a fresh non-pooling connection,
+  consuming the existing retry/rate-limit/deadline budget. The initial scheduled
+  recovery is deferred from breaker health counting; a failed recovery counts.
+  Opt out with `RetryOptions.recoverReusedSocket: false`.
+- Structured `onAttemptError` and logical `onRecovered` events; pool state and
+  recovered/error/reset/failed-latency metrics (unknown socket reuse is distinct).
+- `createClient({ isolated: true })`, `HttpClientFactory.createIsolated()`, typed
+  per-request `policy`, idempotent close and Nest module-destruction cleanup.
+- Real FIN/reuse-race, idle-retirement, streaming and POST-safety regression tests;
+  Node 24 in the CI matrix; operational and 2.1 upgrade documentation.
+
+### Fixed
+
+- `onError` now follows its documented contract: once on final logical rejection,
+  including policy errors, rather than on each failed Axios attempt. Use the new
+  `onAttemptError` for per-attempt logging. Successful fallback is not recovery.
+- Direct Axios request `timeout` overrides are honoured; `policy.timeout` wins;
+  `timeout: 0` remains bounded by a configured total deadline.
+- Nest `forFeature()` no longer clears the global factory and closes other clients.
+- A factory lookup replaces closed cached clients; use after close rejects.
+- Already-aborted bulkhead/rate-limit waiters clear their pending timeout.
+- Stream request bodies are not retried automatically; streaming recovery responses
+  retain their temporary connection until the response stream closes.
+- Keep-alive documentation distinguishes TCP probe initial delay, HTTP idle time,
+  Agent inactivity and the total request deadline.
+
+---
+
 ## [2.0.1] — 2026-08-18
 
 Documentation only — no runtime changes. The library code is byte-identical to

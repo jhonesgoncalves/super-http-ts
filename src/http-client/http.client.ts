@@ -1,5 +1,7 @@
 import http from 'http';
 import https from 'https';
+import { Readable } from 'stream';
+import { configurePool, isReusedSocketReset, socketReuse, poolSnapshot } from '../transport/connection-pool';
 import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
 import { CircuitBreakerConfig, CircuitBreaker } from '../circuit-breaker/circuit-break';
 import { Bulkhead, BulkheadConfig } from '../bulkhead/bulkhead';
@@ -22,6 +24,10 @@ interface RetryConfig {
   strategy: RetryStrategy;
   retryOn?: number[];
   retryNonIdempotent?: boolean;
+  /** Use one existing retry to recover a reused-socket reset on a fresh connection.
+   * The eligible first reset is deferred from breaker health counting. Default true.
+   */
+  recoverReusedSocket?: boolean;
 }
 
 /** Extra options for {@link HttpClient.retry}. */
@@ -42,6 +48,10 @@ export interface RetryOptions {
    * @defaultValue false
    */
   retryNonIdempotent?: boolean;
+  /** Use one existing retry to recover a reused-socket reset on a fresh connection.
+   * The eligible first reset is deferred from breaker health counting. Default true.
+   */
+  recoverReusedSocket?: boolean;
 }
 
 /**
@@ -68,7 +78,15 @@ export interface RequestPolicy {
    * Override retry config for this request only.
    * Pass `false` to disable retry even if the client has one configured.
    */
-  retry?: { attempts: number; delayMs?: number; retryOn?: number[]; retryNonIdempotent?: boolean } | false;
+  retry?:
+    | {
+        attempts: number;
+        delayMs?: number;
+        retryOn?: number[];
+        retryNonIdempotent?: boolean;
+        recoverReusedSocket?: boolean;
+      }
+    | false;
   /**
    * Override circuit breaker for this request only.
    * Pass `false` to bypass the circuit breaker even if one is configured.
@@ -105,6 +123,11 @@ export interface RequestPolicy {
  * actually asks.
  */
 export interface ClientState {
+  /** Pool counts per protocol, for this client/process. */
+  pool: {
+    http: { active: number; idle: number; queued: number };
+    https: { active: number; idle: number; queued: number };
+  };
   /** Client-level circuit, if one is configured. */
   circuit?: { state: CircuitState; open: boolean };
   /** Circuits created for per-request policy overrides, keyed by config. */
@@ -145,11 +168,19 @@ export interface PoolConfig {
    * @defaultValue 200
    */
   maxSockets?: number;
+  /** Retire free sockets after this idle period; 0 disables this additional cap. */
+  freeSocketTimeoutMs?: number;
+  /** Retire aged sockets when they become idle, never during an active call. */
+  maxSocketAgeMs?: number;
+  /** Margin subtracted from the server's keep-alive timeout hint. Default 1000 ms. */
+  keepAliveTimeoutBufferMs?: number;
+  /** Socket selection strategy. Default lifo. */
+  scheduling?: 'lifo' | 'fifo';
   /** Max idle keep-alive sockets per host. @defaultValue 50 */
   maxFreeSockets?: number;
   /** Enable TCP keep-alive. @defaultValue true */
   keepAlive?: boolean;
-  /** Keep-alive probe interval (ms). @defaultValue 1000 */
+  /** Initial delay before TCP keep-alive probes (not an HTTP idle TTL). @defaultValue 1000 */
   keepAliveMsecs?: number;
   /**
    * Response timeout (ms) — how long to wait for the upstream to answer a
@@ -162,10 +193,9 @@ export interface PoolConfig {
   /**
    * Socket inactivity timeout (ms) applied to the agent itself.
    *
-   * Without this, a connection that goes quiet — a NAT or firewall dropping a
-   * half-open socket — is only noticed by the response timeout, and a socket
-   * stuck in connect is bounded by nothing else. Node's `http.Agent` does not
-   * expose a separate connect timeout, so this covers inactivity at any stage.
+   * This native Agent setting is not an independent connect-timeout guarantee;
+   * Axios timeout/cancellation also apply to active requests. Use
+   * freeSocketTimeoutMs for an idle-only cap and deadline() for the whole call.
    *
    * Defaults to {@link PoolConfig.timeout}.
    */
@@ -182,6 +212,10 @@ export interface PoolConfig {
    * @defaultValue 33554432 (32 MiB)
    */
   maxBodyLength?: number;
+}
+
+function isStreamBody(data: unknown): boolean {
+  return data !== null && typeof data === 'object' && typeof (data as { pipe?: unknown }).pipe === 'function';
 }
 
 // ─── Retryable error detection ────────────────────────────────────────────────
@@ -314,6 +348,8 @@ export class HttpClient {
   private readonly axiosInstance: AxiosInstance;
   private readonly httpAgent: http.Agent;
   private readonly httpsAgent: https.Agent;
+  private readonly temporaryAgents = new Set<http.Agent | https.Agent>();
+  private closed = false;
   private retryConfig?: RetryConfig;
   private circuitBreakerConfig?: CircuitBreakerConfig;
   private circuitBreaker?: CircuitBreaker;
@@ -343,6 +379,10 @@ export class HttpClient {
 
     const {
       maxSockets = 200,
+      freeSocketTimeoutMs,
+      maxSocketAgeMs,
+      keepAliveTimeoutBufferMs = 1000,
+      scheduling = 'lifo',
       maxFreeSockets = 50,
       keepAlive = true,
       keepAliveMsecs = 1000,
@@ -355,6 +395,11 @@ export class HttpClient {
     // Node reads maxSockets: 0 as Infinity, so "zero sockets" would quietly mean
     // unlimited — the opposite of what the config says.
     assertIntAtLeast(maxSockets, 1, 'pool.maxSockets');
+    assertOptional(freeSocketTimeoutMs, (v) => assertDuration(v, 'pool.freeSocketTimeoutMs'));
+    assertOptional(maxSocketAgeMs, (v) => assertIntAtLeast(v, 1, 'pool.maxSocketAgeMs'));
+    assertDuration(keepAliveTimeoutBufferMs, 'pool.keepAliveTimeoutBufferMs');
+    if (scheduling !== 'lifo' && scheduling !== 'fifo')
+      throw new RangeError('[super-http] pool.scheduling must be lifo or fifo');
     assertIntAtLeast(maxFreeSockets, 0, 'pool.maxFreeSockets');
     assertOptional(timeout, (v) => assertDuration(v, 'pool.timeout'));
     assertOptional(socketTimeoutMs, (v) => assertDuration(v, 'pool.socketTimeoutMs'));
@@ -367,10 +412,13 @@ export class HttpClient {
     // out of poolConfig and used only for the axios response timeout, so nothing
     // ever bounded a socket that simply went quiet.
     const agentTimeout = socketTimeoutMs ?? this.defaultTimeoutMs;
-    const agentOpts = { maxSockets, maxFreeSockets, keepAlive, keepAliveMsecs, timeout: agentTimeout };
+    const agentOpts = { maxSockets, maxFreeSockets, keepAlive, keepAliveMsecs, timeout: agentTimeout, scheduling };
+    const retirement = { freeSocketTimeoutMs, maxSocketAgeMs, keepAliveTimeoutBufferMs };
 
-    this.httpAgent = new http.Agent(agentOpts);
-    this.httpsAgent = new https.Agent(agentOpts);
+    this.httpAgent = configurePool(new http.Agent(agentOpts), retirement);
+    this.httpsAgent = configurePool(new https.Agent(agentOpts), retirement);
+    this.httpAgent.maxFreeSockets = maxFreeSockets;
+    this.httpsAgent.maxFreeSockets = maxFreeSockets;
 
     this.axiosInstance = axios.create({
       // Defaults first so explicit user config still wins.
@@ -397,7 +445,6 @@ export class HttpClient {
         return response;
       },
       (error: unknown) => {
-        this.emit('onError', error);
         return Promise.reject(error);
       },
     );
@@ -481,6 +528,7 @@ export class HttpClient {
     for (const [key, cb] of this.policyBreakers) policyCircuits[key] = snap(cb);
 
     return {
+      pool: { http: poolSnapshot(this.httpAgent), https: poolSnapshot(this.httpsAgent) },
       circuit: this.circuitBreaker && this.circuitBreaker.isConfigured ? snap(this.circuitBreaker) : undefined,
       policyCircuits,
       bulkhead: this.bulkheadInstance
@@ -501,7 +549,20 @@ export class HttpClient {
    * until the remote or the OS closes them, which is why
    * `HttpClientFactory.clear()` used to leak a socket per cached client.
    */
+  get isClosed(): boolean {
+    return this.closed;
+  }
+
+  /** NestJS invokes this for injected client providers at application shutdown. */
+  async onModuleDestroy(): Promise<void> {
+    await this.close();
+  }
+
   async close(): Promise<void> {
+    if (this.closed) return;
+    this.closed = true;
+    for (const agent of this.temporaryAgents) agent.destroy();
+    this.temporaryAgents.clear();
     for (const plugin of this._pluginInstances) {
       this.safeCall(() => plugin.uninstall?.(this));
     }
@@ -579,6 +640,7 @@ export class HttpClient {
       strategy: typeof strategy === 'number' ? new FixedRetryStrategy(strategy) : strategy,
       retryOn: opts.retryOn,
       retryNonIdempotent: opts.retryNonIdempotent,
+      recoverReusedSocket: opts.recoverReusedSocket,
     };
     return this;
   }
@@ -720,7 +782,19 @@ export class HttpClient {
    * ```
    */
   request<T = unknown>(config: AxiosRequestConfig & { policy?: RequestPolicy }): Promise<HttpClientResponse<T>> {
+    if (this.closed) return Promise.reject(new Error('[super-http] Client is closed'));
     const { policy, ...axiosConfig } = config;
+    assertOptional(config.timeout, (v) => assertDuration(v, 'request.timeout'));
+    assertOptional(policy?.timeout, (v) => assertDuration(v, 'policy.timeout'));
+    const attemptState = {
+      attempts: 0,
+      recoveredSocket: false,
+      fresh: false,
+      deferred: new WeakSet<object>(),
+      delays: new WeakMap<object, number>(),
+    };
+    const started = Date.now();
+    let usedFallback = false;
 
     // One scope per call: the caller's cancellation and the total deadline folded
     // into a single signal, plus the remaining budget every layer clamps against.
@@ -731,16 +805,18 @@ export class HttpClient {
 
     // One id per logical request, reused across attempts so retries of the same
     // call correlate to each other, not to N separate ids.
-    const requestId = this.correlation?.generate();
-    if (requestId && this.correlation) {
+    let requestId: string | undefined;
+    if (this.correlation) {
       const header = this.correlation.header;
       const headers = { ...(axiosConfig.headers ?? {}) } as Record<string, unknown>;
-      const alreadySet = Object.keys(headers).some((k) => k.toLowerCase() === header);
-      if (!alreadySet) headers[header] = requestId;
+      const existing = Object.keys(headers).find((key) => key.toLowerCase() === header);
+      requestId =
+        existing && typeof headers[existing] === 'string' ? (headers[existing] as string) : this.correlation.generate();
+      if (!existing) headers[header] = requestId;
       axiosConfig.headers = headers as typeof axiosConfig.headers;
     }
 
-    const perAttemptTimeout = policy?.timeout ?? this.defaultTimeoutMs;
+    const perAttemptTimeout = policy?.timeout ?? axiosConfig.timeout ?? this.defaultTimeoutMs;
 
     // Recomputed per attempt: an attempt must never outlive the total budget, and
     // the budget shrinks as earlier attempts and backoffs consume it.
@@ -748,7 +824,9 @@ export class HttpClient {
       const left = scope.remaining();
       return {
         ...axiosConfig,
-        timeout: Number.isFinite(left) ? Math.max(1, Math.min(perAttemptTimeout, left)) : perAttemptTimeout,
+        timeout: Number.isFinite(left)
+          ? Math.max(1, Math.min(perAttemptTimeout === 0 ? Infinity : perAttemptTimeout, left))
+          : perAttemptTimeout,
         signal: scope.signal ?? (axiosConfig.signal as AbortSignal | undefined),
       };
     };
@@ -768,8 +846,6 @@ export class HttpClient {
       : undefined;
 
     const core = (): Promise<HttpClientResponse<T>> => {
-      let fn: () => Promise<HttpClientResponse<T>> = () => this.axiosInstance.request<T>(attemptConfig());
-
       // Resolve effective circuit breaker config
       const effectiveCB =
         policy?.circuitBreaker === false
@@ -799,8 +875,71 @@ export class HttpClient {
                   : this.retryConfig?.strategy ?? new ExponentialJitterRetryStrategy(100, 10_000),
               retryOn: policy.retry.retryOn,
               retryNonIdempotent: policy.retry.retryNonIdempotent,
+              recoverReusedSocket: policy.retry.recoverReusedSocket ?? this.retryConfig?.recoverReusedSocket,
             }
           : this.retryConfig;
+
+      const send = async (): Promise<HttpClientResponse<T>> => {
+        if (this.closed) throw new Error('[super-http] Client is closed');
+        attemptState.attempts++;
+        const cfg = attemptConfig();
+        let cleanup = (): void => undefined;
+        if (attemptState.fresh) {
+          // A private, non-pooling agent guarantees this attempt cannot select
+          // another stale idle socket. Never destroy the shared pool.
+          const httpAgent = new http.Agent({ keepAlive: false });
+          const httpsAgent = new https.Agent({ keepAlive: false });
+          this.temporaryAgents.add(httpAgent);
+          this.temporaryAgents.add(httpsAgent);
+          cfg.httpAgent = httpAgent;
+          cfg.httpsAgent = httpsAgent;
+          cleanup = () => {
+            httpAgent.destroy();
+            httpsAgent.destroy();
+            this.temporaryAgents.delete(httpAgent);
+            this.temporaryAgents.delete(httpsAgent);
+          };
+        }
+        try {
+          const response = await this.axiosInstance.request<T>(cfg);
+          if (response.data instanceof Readable) response.data.once('close', cleanup);
+          else cleanup();
+          return response;
+        } catch (error) {
+          cleanup();
+          const code = (error as { code?: string })?.code;
+          const reused = socketReuse(error);
+          this._metrics.recordAttemptError(code, reused);
+          this.emit('onAttemptError', {
+            error,
+            code,
+            status: this.extractStatus(error),
+            reusedSocket: reused,
+            requestId,
+            attempt: attemptState.attempts,
+            elapsedMs: Date.now() - started,
+            remainingDeadlineMs: scope.remaining(),
+          });
+          const replayable = !isStreamBody(axiosConfig.data);
+          if (
+            effectiveRetry &&
+            effectiveRetry.recoverReusedSocket !== false &&
+            replayable &&
+            !attemptState.recoveredSocket &&
+            attemptState.attempts <= effectiveRetry.retries &&
+            isReusedSocketReset(error) &&
+            isRetryableError(error, axiosConfig.method, effectiveRetry.retryNonIdempotent)
+          ) {
+            const delay = effectiveRetry.strategy.computeDelay(attemptState.attempts - 1, error);
+            if (delay < scope.remaining()) {
+              attemptState.deferred.add(error as object);
+              attemptState.delays.set(error as object, delay);
+            }
+          }
+          throw error;
+        }
+      };
+      let fn: () => Promise<HttpClientResponse<T>> = send;
 
       // Order matters, innermost first: axios ← circuit breaker ← rate limiter ←
       // bulkhead ← retry.
@@ -811,10 +950,24 @@ export class HttpClient {
       // parked every bulkhead slot inside setTimeout — effective concurrency
       // collapsed with no socket in use — and only the first attempt of a call
       // ever took a token, letting `permitLimit: 100` emit 400 requests.
-      if (effectiveCB) fn = this.withCircuitBreaker(fn, effectiveCB);
+      if (effectiveCB)
+        fn = this.withCircuitBreaker(
+          fn,
+          effectiveCB,
+          (error) => typeof error !== 'object' || error === null || !attemptState.deferred.has(error),
+        );
       if (this.rateLimiterInstance) fn = this.withRateLimit(fn, scope);
       if (this.bulkheadInstance) fn = this.withBulkhead(fn, scope);
-      if (effectiveRetry) fn = this.withRetry(fn, effectiveRetry, requestConfig.method, scope, requestId);
+      if (effectiveRetry)
+        fn = this.withRetry(
+          fn,
+          effectiveRetry,
+          requestConfig.method,
+          scope,
+          requestId,
+          attemptState,
+          isStreamBody(axiosConfig.data),
+        );
 
       return fn();
     };
@@ -825,6 +978,7 @@ export class HttpClient {
     const withFallback = effectiveFallback
       ? () =>
           core().catch((err) => {
+            usedFallback = true;
             this._metrics.recordFallback();
             this.emit('onFallback', { error: err, requestId });
             return Promise.resolve(effectiveFallback(err)) as Promise<HttpClientResponse<T>>;
@@ -841,10 +995,15 @@ export class HttpClient {
       .then(
         (res) => {
           this._metrics.recordSuccess(Date.now() - t0);
+          if (attemptState.attempts > 1 && !usedFallback) {
+            this._metrics.recordRecovered();
+            this.emit('onRecovered', { requestId, attempts: attemptState.attempts, elapsedMs: Date.now() - started });
+          }
           return res;
         },
         (err) => {
-          this._metrics.recordFailure();
+          this._metrics.recordFailure(Date.now() - started);
+          this.emit('onError', err);
           throw err;
         },
       )
@@ -859,6 +1018,13 @@ export class HttpClient {
     method: string | undefined,
     scope: RequestScope,
     requestId?: string,
+    attemptState?: {
+      recoveredSocket: boolean;
+      fresh: boolean;
+      deferred: WeakSet<object>;
+      delays: WeakMap<object, number>;
+    },
+    streamingBody = false,
   ): () => Promise<HttpClientResponse<T>> {
     return async () => {
       for (let attempt = 0; ; attempt++) {
@@ -869,7 +1035,7 @@ export class HttpClient {
 
           // The caller gave up, or the budget is gone: retrying would keep work
           // alive that nobody is waiting for any more.
-          if (isCancellation(error)) throw error;
+          if (isCancellation(error) || streamingBody) throw error;
 
           // Backpressure is an answer, not a fault. Retrying a shed request just
           // re-queues it, which is the load the bulkhead and limiter exist to
@@ -890,14 +1056,27 @@ export class HttpClient {
 
           if (!shouldRetry) throw error;
 
-          const delayMs = retryConfig.strategy.computeDelay(attempt, error);
+          const delayMs =
+            (typeof error === 'object' && error !== null ? attemptState?.delays.get(error) : undefined) ??
+            retryConfig.strategy.computeDelay(attempt, error);
 
           // Sleeping past the deadline only to fail afterwards wastes the
           // caller's remaining budget — fail now, with the error that caused it.
           if (delayMs >= scope.remaining()) throw error;
 
+          if (typeof error === 'object' && error !== null && attemptState?.deferred.has(error)) {
+            attemptState.recoveredSocket = true;
+            attemptState.fresh = true;
+          }
           this._metrics.recordRetry();
-          this.emit('onRetry', { attempt, error, delayMs, requestId });
+          this.emit('onRetry', {
+            attempt,
+            error,
+            delayMs,
+            requestId,
+            reusedSocket: socketReuse(error),
+            remainingDeadlineMs: scope.remaining(),
+          });
           await abortableSleep(delayMs, scope.signal);
         }
       }
@@ -907,9 +1086,10 @@ export class HttpClient {
   private withCircuitBreaker<T>(
     requestFn: () => Promise<HttpClientResponse<T>>,
     circuitBreakerConfig: CircuitBreakerConfig,
+    countFailure?: (error: unknown) => boolean,
   ): () => Promise<HttpClientResponse<T>> {
     const cb = this.resolveCircuitBreaker(circuitBreakerConfig);
-    return () => cb.execute(requestFn);
+    return () => cb.execute(requestFn, countFailure);
   }
 
   /**

@@ -1,4 +1,6 @@
 import { AxiosRequestConfig } from 'axios';
+import type { RequestPolicy } from '../http-client/http.client';
 
-// eslint-disable-next-line @typescript-eslint/no-empty-interface
-export interface HttpClientRequestConfig extends AxiosRequestConfig {}
+export interface HttpClientRequestConfig extends AxiosRequestConfig {
+  policy?: RequestPolicy;
+}

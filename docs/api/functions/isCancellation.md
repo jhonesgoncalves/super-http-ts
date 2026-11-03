@@ -1,4 +1,4 @@
-[**super-http v2.0.0**](../README.md)
+[**super-http v2.1.0**](../README.md)
 
 ***
 
@@ -8,7 +8,7 @@
 
 > **isCancellation**(`error`): `boolean`
 
-Defined in: src/models/deadline.ts:34
+Defined in: [src/models/deadline.ts:34](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/models/deadline.ts#L34)
 
 `true` for errors that mean "stop", never "try again".
 

@@ -1,8 +1,15 @@
 name: Publish to npm
 
 on:
+  push:
+    tags: ['v[0-9]*']
   release:
     types: [created]
+
+# Serialize tag/release events for the same version; publication is idempotent.
+concurrency:
+  group: npm-${{ github.event.release.tag_name || github.ref_name }}
+  cancel-in-progress: false
 
 jobs:
   test:
@@ -32,6 +39,19 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+      - name: Validate release tag and check registry
+        id: package
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name || github.ref_name }}
+        run: |
+          VERSION=$(node -p 'require("./package.json").version')
+          test "$RELEASE_TAG" = "v$VERSION"
+          if npm view "super-http@$VERSION" version --registry=https://registry.npmjs.org/ 2>/dev/null | grep -qx "$VERSION"; then
+            echo "published=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "published=false" >> "$GITHUB_OUTPUT"
+          fi
       - run: npm publish
+        if: steps.package.outputs.published != 'true'
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

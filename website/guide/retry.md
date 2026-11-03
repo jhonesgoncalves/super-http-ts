@@ -224,3 +224,13 @@ Two consequences worth knowing:
 
 A request rejected by the bulkhead or the rate limiter is **not** retried —
 re-queueing shed load is the load they exist to refuse.
+
+## Reused-socket recovery (2.1)
+
+With retry configured, eligible `ECONNRESET` on a known reused connection can
+consume one existing retry using a fresh, non-pooling Agent. This does not add
+retries or bypass the deadline/rate limiter. The recoverable initial reset is
+deferred from breaker failure counting; failure of recovery counts normally.
+Use `.retry(n, strategy, { recoverReusedSocket: false })` to opt out of this
+special treatment. POST/PATCH idempotency rules still apply, and stream request
+bodies are not replayed. See [Connection lifecycle](./connection-recovery).

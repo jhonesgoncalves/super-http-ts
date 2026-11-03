@@ -1,9 +1,30 @@
 import type { AxiosRequestConfig, AxiosResponse } from 'axios';
 
+/** One failed transport attempt, which may still be recovered. */
+export interface AttemptErrorEvent {
+  error: unknown;
+  code?: string;
+  status?: number;
+  reusedSocket?: boolean;
+  requestId?: string;
+  /** One-based transport attempt number. */
+  attempt: number;
+  elapsedMs: number;
+  remainingDeadlineMs: number;
+}
+
+export interface RecoveredEvent {
+  requestId?: string;
+  attempts: number;
+  elapsedMs: number;
+}
+
 /**
  * Context passed to the `onRetry` hook.
  */
 export interface RetryEvent {
+  reusedSocket?: boolean;
+  remainingDeadlineMs?: number;
   /** Zero-based attempt index (0 = first retry). */
   attempt: number;
   /** The error that triggered the retry. */
@@ -104,6 +125,10 @@ export interface ResilienceEvents {
    * Not fired for retried errors that eventually succeed.
    */
   onError?: (error: unknown) => void;
+  /** A transport attempt failed; the logical operation may still recover. */
+  onAttemptError?: (event: AttemptErrorEvent) => void;
+  /** Successful completion after at least one retry (not fallback). */
+  onRecovered?: (event: RecoveredEvent) => void;
 
   // ─── Resilience ───────────────────────────────────────────────────────────
 

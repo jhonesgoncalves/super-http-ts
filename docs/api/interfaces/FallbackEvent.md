@@ -1,4 +1,4 @@
-[**super-http v2.0.0**](../README.md)
+[**super-http v2.1.0**](../README.md)
 
 ***
 
@@ -6,7 +6,7 @@
 
 # Interface: FallbackEvent
 
-Defined in: [src/models/resilience.events.ts:51](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/models/resilience.events.ts#L51)
+Defined in: [src/models/resilience.events.ts:72](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/models/resilience.events.ts#L72)
 
 Context passed to `onFallback`.
 
@@ -16,7 +16,7 @@ Context passed to `onFallback`.
 
 > **error**: `unknown`
 
-Defined in: [src/models/resilience.events.ts:53](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/models/resilience.events.ts#L53)
+Defined in: [src/models/resilience.events.ts:74](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/models/resilience.events.ts#L74)
 
 The original error that triggered the fallback.
 
@@ -26,6 +26,6 @@ The original error that triggered the fallback.
 
 > `optional` **requestId?**: `string`
 
-Defined in: [src/models/resilience.events.ts:55](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/models/resilience.events.ts#L55)
+Defined in: [src/models/resilience.events.ts:76](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/models/resilience.events.ts#L76)
 
 Correlation id of the request this event belongs to.

@@ -20,7 +20,7 @@ const api = HttpClientFactory.create('https://api.example.com', httpConfig, pool
 ```
 
 ::: info Same cache
-`createClient` is built on `HttpClientFactory`. Both share the same singleton cache — same `baseURL` always returns the same `HttpClient`. `HttpClientFactory.clear()` resets both.
+`createClient` is built on `HttpClientFactory`. Both share the same singleton cache — the same `baseURL` returns the same open `HttpClient` unless `isolated: true` is used. `HttpClientFactory.clear()` resets both.
 :::
 
 ---
@@ -85,3 +85,5 @@ import {
 | [`ResilienceEvents`](./resilience-events) | All observability hook interfaces |
 | [`MetricsSnapshot`](./metrics) | Built-in metrics interface |
 | [`PoolConfig`](./pool-config) | Connection pool options |
+
+Use `createClient({ baseURL, isolated: true })` or `HttpClientFactory.createIsolated()` for independent ownership.

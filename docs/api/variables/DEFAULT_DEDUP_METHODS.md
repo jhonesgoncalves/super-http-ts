@@ -1,4 +1,4 @@
-[**super-http v2.0.0**](../README.md)
+[**super-http v2.1.0**](../README.md)
 
 ***
 
@@ -8,7 +8,7 @@
 
 > `const` **DEFAULT\_DEDUP\_METHODS**: readonly `string`[]
 
-Defined in: [src/dedup/request-dedup.ts:74](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/dedup/request-dedup.ts#L74)
+Defined in: [src/dedup/request-dedup.ts:74](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/dedup/request-dedup.ts#L74)
 
 Methods eligible for coalescing unless overridden.
 

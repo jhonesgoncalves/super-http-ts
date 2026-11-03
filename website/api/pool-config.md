@@ -4,6 +4,10 @@ Options for the underlying `http.Agent` / `https.Agent` connection pool.
 
 ```typescript
 interface PoolConfig {
+  freeSocketTimeoutMs?: number
+  maxSocketAgeMs?: number
+  keepAliveTimeoutBufferMs?: number
+  scheduling?: 'lifo' | 'fifo'
   maxSockets?: number
   maxFreeSockets?: number
   keepAlive?: boolean
@@ -69,10 +73,9 @@ all backoff), use [`client.deadline(ms)`](../guide/deadlines).
 - **Type:** `number`
 - **Default:** same as `timeout`
 
-Socket inactivity timeout passed to the agent itself. Without it, a connection
-silently dropped by a NAT or firewall is only noticed by the response timeout.
-Node's `http.Agent` exposes no separate connect timeout, so inactivity covers a
-stuck connect too.
+Native socket inactivity timeout passed to the Agent. Active requests also use
+Axios timeout/cancellation; this is not a separate connect-timeout guarantee.
+Use `freeSocketTimeoutMs` for an idle-only cap and a total deadline for the call.
 
 ### `maxContentLength`
 
@@ -105,3 +108,14 @@ const client = HttpClientFactory.create('https://api.example.com', {}, {
   socketTimeoutMs: 15_000,
 })
 ```
+
+## Idle retirement (2.1)
+
+`freeSocketTimeoutMs` caps idle time only; omitted preserves the native timeout,
+and `0` disables this additional cap. `maxSocketAgeMs` retires aged sockets when
+they become idle. `keepAliveTimeoutBufferMs` subtracts a margin from server hints
+(default 1000 ms). A stricter native protection is never weakened. `scheduling`
+defaults to `lifo`. These options do not interrupt active requests.
+
+See [Connection lifecycle](../guide/connection-recovery) for defaults, limits and
+the distinction between Axios timeout, Agent inactivity and total deadline.

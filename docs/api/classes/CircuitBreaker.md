@@ -1,4 +1,4 @@
-[**super-http v2.0.0**](../README.md)
+[**super-http v2.1.0**](../README.md)
 
 ***
 
@@ -6,7 +6,7 @@
 
 # Class: CircuitBreaker
 
-Defined in: [src/circuit-breaker/circuit-break.ts:70](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/circuit-breaker/circuit-break.ts#L70)
+Defined in: [src/circuit-breaker/circuit-break.ts:70](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/circuit-breaker/circuit-break.ts#L70)
 
 A three-state circuit breaker (closed → open → half-open).
 
@@ -48,7 +48,7 @@ const response = await cb.execute(() => axios.get('/api/data'));
 
 > **get** **isConfigured**(): `boolean`
 
-Defined in: [src/circuit-breaker/circuit-break.ts:111](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/circuit-breaker/circuit-break.ts#L111)
+Defined in: [src/circuit-breaker/circuit-break.ts:111](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/circuit-breaker/circuit-break.ts#L111)
 
 `true` when this breaker has never been configured.
 
@@ -64,7 +64,7 @@ Defined in: [src/circuit-breaker/circuit-break.ts:111](https://github.com/jhones
 
 > **get** **isOpen**(): `boolean`
 
-Defined in: [src/circuit-breaker/circuit-break.ts:85](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/circuit-breaker/circuit-break.ts#L85)
+Defined in: [src/circuit-breaker/circuit-break.ts:85](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/circuit-breaker/circuit-break.ts#L85)
 
 `true` when the circuit is open (tripped).
 
@@ -80,7 +80,7 @@ Defined in: [src/circuit-breaker/circuit-break.ts:85](https://github.com/jhonesg
 
 > **get** **state**(): [`CircuitState`](../type-aliases/CircuitState.md)
 
-Defined in: [src/circuit-breaker/circuit-break.ts:80](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/circuit-breaker/circuit-break.ts#L80)
+Defined in: [src/circuit-breaker/circuit-break.ts:80](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/circuit-breaker/circuit-break.ts#L80)
 
 Current circuit state.
 
@@ -92,9 +92,9 @@ Current circuit state.
 
 ### execute()
 
-> **execute**\<`T`\>(`fn`): `Promise`\<`T`\>
+> **execute**\<`T`\>(`fn`, `countFailure?`): `Promise`\<`T`\>
 
-Defined in: [src/circuit-breaker/circuit-break.ts:122](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/circuit-breaker/circuit-break.ts#L122)
+Defined in: [src/circuit-breaker/circuit-break.ts:122](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/circuit-breaker/circuit-break.ts#L122)
 
 Wraps an async function with circuit-breaker protection.
 
@@ -109,6 +109,10 @@ Wraps an async function with circuit-breaker protection.
 ##### fn
 
 () => `Promise`\<`T`\>
+
+##### countFailure?
+
+(`error`) => `boolean`
 
 #### Returns
 
@@ -126,7 +130,7 @@ Wraps an async function with circuit-breaker protection.
 
 > **handleIsOpen**(): `boolean`
 
-Defined in: [src/circuit-breaker/circuit-break.ts:158](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/circuit-breaker/circuit-break.ts#L158)
+Defined in: [src/circuit-breaker/circuit-break.ts:158](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/circuit-breaker/circuit-break.ts#L158)
 
 Guard check: throws if the circuit is open and timeout has not elapsed.
 Returns `false` when the circuit is closed (safe to proceed).
@@ -141,7 +145,7 @@ Returns `false` when the circuit is closed (safe to proceed).
 
 > **setConfig**(`config`, `events?`): `void`
 
-Defined in: [src/circuit-breaker/circuit-break.ts:99](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/circuit-breaker/circuit-break.ts#L99)
+Defined in: [src/circuit-breaker/circuit-break.ts:99](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/circuit-breaker/circuit-break.ts#L99)
 
 Sets or updates the circuit breaker configuration and optional event hooks.
 

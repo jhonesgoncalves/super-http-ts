@@ -1,4 +1,4 @@
-[**super-http v2.0.0**](../README.md)
+[**super-http v2.1.0**](../README.md)
 
 ***
 
@@ -6,7 +6,7 @@
 
 # Interface: ResilienceEvents
 
-Defined in: [src/models/resilience.events.ts:87](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/models/resilience.events.ts#L87)
+Defined in: [src/models/resilience.events.ts:108](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/models/resilience.events.ts#L108)
 
 Observability and lifecycle hooks.
 
@@ -27,11 +27,31 @@ client.on({
 
 ## Properties
 
+### onAttemptError?
+
+> `optional` **onAttemptError?**: (`event`) => `void`
+
+Defined in: [src/models/resilience.events.ts:129](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/models/resilience.events.ts#L129)
+
+A transport attempt failed; the logical operation may still recover.
+
+#### Parameters
+
+##### event
+
+[`AttemptErrorEvent`](AttemptErrorEvent.md)
+
+#### Returns
+
+`void`
+
+***
+
 ### onBulkheadReject?
 
 > `optional` **onBulkheadReject?**: (`event`) => `void`
 
-Defined in: [src/models/resilience.events.ts:117](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/models/resilience.events.ts#L117)
+Defined in: [src/models/resilience.events.ts:142](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/models/resilience.events.ts#L142)
 
 Fired when a request is rejected by the bulkhead.
 
@@ -51,7 +71,7 @@ Fired when a request is rejected by the bulkhead.
 
 > `optional` **onCircuitStateChange?**: (`event`) => `void`
 
-Defined in: [src/models/resilience.events.ts:114](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/models/resilience.events.ts#L114)
+Defined in: [src/models/resilience.events.ts:139](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/models/resilience.events.ts#L139)
 
 Fired whenever the circuit breaker transitions between states.
 
@@ -71,7 +91,7 @@ Fired whenever the circuit breaker transitions between states.
 
 > `optional` **onError?**: (`error`) => `void`
 
-Defined in: [src/models/resilience.events.ts:106](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/models/resilience.events.ts#L106)
+Defined in: [src/models/resilience.events.ts:127](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/models/resilience.events.ts#L127)
 
 Fired when a request ultimately fails (after retries, if configured).
 Not fired for retried errors that eventually succeed.
@@ -92,7 +112,7 @@ Not fired for retried errors that eventually succeed.
 
 > `optional` **onFallback?**: (`event`) => `void`
 
-Defined in: [src/models/resilience.events.ts:120](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/models/resilience.events.ts#L120)
+Defined in: [src/models/resilience.events.ts:145](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/models/resilience.events.ts#L145)
 
 Fired when the fallback handler is invoked.
 
@@ -112,7 +132,7 @@ Fired when the fallback handler is invoked.
 
 > `optional` **onRateLimitReject?**: (`event`) => `void`
 
-Defined in: [src/models/resilience.events.ts:123](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/models/resilience.events.ts#L123)
+Defined in: [src/models/resilience.events.ts:148](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/models/resilience.events.ts#L148)
 
 Fired when a request is rejected by the rate limiter.
 
@@ -128,11 +148,31 @@ Fired when a request is rejected by the rate limiter.
 
 ***
 
+### onRecovered?
+
+> `optional` **onRecovered?**: (`event`) => `void`
+
+Defined in: [src/models/resilience.events.ts:131](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/models/resilience.events.ts#L131)
+
+Successful completion after at least one retry (not fallback).
+
+#### Parameters
+
+##### event
+
+[`RecoveredEvent`](RecoveredEvent.md)
+
+#### Returns
+
+`void`
+
+***
+
 ### onRequest?
 
 > `optional` **onRequest?**: (`config`) => `void`
 
-Defined in: [src/models/resilience.events.ts:94](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/models/resilience.events.ts#L94)
+Defined in: [src/models/resilience.events.ts:115](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/models/resilience.events.ts#L115)
 
 Fired just before every HTTP request is sent (after all policies are applied).
 Use for logging, tracing, or header injection.
@@ -153,7 +193,7 @@ Use for logging, tracing, or header injection.
 
 > `optional` **onResponse?**: (`response`) => `void`
 
-Defined in: [src/models/resilience.events.ts:100](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/models/resilience.events.ts#L100)
+Defined in: [src/models/resilience.events.ts:121](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/models/resilience.events.ts#L121)
 
 Fired when a successful response is received.
 Note: called before the response reaches the caller.
@@ -174,7 +214,7 @@ Note: called before the response reaches the caller.
 
 > `optional` **onRetry?**: (`event`) => `void`
 
-Defined in: [src/models/resilience.events.ts:111](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/models/resilience.events.ts#L111)
+Defined in: [src/models/resilience.events.ts:136](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/models/resilience.events.ts#L136)
 
 Fired before each retry attempt.
 

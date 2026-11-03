@@ -6,7 +6,7 @@ super-http provides three layers of observability out of the box: lifecycle hook
 
 ## Lifecycle hooks
 
-Fire on every HTTP request, regardless of resilience policies:
+Observe individual transport attempts separately from the final logical outcome:
 
 ```typescript
 client.on({
@@ -20,7 +20,9 @@ client.on({
 |---|---|
 | `onRequest` | Just before the HTTP call (after all policies) |
 | `onResponse` | On successful response |
-| `onError` | When a request ultimately fails (after retries) |
+| `onError` | Once when the logical call rejects, after retries and fallback |
+| `onAttemptError` | A failed transport attempt, even if a retry later succeeds |
+| `onRecovered` | Successful logical call after more than one transport attempt |
 
 ---
 
@@ -187,3 +189,9 @@ Plugins may define `uninstall()` to release timers and listeners; `client.close(
 calls it. `MetricsReporterPlugin` uses it to clear its interval.
 
 See the [Plugins guide](./plugins) for writing custom plugins for OTel, Datadog, etc.
+
+## Connection recovery diagnostics (2.1)
+
+See [Connection lifecycle](./connection-recovery#observe-attempts-and-final-outcomes-separately)
+for the structured attempt event, reset classification, pool state, failed-call
+latency and migration from attempt-level `onError` logging.

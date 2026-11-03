@@ -1,4 +1,4 @@
-[**super-http v2.0.0**](../README.md)
+[**super-http v2.1.0**](../README.md)
 
 ***
 
@@ -6,7 +6,7 @@
 
 # Interface: RequestPolicy
 
-Defined in: [src/http-client/http.client.ts:64](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/http-client/http.client.ts#L64)
+Defined in: [src/http-client/http.client.ts:74](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/http-client/http.client.ts#L74)
 
 Per-request policy that overrides the client-level resilience config
 for a single request.
@@ -31,7 +31,7 @@ await client.get('/recommendations', {
 
 > `optional` **circuitBreaker?**: `false` \| `Partial`\<[`CircuitBreakerConfig`](CircuitBreakerConfig.md)\>
 
-Defined in: [src/http-client/http.client.ts:76](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/http-client/http.client.ts#L76)
+Defined in: [src/http-client/http.client.ts:94](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/http-client/http.client.ts#L94)
 
 Override circuit breaker for this request only.
 Pass `false` to bypass the circuit breaker even if one is configured.
@@ -42,7 +42,7 @@ Pass `false` to bypass the circuit breaker even if one is configured.
 
 > `optional` **deadlineMs?**: `number`
 
-Defined in: [src/http-client/http.client.ts:96](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/http-client/http.client.ts#L96)
+Defined in: [src/http-client/http.client.ts:114](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/http-client/http.client.ts#L114)
 
 Upper bound (ms) on the **total** time this call may take: rate-limit wait
 plus bulkhead wait plus every attempt plus every backoff.
@@ -56,7 +56,7 @@ with retries and queueing has no limit the caller can state.
 
 > `optional` **fallback?**: (`error`) => `unknown`
 
-Defined in: [src/http-client/http.client.ts:81](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/http-client/http.client.ts#L81)
+Defined in: [src/http-client/http.client.ts:99](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/http-client/http.client.ts#L99)
 
 Override fallback for this request only.
 If set, this replaces the client-level fallback (if any).
@@ -75,9 +75,9 @@ If set, this replaces the client-level fallback (if any).
 
 ### retry?
 
-> `optional` **retry?**: `false` \| \{ `attempts`: `number`; `delayMs?`: `number`; `retryNonIdempotent?`: `boolean`; `retryOn?`: `number`[]; \}
+> `optional` **retry?**: `false` \| \{ `attempts`: `number`; `delayMs?`: `number`; `recoverReusedSocket?`: `boolean`; `retryNonIdempotent?`: `boolean`; `retryOn?`: `number`[]; \}
 
-Defined in: [src/http-client/http.client.ts:71](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/http-client/http.client.ts#L71)
+Defined in: [src/http-client/http.client.ts:81](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/http-client/http.client.ts#L81)
 
 Override retry config for this request only.
 Pass `false` to disable retry even if the client has one configured.
@@ -88,7 +88,7 @@ Pass `false` to disable retry even if the client has one configured.
 
 > `optional` **signal?**: `AbortSignal`
 
-Defined in: [src/http-client/http.client.ts:87](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/http-client/http.client.ts#L87)
+Defined in: [src/http-client/http.client.ts:105](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/http-client/http.client.ts#L105)
 
 Cancels the whole call — queue waits, retry backoff and the in-flight
 request alike, not just the socket.
@@ -99,6 +99,6 @@ request alike, not just the socket.
 
 > `optional` **timeout?**: `number`
 
-Defined in: [src/http-client/http.client.ts:66](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/http-client/http.client.ts#L66)
+Defined in: [src/http-client/http.client.ts:76](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/http-client/http.client.ts#L76)
 
 Override the request timeout (ms) for this request only.

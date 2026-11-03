@@ -14,6 +14,8 @@ import { ResilienceEvents } from 'super-http'
 interface ResilienceEvents {
   onRequest?:            (config: AxiosRequestConfig)     => void
   onResponse?:           (response: AxiosResponse)        => void
+  onAttemptError?:       (event: AttemptErrorEvent)      => void
+  onRecovered?:          (event: RecoveredEvent)         => void
   onError?:              (error: unknown)                 => void
   onRetry?:              (event: RetryEvent)              => void
   onCircuitStateChange?: (event: CircuitStateChangeEvent) => void
@@ -103,3 +105,13 @@ client.on({
 // Calling .on() again merges (last write wins per key)
 client.on({ onFallback: ({ error }) => console.error(error) })
 ```
+
+## Attempt and recovery events (2.1)
+
+`AttemptErrorEvent` contains `error`, optional `code`, `status`, `reusedSocket`,
+`requestId`, one-based `attempt`, `elapsedMs` and `remainingDeadlineMs`.
+`RecoveredEvent` contains optional `requestId`, `attempts` and `elapsedMs`.
+`RetryEvent` additionally exposes optional `reusedSocket` and `remainingDeadlineMs`.
+
+`onError` fires once after the logical operation rejects; a successful fallback
+uses `onFallback` and does not emit `onError` or `onRecovered`.

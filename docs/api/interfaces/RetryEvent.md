@@ -1,4 +1,4 @@
-[**super-http v2.0.0**](../README.md)
+[**super-http v2.1.0**](../README.md)
 
 ***
 
@@ -6,7 +6,7 @@
 
 # Interface: RetryEvent
 
-Defined in: [src/models/resilience.events.ts:6](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/models/resilience.events.ts#L6)
+Defined in: [src/models/resilience.events.ts:25](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/models/resilience.events.ts#L25)
 
 Context passed to the `onRetry` hook.
 
@@ -16,7 +16,7 @@ Context passed to the `onRetry` hook.
 
 > **attempt**: `number`
 
-Defined in: [src/models/resilience.events.ts:8](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/models/resilience.events.ts#L8)
+Defined in: [src/models/resilience.events.ts:29](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/models/resilience.events.ts#L29)
 
 Zero-based attempt index (0 = first retry).
 
@@ -26,7 +26,7 @@ Zero-based attempt index (0 = first retry).
 
 > **delayMs**: `number`
 
-Defined in: [src/models/resilience.events.ts:12](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/models/resilience.events.ts#L12)
+Defined in: [src/models/resilience.events.ts:33](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/models/resilience.events.ts#L33)
 
 Delay that will be waited before the next attempt (ms).
 
@@ -36,9 +36,17 @@ Delay that will be waited before the next attempt (ms).
 
 > **error**: `unknown`
 
-Defined in: [src/models/resilience.events.ts:10](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/models/resilience.events.ts#L10)
+Defined in: [src/models/resilience.events.ts:31](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/models/resilience.events.ts#L31)
 
 The error that triggered the retry.
+
+***
+
+### remainingDeadlineMs?
+
+> `optional` **remainingDeadlineMs?**: `number`
+
+Defined in: [src/models/resilience.events.ts:27](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/models/resilience.events.ts#L27)
 
 ***
 
@@ -46,10 +54,18 @@ The error that triggered the retry.
 
 > `optional` **requestId?**: `string`
 
-Defined in: [src/models/resilience.events.ts:20](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/models/resilience.events.ts#L20)
+Defined in: [src/models/resilience.events.ts:41](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/models/resilience.events.ts#L41)
 
 Correlation id of the request this retry belongs to.
 
 Without it these events are anonymous: a retry log line cannot be tied back
 to the request that produced it, which is exactly what you need during an
 incident.
+
+***
+
+### reusedSocket?
+
+> `optional` **reusedSocket?**: `boolean`
+
+Defined in: [src/models/resilience.events.ts:26](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/models/resilience.events.ts#L26)

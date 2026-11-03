@@ -1,4 +1,4 @@
-[**super-http v2.0.0**](../README.md)
+[**super-http v2.1.0**](../README.md)
 
 ***
 
@@ -6,7 +6,7 @@
 
 # Interface: MetricsSnapshot
 
-Defined in: [src/models/metrics.ts:8](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/models/metrics.ts#L8)
+Defined in: [src/models/metrics.ts:8](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/models/metrics.ts#L8)
 
 Runtime metrics snapshot for a single [HttpClient](../classes/HttpClient.md) instance.
 
@@ -16,11 +16,27 @@ All counters accumulate since the client was created (or since the last
 
 ## Properties
 
+### attemptErrors
+
+> **attemptErrors**: `number`
+
+Defined in: [src/models/metrics.ts:10](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/models/metrics.ts#L10)
+
+***
+
+### avgFailedLatency
+
+> **avgFailedLatency**: `number`
+
+Defined in: [src/models/metrics.ts:14](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/models/metrics.ts#L14)
+
+***
+
 ### avgLatency
 
 > **avgLatency**: `number`
 
-Defined in: [src/models/metrics.ts:26](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/models/metrics.ts#L26)
+Defined in: [src/models/metrics.ts:32](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/models/metrics.ts#L32)
 
 Average response latency in ms across **all** successful requests.
 
@@ -30,7 +46,7 @@ Average response latency in ms across **all** successful requests.
 
 > **bulkheadRejects**: `number`
 
-Defined in: [src/models/metrics.ts:20](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/models/metrics.ts#L20)
+Defined in: [src/models/metrics.ts:26](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/models/metrics.ts#L26)
 
 Requests rejected by the bulkhead (queue full).
 
@@ -40,7 +56,7 @@ Requests rejected by the bulkhead (queue full).
 
 > **circuitBreakerTrips**: `number`
 
-Defined in: [src/models/metrics.ts:18](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/models/metrics.ts#L18)
+Defined in: [src/models/metrics.ts:24](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/models/metrics.ts#L24)
 
 Number of times the circuit breaker transitioned to `open`.
 
@@ -50,7 +66,7 @@ Number of times the circuit breaker transitioned to `open`.
 
 > **failed**: `number`
 
-Defined in: [src/models/metrics.ts:14](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/models/metrics.ts#L14)
+Defined in: [src/models/metrics.ts:20](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/models/metrics.ts#L20)
 
 Requests that ultimately failed (after all retry attempts).
 
@@ -60,9 +76,17 @@ Requests that ultimately failed (after all retry attempts).
 
 > **fallbacks**: `number`
 
-Defined in: [src/models/metrics.ts:24](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/models/metrics.ts#L24)
+Defined in: [src/models/metrics.ts:30](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/models/metrics.ts#L30)
 
 Number of times the fallback handler was invoked.
+
+***
+
+### newSocketResets
+
+> **newSocketResets**: `number`
+
+Defined in: [src/models/metrics.ts:12](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/models/metrics.ts#L12)
 
 ***
 
@@ -70,7 +94,7 @@ Number of times the fallback handler was invoked.
 
 > **p50Latency**: `number`
 
-Defined in: [src/models/metrics.ts:34](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/models/metrics.ts#L34)
+Defined in: [src/models/metrics.ts:40](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/models/metrics.ts#L40)
 
 Median (p50) response latency in ms.
 
@@ -84,7 +108,7 @@ so they track current behaviour rather than the process lifetime.
 
 > **p95Latency**: `number`
 
-Defined in: [src/models/metrics.ts:36](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/models/metrics.ts#L36)
+Defined in: [src/models/metrics.ts:42](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/models/metrics.ts#L42)
 
 95th-percentile response latency in ms, over the recent-request window.
 
@@ -94,7 +118,7 @@ Defined in: [src/models/metrics.ts:36](https://github.com/jhonesgoncalves/super-
 
 > **p99Latency**: `number`
 
-Defined in: [src/models/metrics.ts:38](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/models/metrics.ts#L38)
+Defined in: [src/models/metrics.ts:44](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/models/metrics.ts#L44)
 
 99th-percentile response latency in ms, over the recent-request window.
 
@@ -104,9 +128,17 @@ Defined in: [src/models/metrics.ts:38](https://github.com/jhonesgoncalves/super-
 
 > **rateLimitRejects**: `number`
 
-Defined in: [src/models/metrics.ts:22](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/models/metrics.ts#L22)
+Defined in: [src/models/metrics.ts:28](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/models/metrics.ts#L28)
 
 Requests rejected by the rate limiter.
+
+***
+
+### recovered
+
+> **recovered**: `number`
+
+Defined in: [src/models/metrics.ts:9](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/models/metrics.ts#L9)
 
 ***
 
@@ -114,7 +146,7 @@ Requests rejected by the rate limiter.
 
 > **requests**: `number`
 
-Defined in: [src/models/metrics.ts:10](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/models/metrics.ts#L10)
+Defined in: [src/models/metrics.ts:16](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/models/metrics.ts#L16)
 
 Total logical requests dispatched (retried attempts are counted in `retries`).
 
@@ -124,9 +156,17 @@ Total logical requests dispatched (retried attempts are counted in `retries`).
 
 > **retries**: `number`
 
-Defined in: [src/models/metrics.ts:16](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/models/metrics.ts#L16)
+Defined in: [src/models/metrics.ts:22](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/models/metrics.ts#L22)
 
 Number of retry attempts fired across all requests.
+
+***
+
+### reusedSocketResets
+
+> **reusedSocketResets**: `number`
+
+Defined in: [src/models/metrics.ts:11](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/models/metrics.ts#L11)
 
 ***
 
@@ -134,9 +174,17 @@ Number of retry attempts fired across all requests.
 
 > **success**: `number`
 
-Defined in: [src/models/metrics.ts:12](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/models/metrics.ts#L12)
+Defined in: [src/models/metrics.ts:18](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/models/metrics.ts#L18)
 
 Requests that completed with a 2xx / non-error response.
+
+***
+
+### unknownSocketResets
+
+> **unknownSocketResets**: `number`
+
+Defined in: [src/models/metrics.ts:13](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/models/metrics.ts#L13)
 
 ***
 
@@ -144,6 +192,6 @@ Requests that completed with a 2xx / non-error response.
 
 > **uptime**: `number`
 
-Defined in: [src/models/metrics.ts:40](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/models/metrics.ts#L40)
+Defined in: [src/models/metrics.ts:46](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/models/metrics.ts#L46)
 
 Milliseconds since the client was created (or since the last reset).

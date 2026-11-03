@@ -1,4 +1,4 @@
-[**super-http v2.0.0**](../README.md)
+[**super-http v2.1.0**](../README.md)
 
 ***
 
@@ -6,7 +6,7 @@
 
 # Interface: RateLimitRejectEvent
 
-Defined in: [src/models/resilience.events.ts:61](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/models/resilience.events.ts#L61)
+Defined in: [src/models/resilience.events.ts:82](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/models/resilience.events.ts#L82)
 
 Context passed to `onRateLimitReject`.
 
@@ -16,7 +16,7 @@ Context passed to `onRateLimitReject`.
 
 > **permitLimit**: `number`
 
-Defined in: [src/models/resilience.events.ts:63](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/models/resilience.events.ts#L63)
+Defined in: [src/models/resilience.events.ts:84](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/models/resilience.events.ts#L84)
 
 Configured request limit for the window.
 
@@ -26,7 +26,7 @@ Configured request limit for the window.
 
 > `optional` **requestId?**: `string`
 
-Defined in: [src/models/resilience.events.ts:67](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/models/resilience.events.ts#L67)
+Defined in: [src/models/resilience.events.ts:88](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/models/resilience.events.ts#L88)
 
 Correlation id of the request this event belongs to.
 
@@ -36,6 +36,6 @@ Correlation id of the request this event belongs to.
 
 > **windowMs**: `number`
 
-Defined in: [src/models/resilience.events.ts:65](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/models/resilience.events.ts#L65)
+Defined in: [src/models/resilience.events.ts:86](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/models/resilience.events.ts#L86)
 
 Window size in ms.

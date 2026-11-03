@@ -119,7 +119,7 @@ export class CircuitBreaker {
    *   the timeout has not elapsed, or when the circuit is half-open and a
    *   probe request is already in flight.
    */
-  async execute<T>(fn: () => Promise<T>): Promise<T> {
+  async execute<T>(fn: () => Promise<T>, countFailure?: (error: unknown) => boolean): Promise<T> {
     if (this._state === 'open') {
       if (this.shouldAttemptReset()) {
         this.transitionTo('half-open');
@@ -144,7 +144,7 @@ export class CircuitBreaker {
       // An error the predicate rejects says nothing about upstream health, so it
       // moves neither counter — in half-open it leaves the circuit half-open for
       // the next real probe rather than closing or re-opening on a client error.
-      if (this.countsAsFailure(error)) this.handleFailure();
+      if ((countFailure?.(error) ?? true) && this.countsAsFailure(error)) this.handleFailure();
       throw error;
     } finally {
       if (isProbe) this.probeInFlight = false;

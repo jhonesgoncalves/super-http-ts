@@ -59,17 +59,21 @@ Passed as `pool` in `createClient`, or as the third argument in `HttpClientFacto
 
 | Option | Type | Default | Description |
 |---|---|---|---|
+| `freeSocketTimeoutMs` | `number` | unset | Additional idle-only socket timeout; 0 disables the extra cap |
+| `maxSocketAgeMs` | `number` | unset | Retire aged sockets on idle |
+| `keepAliveTimeoutBufferMs` | `number` | `1000` | Margin below the server timeout hint |
+| `scheduling` | `lifo / fifo` | `lifo` | Free socket selection strategy |
 | `maxSockets` | `number` | `200` | Max concurrent sockets per host (≥ 1) |
 | `maxFreeSockets` | `number` | `50` | Max idle keep-alive sockets |
 | `keepAlive` | `boolean` | `true` | Enable TCP keep-alive |
-| `keepAliveMsecs` | `number` | `1000` | Keep-alive probe interval (ms) |
+| `keepAliveMsecs` | `number` | `1000` | Initial TCP keep-alive probe delay (ms) |
 | `timeout` | `number` | `30000` | Response timeout (ms) |
 | `socketTimeoutMs` | `number` | = `timeout` | Socket inactivity timeout on the agent |
 | `maxContentLength` | `number` | `33554432` | Max response body accepted (bytes) |
 | `maxBodyLength` | `number` | `33554432` | Max request body sent (bytes) |
 
 ```typescript
-createClient('https://api.example.com', {}, {
+HttpClientFactory.create('https://api.example.com', {}, {
   maxSockets: 200,
   maxFreeSockets: 50,
   keepAlive: true,
@@ -80,8 +84,9 @@ createClient('https://api.example.com', {}, {
 ```
 
 `timeout` is the axios response timeout. `socketTimeoutMs` reaches the agent and
-bounds socket inactivity — that is what catches a connection silently dropped by a
-NAT or firewall. Body limits default to 32 MiB, where axios itself is unlimited.
+sets native socket inactivity. Use `freeSocketTimeoutMs` for idle-only retirement
+and a deadline for the whole call. Body limits default to 32 MiB.
+See [Connection recovery](./connection-recovery) for the complete 2.1 policy.
 
 ---
 

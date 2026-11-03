@@ -160,6 +160,7 @@ export class RateLimiter {
 
       if (opts.signal) {
         if (opts.signal.aborted) {
+          drop();
           reject(toError(opts.signal.reason));
           return;
         }

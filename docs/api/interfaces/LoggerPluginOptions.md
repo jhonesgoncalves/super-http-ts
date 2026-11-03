@@ -1,4 +1,4 @@
-[**super-http v2.0.0**](../README.md)
+[**super-http v2.1.0**](../README.md)
 
 ***
 
@@ -6,7 +6,7 @@
 
 # Interface: LoggerPluginOptions
 
-Defined in: [src/plugins/index.ts:39](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/plugins/index.ts#L39)
+Defined in: [src/plugins/index.ts:39](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/plugins/index.ts#L39)
 
 ## Properties
 
@@ -14,7 +14,7 @@ Defined in: [src/plugins/index.ts:39](https://github.com/jhonesgoncalves/super-h
 
 > `optional` **level?**: `"debug"` \| `"info"` \| `"warn"` \| `"error"`
 
-Defined in: [src/plugins/index.ts:44](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/plugins/index.ts#L44)
+Defined in: [src/plugins/index.ts:44](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/plugins/index.ts#L44)
 
 Log level — maps to `console.debug`, `console.log`, `console.warn`, `console.error`.
 
@@ -30,7 +30,7 @@ Log level — maps to `console.debug`, `console.log`, `console.warn`, `console.e
 
 > `optional` **logRequests?**: `boolean`
 
-Defined in: [src/plugins/index.ts:48](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/plugins/index.ts#L48)
+Defined in: [src/plugins/index.ts:48](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/plugins/index.ts#L48)
 
 Log request lines.
 
@@ -46,7 +46,7 @@ true
 
 > `optional` **logResilience?**: `boolean`
 
-Defined in: [src/plugins/index.ts:52](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/plugins/index.ts#L52)
+Defined in: [src/plugins/index.ts:52](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/plugins/index.ts#L52)
 
 Log resilience events (retry, CB, etc.).
 
@@ -62,7 +62,7 @@ true
 
 > `optional` **logResponses?**: `boolean`
 
-Defined in: [src/plugins/index.ts:50](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/plugins/index.ts#L50)
+Defined in: [src/plugins/index.ts:50](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/plugins/index.ts#L50)
 
 Log response lines.
 
@@ -78,7 +78,7 @@ true
 
 > `optional` **prefix?**: `string`
 
-Defined in: [src/plugins/index.ts:46](https://github.com/jhonesgoncalves/super-http-ts/blob/df39290716f9e9c40e4da356234807897cab679c/src/plugins/index.ts#L46)
+Defined in: [src/plugins/index.ts:46](https://github.com/jhonesgoncalves/super-http-ts/blob/v2.1.0/src/plugins/index.ts#L46)
 
 Optional prefix for all log lines.
 

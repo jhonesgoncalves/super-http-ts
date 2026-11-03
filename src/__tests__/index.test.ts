@@ -690,14 +690,16 @@ describe('Lifecycle hooks — fired during requests', () => {
     expect(result).toBe(fakeResponse);
   });
 
-  it('fires onError hook via response error interceptor', async () => {
-    const onError = jest.fn();
+  it('fires an attempt event and a single final event for a failed logical request', async () => {
+    const onError = jest.fn(),
+      onAttemptError = jest.fn();
     const client = new HttpClient('https://api.example.com');
-    client.on({ onError });
-    const [, errHandler] = responseHandlers[responseHandlers.length - 1];
+    client.on({ onError, onAttemptError });
     const fakeError = new Error('network error');
-    await (errHandler(fakeError) as Promise<unknown>).catch(() => {});
-    expect(onError).toHaveBeenCalledWith(fakeError);
+    mockAxiosInstance.request.mockRejectedValueOnce(fakeError);
+    await expect(client.get('/test')).rejects.toThrow('network error');
+    expect(onAttemptError).toHaveBeenCalledWith(expect.objectContaining({ error: fakeError, attempt: 1 }));
+    expect(onError).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -1490,9 +1492,11 @@ describe('Bulkhead — bounded waiting', () => {
   it('still rejects past maxQueue', async () => {
     const bh = new Bulkhead({ maxConcurrent: 1, maxQueue: 1, queueTimeoutMs: 60_000 });
     void bh.execute(never);
-    const first = bh.execute(() => Promise.resolve('x')).catch(() => 'gone');
+    const controller = new AbortController();
+    const first = bh.execute(() => Promise.resolve('x'), { signal: controller.signal }).catch(() => 'gone');
     await expect(bh.execute(() => Promise.resolve('y'))).rejects.toThrow('Bulkhead queue full');
-    void first;
+    controller.abort();
+    await first;
   });
 });
 
@@ -1569,8 +1573,10 @@ describe('RateLimiter — bounded queue', () => {
     const rl = new RateLimiter({ permitLimit: 1, windowMs: 600_000, queueRequests: true, queueTimeoutMs: 60_000 });
     expect(rl.queuedCount).toBe(0);
     await rl.acquire();
-    const q = rl.acquire().catch(() => 'gone');
+    const controller = new AbortController();
+    const q = rl.acquire({ signal: controller.signal }).catch(() => 'gone');
     expect(rl.queuedCount).toBe(1);
-    void q;
+    controller.abort();
+    await q;
   });
 });

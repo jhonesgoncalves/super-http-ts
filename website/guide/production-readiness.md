@@ -31,14 +31,15 @@ average throughput — it is headroom for when latency degrades. If your p99 goe
 2 s, the same 58 rps wants ~116 sockets.
 
 - Compute the steady-state figure, then size for your worst plausible latency
-- If you see `ECONNRESET` bursts, increase `maxFreeSockets`
+- For `ECONNRESET` bursts, inspect socket reuse, idle timeouts and recovery;
+  increasing the idle pool alone does not address stale connections.
 - `client.state()` reports live in-flight counts when a bulkhead is configured
 
 **`timeout` vs `socketTimeoutMs`.** `timeout` is the axios response timeout — how
 long to wait for an answer. `socketTimeoutMs` goes to the agent and bounds socket
-inactivity, which is what catches a connection silently dropped by a NAT or
-firewall. Node's agent exposes no separate connect timeout, so inactivity covers
-that case too.
+inactivity. Active requests also have Axios timeout/cancellation; this is not a
+separate connect-timeout guarantee. Configure `freeSocketTimeoutMs` for idle
+retirement and a total deadline. See [Connection recovery](./connection-recovery).
 
 ::: tip New in 2.0
 `maxContentLength` and `maxBodyLength` default to 32 MiB. Axios itself defaults to
